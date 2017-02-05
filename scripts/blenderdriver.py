@@ -3,24 +3,16 @@
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 """Script to start Blender and Blender Driver.
 
-This script:
-
--   Finds the Blender executable in one of a number of locations.
--   Looks for a terminal program, currently supports xterm and gnome-terminal.
-    If there is a terminal program, then it will be used to launch Blender so
-    that the console output appears there. Otherwise Blender console output
-    appears wherever this script was run.
--   Starts Blender with command line parameters that causes it to execute the
-    Blender Driver launch script: launch_blender_driver.py
--   Sets the geometries of the terminal and Blender windows, based on the size
-    of the screen.
+This script starts Blender with command line parameters that causes it to
+execute the Blender Driver launch script: blender_driver/launch.py
 
 This could have been a shell or Perl script, but Blender itself is scripted in
 Python. Making this also be Python reduces the number of technologies in
-play.
+play. This script could be run by Python 2 or 3, depending on what the system
+has. Supported versions of Blender all embed Python 3.
 
-The script uses the __name__ == "main" idiom, so it could be run from another
-script like:
+The script uses the __name__ == "main" idiom, so it can be imported and run
+from another script like:
 
     # myblenderdriver.py
 
@@ -31,7 +23,9 @@ script like:
          + ["--add", "switches", "-I", "always want here"]
          + sys.argv[1:])
 
-See also https://blender.org
+See also the following.
+-   https://blender.org
+-   https://github.com/sjjhsjjh/blender-driver
 """
 
 # Standard library imports, in alphabetic order.
@@ -80,21 +74,36 @@ class Main(object):
         # this script.
         self._argumentParser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            description=textwrap.dedent(__doc__),
-            epilog="Switches for the launcher can be included.")
+            description=textwrap.dedent(__doc__), epilog=
+            "Switches for the Blender Driver launch script can be included."
+            " Run blender_driver/launch.py --help.")
         #
         # Add all the command line switch definitions.
         self._argumentParser.add_argument(
-            '-b', '--blend',
-            help=
+            '-b', '--blend', help=
             "Path to a .blend file that Blender will open. Having a .blend file"
             " on the command line suppresses display of the splash.")
         self._argumentParser.add_argument(
-            '-g', '--geometries', action='store_true',
-            help="Set geometries for the terminal and Blender windows")
+            '-B', '--blender', help=
+            "Path to the Blender executable. Default is to check a number of"
+            " directories or rely on the PATH environment variable.")        
+        self._argumentParser.add_argument(
+            '-g', '--geometries', action='store_true', help=
+            "Set the geometry of the Blender window, and the terminal window,"
+            " if using. Geometries set are based on the size of the screen.")
+        self._argumentParser.add_argument(
+            '-l', '--launch', help=
+            "Path to the launch script. Default is to assume it is the"
+            " ../blender_driver/launch.py file, relative to the location of"
+            " this script.")
         self._argumentParser.add_argument(
             '-t', '--terminal', action='store_true',
-            help="Run in a new terminal window.")
+            help=
+            "Open a new terminal window from which to run Blender. The Blender"
+            " console output, including print output from the embedded Python,"
+            " then appears in the terminal instead of wherever this script was"
+            " run. Looks for a terminal program, either xterm or"
+            " gnome-terminal, on the PATH environment variable.")
         self._argumentParser.add_argument(
             '-v', '--verbose', action='store_true',
             help="Verbose output.")
@@ -106,7 +115,7 @@ class Main(object):
         if usage.startswith("usage: "):
             usage = usage[len("usage: "):]
         self._argumentParser.usage = ' '.join((usage, "<launcher options>"))
-    
+        
     def _parse_command_line(self):
         """Parse command line switches into a couple of internal properties."""
         #
@@ -262,16 +271,16 @@ class Main(object):
             command.append(self._arguments.blend)
         #
         # Append switches to make Blender launch Blender Driver, after loading
-        # the .blend file.
-        command.extend(('--python',
-                        os.path.join(self._workingDirectory,
-                                     "launch_blender_driver.py") ))
+        # the .blend file. Also append a separator.
+        launch = self._arguments.launch
+        if launch is None:
+            launch = os.path.abspath(os.path.join(
+                os.path.dirname(__file__), os.pardir,
+                "blender_driver", "launch.py"))
+        command.extend(('--python', launch, '--'))
         #
-        # Append argument separator, and any launcher arguments from the command
+        # Append verbosity switch, and any launcher arguments from the command
         # line.
-        command.append('--')
-        #
-        # Append verbosity arguments.    
         if self._arguments.verbose:
             command.append('--verbose')
         command.extend(self._launcherArguments)
@@ -280,30 +289,49 @@ class Main(object):
 
     def get_blender(self):
         """Get the path of the Blender executable."""
+        if self._arguments.blender is not None:
+            return self._arguments.blender
         home = os.getenv('HOME', 'C:')
         directories = (
             os.path.join(home, 'blender-2.72b-OSX_10.6-x86_64', 'Blender',
                          'blender.app', 'Contents', 'MacOS' ),
             # os.path.join(home_dir, 'blender-2.77a-linux-glibc211-x86_64'),
-            os.path.join(home, 'blender-2.78a-linux-glibc211-x86_64')
+            # os.path.join(home, 'blender-2.78a-linux-glibc211-x86_64')
         )
         blender = "blender"
         blenderPath = self.which(blender, directories)
         if blenderPath is None:
-            raise EnvironmentError(''.join((
-                'Could not find Blender executable "', blender,
-                '" on path, nor in:\n\t"',
-                '"\n\t"'.join(directories),
-                '"\n')))
+            if self._arguments.verbose:
+                print ''.join((
+                    'Could not find Blender executable "', blender,
+                    '" on path, nor in:\n\t"',
+                    '"\n\t"'.join(directories),
+                    '"\nWill rely on path environment.'))
+            blenderPath = blender
+        
         return blenderPath
     
     def _execute(self, command):
         if self._arguments.verbose:
-            print self.argv0 + ' about to os.execv.'
+            print self.argv0 + ' about to os.execvp.'
             for commandi in command:
-                print "\t\"" + commandi + '"'
-        os.execv(command[0], command)
-        print self.argv0 + " after os.execv() somehow."
+                print ''.join(("\t\"", commandi, '"'))
+        #
+        # Set a blank error message. It'll only be used in the case that execvp
+        # throws something that isn't an Exception subclass.
+        errorMessage = ''
+        try:
+            # All being well, the next line doesn't return.
+            os.execvp(command[0], command)
+        except Exception as exception:
+            errorMessage = ''.join(("\n", str(exception), "."))
+        #
+        # If we get here, the execvp failed and there might be an error message.
+        print ''.join(('Failed to start Blender. Command line was \n\t"',
+                       '"\n\t"'.join(command), '"', errorMessage))
+        if self._arguments.blender is None:
+            print ''.join(('Try specifying an explicit path to the Blender',
+                           ' executable with the -B switch.'))
         return 1
     
     def main(self):
@@ -313,14 +341,8 @@ class Main(object):
         self._parse_command_line()
         self._set_geometries()
         #
-        # Change to the top directory. Other paths will be relative to it.
-        # This could be done in the terminal emulator, except that xterm doesn't
-        # support that.
-        os.chdir(self._workingDirectory)
-        #
-        # Assemble the command line.
-        #
-        # Start with the terminal command, or an empty list.
+        # Create the command line. Start with the terminal command, or an empty
+        # list.
         try:
             call = self._terminal_command()
         except EnvironmentError as error:
@@ -328,13 +350,14 @@ class Main(object):
             print error
             return 1
         #
-        # Append the Blender command, which includes the -- separator.
+        # Append the Blender command.
         try:
             call.extend( self._blender_command() )
         except EnvironmentError as error:
             print error
             return 2
-        
+        #
+        # And execute.
         return self._execute(call)
 
     def __init__(self, commandLine):
@@ -347,9 +370,6 @@ class Main(object):
         #
         # Copy the command line, for later.
         self._commandLine = commandLine[:]
-        #
-        # Set the working directory based on the path of this script.
-        self._workingDirectory = os.path.abspath(os.path.dirname(self.argv0))
         
 
 def main(commandLine):

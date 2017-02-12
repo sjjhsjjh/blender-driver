@@ -230,7 +230,7 @@ class Main(object):
             # Not specified, use the blender_drive base module.
             # It contains the classes of which a driver application's classes
             # would be subclasses.
-            moduleName = "blender_driver.application"
+            moduleName = "blender_driver.application.base"
 
         # ToDo: This assumes that the application module is in a sub-directory
         # that is already on sys.path and therefore can be imported. Fix that.
@@ -257,7 +257,7 @@ class Main(object):
                   ''.join(('Added to module path "', sys.path[-1],'".')))
         #
         # Import module for bpy utility functions, dynamically.
-        self._blenderDriver = importlib.import_module("blender_driver.bpyutils")
+        self._bpyutils = importlib.import_module("blender_driver.bpyutils")
         #
         # Also import the module for the driver application.
         self._import_application_module()
@@ -288,7 +288,7 @@ class Main(object):
         # Get a class object for the application and pass it to the next stage.
         applicationClass = getattr(self._applicationModule,
                                    self._arguments.applicationClass)
-        self._blenderDriver.load_driver(applicationClass, self._arguments )
+        self._bpyutils.load_driver(applicationClass, self._arguments )
         if self._arguments.verbose:
             print(os.path.basename(self.argv0),
                   'Blender Driver launch script finished.')

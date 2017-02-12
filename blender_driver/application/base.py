@@ -66,8 +66,19 @@ class Application(object):
     def data_constructor(self, scene, gateway):
         """Method that is invoked just after the constructor in the Blender data
         context. Don't override."""
+        #
+        # Set up references to modules that might be needed in a subclass, but
+        # not be importable there.
+        #
+        # Main Blender Python interface, bpy.
         self._bpy = importlib.import_module('bpy')
-        self._bpyutils = importlib.import_module('.bpyutils', __package__)
+        #
+        # Blender Driver bpy utilities. Seems that it has to be obtained by
+        # importing the parent package.
+        parent = importlib.import_module('..', __package__)
+        self._bpyutils = parent.bpyutils
+        #
+        # Store the references from the constructor caller.
         self._dataGateway = gateway
         self._dataScene = scene
         #
@@ -119,8 +130,11 @@ See also:
         """Command line switches for the application."""
         return self._arguments
     
-    def _key_number(self, keyEvents):
-        # Don't handle multiple events or shifts yet
+    def key_number(self, keyEvents):
+        # Doesn't handle multiple events or shift keys yet. It should probably
+        # get moved to a utility module when that happens. However the point of
+        # Blender Driver is kind of not to use so much of BGE for user
+        # interaction.
         return keyEvents[0][0]
     
     def game_initialise(self):
@@ -139,7 +153,8 @@ See also:
         pass
 
     def game_terminate(self):
-        """Terminate the Blender Game Engine by ending the scene."""
+        """Terminate the Blender Game Engine by ending the scene. Call super()
+        if overriden."""
         self.gameScene.end()
 
     def get_argument_parser(self):
@@ -152,6 +167,12 @@ See also:
     def game_constructor(self, scene, gateway):
         """Method that is invoked just after the constructor in the Blender Game
         Engine context. Don't override."""
+        # Set up references to modules that might be needed in a subclass, but
+        # not be importable there.
+        #
+        # Main Blender Python interface, bpy, and Blender Game Engine interface,
+        # bge.
+        self._bpy = importlib.import_module('bpy')
         self._bge = importlib.import_module('bge')
         self._gameScene = scene
         self._gameGateway = gateway

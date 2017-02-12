@@ -295,8 +295,7 @@ class Main(object):
         directories = (
             os.path.join(home, 'blender-2.72b-OSX_10.6-x86_64', 'Blender',
                          'blender.app', 'Contents', 'MacOS' ),
-            # os.path.join(home_dir, 'blender-2.77a-linux-glibc211-x86_64'),
-            # os.path.join(home, 'blender-2.78a-linux-glibc211-x86_64')
+            os.path.join(home, 'blender-2.78a-linux-glibc211-x86_64')
         )
         blender = "blender"
         blenderPath = self.which(blender, directories)

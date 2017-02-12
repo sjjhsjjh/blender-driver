@@ -51,6 +51,14 @@ class Application(object):
         """Reference to the data Scene object."""
         return self._dataScene
     
+    def diagnostic_remove_controllers(self, controllers):
+        """Method that is invoked to remove controllers. Only override to remove
+        controllers for diagnostic purposes. This method is called in the data
+        context. To remove a controller, set its property to None, as in:
+        
+        controllers.tick = None"""
+        pass
+    
     def data_initialise(self):
         """Override it."""
         pass
@@ -149,7 +157,8 @@ See also:
         self._gameGateway = gateway
 
     def __init__(self, settings):
-        """Constructor."""
+        """Constructor common to both Blender data and Blender Game Engine
+        contexts."""
         #
         # Store the settings collection
         self._settings = settings.copy()

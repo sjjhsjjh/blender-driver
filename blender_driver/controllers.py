@@ -12,7 +12,7 @@ if __name__ == '__main__':
 # Standard library imports, in alphabetic order.
 #
 # Python module for dynamic import, which is used to load the module that
-# includes the driver application's Game subclass.
+# includes the driver application subclass.
 # https://docs.python.org/3.5/library/importlib.html
 import importlib
 #
@@ -30,6 +30,7 @@ try:
 except ImportError as error:
     print( __doc__ )
     print( error )
+    raise
 #
 # Local module for getting game property values.
 from . import bpyutils
@@ -72,10 +73,8 @@ def initialise_application(object_):
     # or properties will have been added by the owner.bpyutils.load_driver()
     # subroutine.
     #
-    # Retrieve the settings.
+    # Retrieve the settings and load them into a dictionary.
     settingsJSON = bpyutils.get_game_property(object_, 'settingsJSON')
-    #
-    # Load the settings into a dictionary.
     settings = json.loads(settingsJSON)
     try:
         if settings['arguments']['verbose']:
@@ -122,6 +121,14 @@ def keyboard(controller):
     # transition.
     sensor = controller.sensors[0]
     if sensor.positive:
+        #
+        # In general, the driver object will have been saved to the context by
+        # the initialise controller. That won't have happened if the initialise
+        # controller has been removed and we're in some kind of diagnostic run.
+        # Check that here and invoke initialise now in that case.
+        if context.driver is None:
+            print("Keyboard controller executing late initialise.")
+            initialise(controller)
         try:
             context.driver.game_keyboard(sensor.events)
         except:
@@ -133,3 +140,5 @@ try:
 except:
     terminate_engine()
     raise
+
+print("".join(('Controllers module "', __name__, '" ', str(context))))

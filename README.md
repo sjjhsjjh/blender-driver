@@ -11,3 +11,7 @@ Getting Started
 ===============
 You will need Blender, which is available from https://blender.org
 
+Notes
+=====
+Code in this project follows some elements of the
+[https://www.python.org/dev/peps/pep-0008/](PEP 8 -- Style Guide for Python Code)

@@ -33,8 +33,7 @@ except ImportError as error:
 def load_driver(driverClass, arguments):
     """Load the owner data subclass and initialise everything.
 
-This subroutine has all the hard-coded names, except the names of the individual
-controller subroutines.
+This subroutine has all the hard-coded names.
 
 This is the end of the chain from:
 
@@ -80,9 +79,12 @@ starts."""
     controllersPackage = __package__
     if arguments.controllersPackage is not None:
         controllersPackage = arguments.controllersPackage
-    configure_gateway(driverGateway,
-                      ".".join((controllersPackage,
-                                arguments.controllersModule)))
+    controllers = get_controllers(
+            driver, controllersPackage, arguments.controllersModule,
+            ('initialise', 'tick', 'keyboard'))
+    if arguments.verbose:
+        print('load_driver', 'controllers', vars(controllers))
+    configure_gateway(driverGateway, controllers)
     #
     # Put a collection of configuration settings into one or more game
     # properties. The collection gets read from there by the
@@ -193,37 +195,46 @@ def set_up_object(name, params={}):
     # Return a reference to the object.
     return object_
 
-def configure_gateway(driver, controllersModuleName):
+def get_controllers(driver, packageName, moduleName, controllers):
+    """Get the names of the specified controllers that exist in the specified
+    module and package. Names of controllers are returned in a namespace type of
+    object, in a package.module.controller format. The application can remove
+    any, for diagnostic purposes."""
+    #
+    # Declare an empty class to use as a namespace.
+    # https://docs.python.org/3.5/tutorial/classes.html#odds-and-ends
+    class Controllers:
+        pass
+    return_ = Controllers()
+    #
+    # Start by adding all of them.
+    for controller in controllers:
+        setattr(return_, controller, ".".join(
+            (packageName, moduleName, controller)))
+    #
+    # Give the application an opportunity to remove any, for diagnostic
+    # purposes.
+    driver.diagnostic_remove_controllers(return_)
+    return return_
+
+def configure_gateway(driver, controllers):
     """Set various configurations that make the driver gateway work or are
     convenient."""
     #
-    # Leftover from something else. Might get rid of it later.
-    class _ControllerNames(object):
-        def __str__(self):
-            return ''.join((
-                "<", self.__class__.__name__, " ", str(self.__dict__), " >"))
-    controllerNames = _ControllerNames()
-    controllerNames.initialise = 'initialise'
-    controllerNames.tick = 'tick'
-    controllerNames.keyboard = 'keyboard'
-
     bpy.context.scene.render.engine = 'BLENDER_GAME'
     bpy.ops.wm.addon_enable(module="game_engine_save_as_runtime")
     #
     # Controller and sensor for initialisation.
-    if controllerNames.initialise is not None:
-        sensor = add_sensor(
-            driver, ".".join((controllersModuleName,
-                              controllerNames.initialise)))
+    if controllers.initialise is not None:
+        sensor = add_sensor(driver, controllers.initialise)
     #
     # Controller and sensor for every tick.
-    if controllerNames.tick is not None:
-        sensor = add_sensor(
-            driver, ".".join((controllersModuleName, controllerNames.tick)))
+    if controllers.tick is not None:
+        sensor = add_sensor(driver, controllers.tick)
         sensor.use_pulse_true_level = True
         #
-        # Set the tick frequency using whatever API the current version of Blender
-        # has.
+        # Set the tick frequency using whatever API the current version of
+        # Blender has.
         if hasattr(sensor, 'frequency'):
             sensor.frequency = 0
         else:
@@ -231,11 +242,8 @@ def configure_gateway(driver, controllersModuleName):
     #
     # Controller and sensor for the keyboard. This allows, for example, a back
     # door to be added to terminate the engine.
-    if controllerNames.keyboard is not None:
-        sensor = add_sensor(
-            driver,
-            ".".join((controllersModuleName, controllerNames.keyboard)),
-            'KEYBOARD')
+    if controllers.keyboard is not None:
+        sensor = add_sensor(driver, controllers.keyboard, 'KEYBOARD')
         sensor.use_all_keys = True
 
 def add_sensor(driver, subroutine, sensorType='ALWAYS'):
@@ -270,15 +278,12 @@ def select_only(target):
     return target
 
 def set_up_objects(objectsDict):
-    ret = []
+    return_ = []
     if objectsDict is None:
-        return ret
+        return return_
     for name in objectsDict.keys():
-        #objectDict = objectsDict[name]
-        #if 'physicsType' not in objectDict:
-        #    objectDict['physicsType'] = 'RIGID_BODY'
-        ret.append(set_up_object(name, objectsDict[name]))
-    return ret
+        return_.append(set_up_object(name, objectsDict[name]))
+    return return_
     
 def set_game_property(object_, key, value):
     """Set a game property in the data context, i.e. before the game engine has

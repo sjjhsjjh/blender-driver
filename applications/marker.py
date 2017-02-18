@@ -1,4 +1,6 @@
 #!/usr/bin/python
+# (c) 2017 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
+# Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 """Python module for Blender Driver demonstration application.
 
 This module can only be used from within the Blender Game Engine."""
@@ -79,11 +81,13 @@ class Application(pulsar.Application):
     def add_object(self, objectName):
         object_ = self.gameScene.addObject(objectName, self.gameGateway)
         object_.worldPosition = self.bpy.data.objects[objectName].location
-        print(self._name(objectName), self.bpy.data.objects[objectName].dimensions)
+        if self.arguments.verbose:
+            print(self._name(objectName),
+                  self.bpy.data.objects[objectName].dimensions)
         return object_
 
     # Override.
-    def game_initialise_run(self):
+    def game_initialise(self):
         #
         # Set up this application class's pulsar, which is different to the base
         # class pulsar.
@@ -91,7 +95,8 @@ class Application(pulsar.Application):
         self.arguments.pulsar = "pulsar"
         #
         # Do base class initialisation.
-        super().game_initialise_run()
+        super().game_initialise()
+        self.mainLock.acquire()
         #
         # Set up what this application uses.
         #
@@ -108,31 +113,36 @@ class Application(pulsar.Application):
         self._objectClock['Text'] = "clock"
         #
         # Spawn a thread on which to cycle the counter.
-        threading.Thread(target=self.cycle_count).start()
+        self.mainLock.release()
+        threading.Thread(target=self.cycle_count_run).start()
         
-    def cycle_count(self):
+    def cycle_count_run(self):
         """Cycle a counter for ever. Run as a thread."""
         counterReset = 1000
         while True:
             if self.terminating():
-                print(self._name('cycle count scale'), "Stop.")
+                if self.arguments.verbose:
+                    print(self._name('cycle count scale'), "Stop.")
                 return
             if self.arguments.verbose:
                 print(self._name('cycle count locking ...'))
-            self.tickLock.acquire(True)
+            self.mainLock.acquire(True)
             self._objectCounter['Text'] = str(self._objectCounterNumber)
             self._objectCounterNumber = (
                 (self._objectCounterNumber + 1) % counterReset)
-            self.tickLock.release()
+            self.mainLock.release()
             if self.arguments.verbose:
                 print(self._name('cycle count released.'))
             if self.arguments.sleep is not None:
                 time.sleep(self.arguments.sleep)
         
     def game_tick_run(self):
+        #
+        # Formally, run the base class tick. Actually, it's a pass.
         super().game_tick_run()
         #
         # Move the marker to one vertex of the pulsar.
+        self.mainLock.acquire(True)
         worldPosition = self._objectMarker.worldPosition.copy()
         for index in range(len(worldPosition)):
             worldPosition[index] = (
@@ -142,6 +152,7 @@ class Application(pulsar.Application):
         #
         # Update the time displayed in the clock.
         self._objectClock['Text'] = time.strftime("%H:%M:%S")
+        self.mainLock.release()
 
     def ok_to_skip_tick(self):
         print(self._name('tick_skipped'), self.skippedTicks)

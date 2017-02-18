@@ -56,20 +56,35 @@ class Application(blender_driver.application.thread.Application):
         
     # Override.
     def game_initialise(self):
-        if self.arguments.thread:
-            super().game_initialise()
-        else:
-            self.game_initialise_run()
-
-    def game_initialise_run(self):
+        super().game_initialise()
         self._counter = 0
+
+        if self.arguments.mainLock:
+            print(time.strftime("%H:%M:%S"),
+                  "game_initialise acquiring main lock ...")
+            self.mainLock.acquire()
+            print(time.strftime("%H:%M:%S"), 
+                  "game_initialise acquired main lock.")
         print(self._name('initialise'), self._counter)
         print(self.arguments)
         print("Game scene objects", self.gameScene.objects)
         if self.arguments.removeTickController:
-            print("Tick controller removed. Terminate BGE by pressing Escape.")
+            print("Tick controller has been removed. Terminate BGE by"
+                  " pressing Escape.")
 
-        self._dummy_action(self.arguments.sleepInitialise, "initialise")
+        if self.arguments.mainLock:
+            print(time.strftime("%H:%M:%S"),
+                  "game_initialise releasing main lock.")
+            self.mainLock.release()
+        
+        if self.arguments.thread:
+            threading.Thread(
+                target=self._dummy_action,
+                args=(self.arguments.sleepInitialise, "initialise")
+            ).start()
+        else:
+            self._dummy_action(self.arguments.sleepInitialise, "initialise")
+        
         
     # Override.
     def game_tick(self):
@@ -86,10 +101,14 @@ class Application(blender_driver.application.thread.Application):
             self.game_terminate()
             return
         
-        if self.arguments.thread:
+        if self.arguments.tickLock and self.arguments.thread:
             super().game_tick()
+        elif self.arguments.thread:
+            # Threads without locking.
+            threading.Thread(target=self.game_tick_run).start()
         else:
             self.game_tick_run()
+        # Case of tickLock but not threading is treated as not tickLock.
 
     # Override.
     def game_tick_run(self):
@@ -97,38 +116,57 @@ class Application(blender_driver.application.thread.Application):
             self.arguments.sleepTick, " ".join(('tick', str(self._counter))))
 
     # Override.
-    def ok_to_skip_tick(self):
-        print(time.strftime("%H:%M:%S"), self._counter, "tick skipped.")
-        return True
+    def tick_skipped(self):
+        print(time.strftime("%H:%M:%S"), self._counter, "tick skipped. Total",
+              self.skippedTicks)
 
     # Override.
     def game_terminate(self):
-        if self.arguments.terminateLock:
+        if self.arguments.terminateLock and self.arguments.thread:
             super().game_terminate(True)
         else:
-            print("No terminate lock.")
+            if self.arguments.terminateLock:
+                self.game_terminate_lock(True)
+            if self.arguments.thread:
+                self.game_terminate_threads(True)
             #
             # Go up two class inheritance levels and call the method there.
             super(blender_driver.application.thread.Application, self
                   ).game_terminate()
     
     def _dummy_action(self, duration, name=None):
-        if self.arguments.tickLock:
-            print(time.strftime("%H:%M:%S"), self._name(name), "ticking.")
+        if self.arguments.mainLock:
+            print(time.strftime("%H:%M:%S"), self._name(name),
+                  "acquiring main lock at start ...")
+            self.mainLock.acquire()
+
+        print(time.strftime("%H:%M:%S"), self._name(name), "start of dummy.")
             
         if duration is None:
             print(time.strftime("%H:%M:%S"), self._name(name), "no sleep.")
         else:
             if int(duration) == duration:
                 duration = int(duration)
+                # This is a kind of N and a half times loop. Before the loop
+                # starts, the mainLock is already acquired. Inside the loop it
+                # gets released and then acquired. If the loop is broken out of,
+                # or just runs out, the lock is in the acquired state.
                 for sleep in range(duration):
                     if self.terminating():
                         print(time.strftime("%H:%M:%S"), self._name(name),
-                              "stopped by terminate lock.")
+                              "stopping.")
                         break
-                    time.sleep(1)
+                    if self.arguments.mainLock:
+                        print(time.strftime("%H:%M:%S"), self._name(name),
+                              "releasing main lock in loop.")
+                        self.mainLock.release()
+                        print(time.strftime("%H:%M:%S"), self._name(name),
+                              "acquiring main lock in loop...")
+                        self.mainLock.acquire()
+                        
                     print(time.strftime("%H:%M:%S"), self._name(name),
-                          "sleep", sleep+1, "of", duration)
+                          "about to sleep", sleep+1, "of", duration)
+                    time.sleep(1)
             else:
                 if self.terminating():
                     print(time.strftime("%H:%M:%S"), self._name(name),
@@ -138,8 +176,11 @@ class Application(blender_driver.application.thread.Application):
                     print(time.strftime("%H:%M:%S"), self._name(name), "sleep",
                           duration)
                 
-        if self.arguments.tickLock:
-            print(time.strftime("%H:%M:%S"), self._name(name), "end of tick.")
+        print(time.strftime("%H:%M:%S"), self._name(name), "end of dummy.")
+        if self.arguments.mainLock:
+            print(time.strftime("%H:%M:%S"), self._name(name),
+                  "releasing main lock at end.")
+            self.mainLock.release()
     
     # Override.
     def terminating(self):
@@ -155,7 +196,7 @@ class Application(blender_driver.application.thread.Application):
         if self.arguments.dumpOnKey:
             print("Settings", self.settings)
             print("Arguments", self.arguments)
-            print("Threads", threading.enumerate())
+            print("Threads", threading.active_count())
             print("Python", pythonVersion)
         if self.key_number(keyEvents) == 113 and self.arguments.quitOnQ:
             self.game_terminate()
@@ -179,13 +220,15 @@ class Application(blender_driver.application.thread.Application):
             "Sleep in the initialise. Same semantics as --sleepTick.")
         parser.add_argument(
             '--terminateLock', action='store_true', help=
-            "Indicate termination with a thread lock. The lock is acquired and"
-            " released before every sleep, in a tick or initialise.")
+            "Use the Terminate Lock to indicate termination, if using threads.")
+        parser.add_argument(
+            '--mainLock', action='store_true', help=
+            "Use the Main Lock to control processing, if using threads.")
         parser.add_argument(
             '--tickLock', action='store_true', help=
-            "Acquire and release a thread lock in every tick and initialise."
-            " Acquisition is synchronous. If acquisition fails, processing is"
-            " skipped for that tick.")
+            "Acquire and release a thread lock in every tick, if using"
+            " threads. Acquisition is synchronous. If acquisition fails,"
+            " processing is skipped for that tick.")
         parser.add_argument(
             '--thread', action='store_true', help=
             'Start a thread in every tick, and in the initialise.')

@@ -86,11 +86,12 @@ class Application(blender_driver.application.thread.Application):
             for cycle in range(3):
                 for scale in range(increments):
                     if self.terminating():
-                        print(self._name('pulse object scale'), "Stop.")
+                        if self.arguments.verbose:
+                            print(self._name('pulse object scale'), "Stop.")
                         return
                     if self.arguments.verbose:
                         print(self._name('pulse object scale locking ...'))
-                    self.tickLock.acquire(True)
+                    self.mainLock.acquire()
                     scales = (
                         minScale
                         + (changeScale * (scale + 1) / increments)
@@ -101,20 +102,24 @@ class Application(blender_driver.application.thread.Application):
                     for index in range(3):
                         worldScale[index] *= scales[(cycle+index)%3]
                     object_.worldScale = worldScale
-                    self.tickLock.release()
+                    self.mainLock.release()
                     if self.arguments.verbose:
                         print(self._name('pulse object scale released.'))
                     if self.arguments.sleep is not None:
                         time.sleep(self.arguments.sleep)
         
-    def game_initialise_run(self):
-        print(self._name('game_initialise_run'), self.arguments)
-        print("Settings", self.settings)
-        print("Game scene objects", self.gameScene.objects)
+    def game_initialise(self):
+        super().game_initialise()
+        if self.arguments.verbose:
+            print(self._name('game_initialise_run'), self.arguments)
+            print("Settings", self.settings)
+            print("Game scene objects", self.gameScene.objects)
+        print("Press any key to terminate BGE.")
         threading.Thread(target=self.pulse_object_scale).start()
         
     def game_keyboard(self, keyEvents):
-        print(self._name('game_keyboard'), "Terminating.")
+        if self.arguments.verbose:
+            print(self._name('game_keyboard'), "Terminating.")
         self.game_terminate()
         
     def get_argument_parser(self):

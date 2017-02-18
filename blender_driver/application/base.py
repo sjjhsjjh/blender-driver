@@ -158,8 +158,8 @@ See also:
         self.gameScene.end()
 
     def get_argument_parser(self):
-        """Method that returns an ArgumentParser. Override if the application
-        has command line switches."""
+        """Method that returns an ArgumentParser. Override and call super if the
+        application has command line switches."""
         parser = argparse.ArgumentParser()
         parser.prog = ".".join((__name__, self.__class__.__name__))
         return parser
@@ -179,7 +179,7 @@ See also:
 
     def __init__(self, settings):
         """Constructor common to both Blender data and Blender Game Engine
-        contexts."""
+        contexts. Call super if overriden."""
         #
         # Store the settings collection
         self._settings = settings.copy()

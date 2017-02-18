@@ -34,55 +34,45 @@ from . import base
 class Application(base.Application):
     
     @property
-    def tickLock(self):
-        return self._tickLock
+    def mainLock(self):
+        return self._mainLock
     
     def terminating(self):
-        if not self._terminateLock.acquire(False):
-            return True
-        self._terminateLock.release()
-        return False
+        if self._terminateLock.acquire(False):
+            self._terminateLock.release()
+            return False
+        return True
     
     @property
     def skippedTicks(self):
         return self._skippedTicks
 
     def _run_with_tick_lock(self, run):
-        if not self.tickLock.acquire(False):
+        if not self._tickLock.acquire(False):
             self._skippedTicks += 1
-            if self.ok_to_skip_tick():
-                return
-            if self._tickWaitLock.acquire(False):
-                print("Tick Wait Lock acquired ...")
-                self.tickLock.acquire(True)
-                print("Releasing Tick Wait Lock.")
-                self._tickWaitLock.release()
-            else:
-                return
+            self.tick_skipped()
+            return
         self._skippedTicks = 0
         run()
-        self.tickLock.release()
+        self._tickLock.release()
         
-    def ok_to_skip_tick(self):
-        return True
+    def tick_skipped(self):
+        """Method that is run in a thread in every tick in which the tick lock
+        can't be acquired. Override it to print an error messsage."""
+        pass
 
     # Override.
     def game_initialise(self):
         """Method that is invoked just after the constructor in the Blender game
-        context. Don't override; implement game_intialise_run() instead."""
+        context. Call super if overriden."""
         #
         # It might be unnecessary that the terminate lock is a threading.Lock()
         # instance. An ordinary property might do just as well, because it only
         # gets set to True.
         self._terminateLock = threading.Lock()
+        self._mainLock = threading.Lock()
         self._tickLock = threading.Lock()
         self._skippedTicks = 0
-        self._tickWaitLock = threading.Lock()
-
-        thread = threading.Thread(
-            target=self._run_with_tick_lock,
-            args=(self.game_initialise_run,))
-        thread.start()
 
     # Override.
     def game_tick(self):
@@ -90,30 +80,33 @@ class Application(base.Application):
         Don't override; implement game_tick_run() instead."""
         if self.terminating():
             return
-        thread = threading.Thread(
+        threading.Thread(
             target=self._run_with_tick_lock,
-            args=(self.game_tick_run,))
-        thread.start()
-
-    # Override.
-    def game_terminate(self, verbose=False):
-        if verbose:
-            print("Acquiring terminate lock...")
-        self._terminateLock.acquire(True)
-        if verbose:
-            print("Terminate lock acquired.")
-            print("".join(("Joining threads:",
-                           str(threading.active_count() - 1))))
-        for thread in threading.enumerate():
-            if thread is not threading.current_thread():
-                thread.join()
-        super().game_terminate()
-    
-    def game_initialise_run(self):
-        """Method that is run in a thread in the initialise. Override it."""
-        pass
+            args=(self.game_tick_run,)
+        ).start()
 
     def game_tick_run(self):
         """Method that is run in a thread in every tick in which the tick lock
         can be acquired. Override it."""
         pass
+
+    # Override.
+    def game_terminate(self, verbose=False):
+        self.game_terminate_lock(verbose)
+        self.game_terminate_threads(verbose)
+        super().game_terminate()
+
+    def game_terminate_lock(self, verbose=False):
+        if verbose:
+            print("Acquiring terminate lock...")
+        self._terminateLock.acquire()
+        if verbose:
+            print("Terminate lock acquired.")
+
+    def game_terminate_threads(self, verbose=False):
+        if verbose:
+            print("".join(("Joining threads:",
+                           str(threading.active_count() - 1))))
+        for thread in threading.enumerate():
+            if thread is not threading.current_thread():
+                thread.join()

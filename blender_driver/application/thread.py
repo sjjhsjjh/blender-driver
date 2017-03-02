@@ -48,13 +48,16 @@ class Application(base.Application):
         return self._skippedTicks
 
     def _run_with_tick_lock(self, run):
-        if not self._tickLock.acquire(False):
-            self._skippedTicks += 1
-            self.tick_skipped()
+        if self._tickLock.acquire(False):
+            try:
+                self._skippedTicks = 0
+                run()
+            finally:
+                self._tickLock.release()
             return
-        self._skippedTicks = 0
-        run()
-        self._tickLock.release()
+            
+        self._skippedTicks += 1
+        self.tick_skipped()
         
     def tick_skipped(self):
         """Method that is run in a thread in every tick in which the tick lock

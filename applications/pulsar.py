@@ -85,26 +85,33 @@ class Application(blender_driver.application.thread.Application):
         while True:
             for cycle in range(3):
                 for scale in range(increments):
-                    if self.terminating():
-                        if self.arguments.verbose:
-                            print(self._name('pulse object scale'), "Stop.")
-                        return
                     if self.arguments.verbose:
-                        print(self._name('pulse object scale locking ...'))
+                        print(self._name('pulse_object_scale'), "locking ...")
+
                     self.mainLock.acquire()
-                    scales = (
-                        minScale
-                        + (changeScale * (scale + 1) / increments)
-                        , minScale
-                        + (changeScale * (increments - scale) / increments)
-                        , minScale)
-                    worldScale = dimensions.copy()
-                    for index in range(3):
-                        worldScale[index] *= scales[(cycle+index)%3]
-                    object_.worldScale = worldScale
-                    self.mainLock.release()
-                    if self.arguments.verbose:
-                        print(self._name('pulse object scale released.'))
+                    try:
+                        if self.arguments.verbose:
+                            print(self._name('pulse_object_scale'), "locked.")
+
+                        if self.terminating():
+                            if self.arguments.verbose:
+                                print(self._name('pulse object scale'), "Stop.")
+                            return
+                        scales = (
+                            minScale
+                            + (changeScale * (scale + 1) / increments)
+                            , minScale
+                            + (changeScale * (increments - scale) / increments)
+                            , minScale)
+                        worldScale = dimensions.copy()
+                        for index in range(3):
+                            worldScale[index] *= scales[(cycle+index)%3]
+                        object_.worldScale = worldScale
+                    finally:
+                        if self.arguments.verbose:
+                            print(self._name('pulse_object_scale releasing.'))
+                        self.mainLock.release()
+
                     if self.arguments.sleep is not None:
                         time.sleep(self.arguments.sleep)
         

@@ -49,19 +49,24 @@ def initialise(controller):
     if not controller.sensors[0].positive:
         return
     #
-    # If anything here raises an exception, attempt to terminate BGE.
+    # If anything here raises an exception, attempt to terminate BGE here.
+    # There's no driver object yet.
     try:
         # The controller's owner will be the driver gateway game object.
         driver = initialise_application(controller.owner)
-        #
-        # This invocation is for completeness, just in case the application does
-        # more initialisation after the constructor for some reason.
-        driver.game_initialise()
         #
         # Store the new driver object in the explicit context.
         context.driver = driver
     except:
         terminate_engine()
+        raise
+    #
+    # If the next code raises an exception, terminate in the driver object
+    # instead.
+    try:
+        context.driver.game_initialise()
+    except:
+        context.driver.game_terminate()
         raise
 
 def initialise_application(object_):
@@ -113,7 +118,8 @@ def tick(controller):
         try:
             context.driver.game_tick()
         except:
-            terminate_engine()
+            # terminate_engine()
+            context.driver.game_terminate()
             raise
 
 def keyboard(controller):
@@ -132,7 +138,8 @@ def keyboard(controller):
         try:
             context.driver.game_keyboard(sensor.events)
         except:
-            terminate_engine()
+            context.driver.game_terminate()
+            # terminate_engine()
             raise
 
 try:

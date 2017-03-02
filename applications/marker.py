@@ -17,6 +17,10 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
+# Module for degrees to radians conversion.
+# https://docs.python.org/3.5/library/math.html#math.radians
+from math import radians
+#
 # Module for logging current time and sleep.
 # https://docs.python.org/3.5/library/time.html
 import time
@@ -34,9 +38,9 @@ import threading
 #
 # Blender Game Engine maths utilities, which can only be imported if running
 # from within the Blender Game Engine.
-# Import isn't needed because this class gets a Vector from the bpy layer.
 # http://www.blender.org/api/blender_python_api_current/mathutils.html
-# from mathutils import Vector
+# This class gets a Vector from the bpy layer, so Vector needn't be imported.
+from mathutils import Matrix
 #
 # Main Blender Python interface.
 # Import isn't needed because the base class keeps a reference to the interface
@@ -96,41 +100,58 @@ class Application(pulsar.Application):
         #
         # Do base class initialisation.
         super().game_initialise()
+        if self.arguments.verbose:
+            print(self._name('marker initialise'), "locking...")
         self.mainLock.acquire()
-        #
-        # Set up what this application uses.
-        #
-        # Marker object.
-        self._objectMarker = self.add_object("marker")
-        #
-        # Counter object, which is a Blender Text.
-        self._objectCounter = self.add_object("counter")
-        self._objectCounter['Text'] = ""
-        self._objectCounterNumber = 0
-        #
-        # Clock object, which is also a Blender Text.
-        self._objectClock = self.add_object("clock")
-        self._objectClock['Text'] = "clock"
+        try:
+            if self.arguments.verbose:
+                print(self._name('marker initialise'), "locked.")
+            #
+            # Set up what this application uses.
+            #
+            # Marker object.
+            self._objectMarker = self.add_object("marker")
+            #
+            # Counter object, which is a Blender Text.
+            self._objectCounter = self.add_object("counter")
+            self._objectCounterNumber = 0
+            self._objectCounter.worldOrientation.rotate(
+                Matrix.Rotation(radians(90), 4, 'Y'))
+            self._objectCounter.worldOrientation.rotate(
+                Matrix.Rotation(radians(90), 4, 'X'))
+            #
+            # Clock object, which is also a Blender Text.
+            self._objectClock = self.add_object("clock")
+            self._objectClock.worldOrientation.rotate(
+                Matrix.Rotation(radians(90), 4, 'Y'))
+            self._objectClock.worldOrientation.rotate(
+                Matrix.Rotation(radians(90), 4, 'X'))
+        finally:
+            if self.arguments.verbose:
+                print(self._name('marker initialise'), "releasing.")
+            self.mainLock.release()
         #
         # Spawn a thread on which to cycle the counter.
-        self.mainLock.release()
         threading.Thread(target=self.cycle_count_run).start()
         
     def cycle_count_run(self):
         """Cycle a counter for ever. Run as a thread."""
         counterReset = 1000
         while True:
-            if self.terminating():
-                if self.arguments.verbose:
-                    print(self._name('cycle count scale'), "Stop.")
-                return
             if self.arguments.verbose:
                 print(self._name('cycle count locking ...'))
-            self.mainLock.acquire(True)
-            self._objectCounter['Text'] = str(self._objectCounterNumber)
-            self._objectCounterNumber = (
-                (self._objectCounterNumber + 1) % counterReset)
-            self.mainLock.release()
+            self.mainLock.acquire()
+            try:
+                if self.terminating():
+                    if self.arguments.verbose:
+                        print(self._name('cycle count scale'), "Stop.")
+                    return
+                self._objectCounter.text = str(self._objectCounterNumber)
+                self._objectCounterNumber = (
+                    (self._objectCounterNumber + 1) % counterReset)
+            finally:
+                self.mainLock.release()
+
             if self.arguments.verbose:
                 print(self._name('cycle count released.'))
             if self.arguments.sleep is not None:
@@ -140,20 +161,43 @@ class Application(pulsar.Application):
         #
         # Formally, run the base class tick. Actually, it's a pass.
         super().game_tick_run()
-        #
-        # Move the marker to one vertex of the pulsar.
         self.mainLock.acquire(True)
-        worldPosition = self._objectMarker.worldPosition.copy()
-        for index in range(len(worldPosition)):
-            worldPosition[index] = (
-                self._objectPulsar.worldPosition[index]
-                + self._objectPulsar.worldScale[index])
-        self._objectMarker.worldPosition = worldPosition
-        #
-        # Update the time displayed in the clock.
-        self._objectClock['Text'] = time.strftime("%H:%M:%S")
-        self.mainLock.release()
+        try:
+            #
+            # Move the marker to one vertex of the pulsar.
+            worldPosition = self._objectMarker.worldPosition.copy()
+            for index in range(len(worldPosition)):
+                worldPosition[index] = (
+                    self._objectPulsar.worldPosition[index]
+                    + self._objectPulsar.worldScale[index])
+            self._objectMarker.worldPosition = worldPosition
+            #
+            # Update the time displayed in the clock.
+            self._objectClock.text = time.strftime("%H:%M:%S")
+            #
+            # Move the clock to the middle of one face of the pulsar.
+            worldPosition = self._objectClock.worldPosition.copy()
+            worldPosition[0] = (
+                    self._objectPulsar.worldPosition[0]
+                    + self._objectPulsar.worldScale[0]
+                    + 0.01)
+            for index in range(1, len(worldPosition)):
+                worldPosition[index] = self._objectPulsar.worldPosition[index]
+            self._objectClock.worldPosition = worldPosition.copy()
+            #
+            # Move the counter.
+            counterRange = 50
+            counterScale = 4.0
+            counterPosition = self._objectCounterNumber % (counterRange * 2)
+            if counterPosition > counterRange:
+                counterPosition = (counterRange * 2) - counterPosition
+            worldPosition[1] += (
+                (counterScale * float(counterPosition)) / float(counterRange))
+            worldPosition[2] += 1.0
+            self._objectCounter.worldPosition = worldPosition.copy()
+        
+        finally:
+            self.mainLock.release()
 
-    def ok_to_skip_tick(self):
+    def tick_skipped(self):
         print(self._name('tick_skipped'), self.skippedTicks)
-        return False

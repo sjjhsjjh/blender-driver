@@ -115,23 +115,8 @@ def set_up_object(name, params={}):
         if subtype is None or subtype == 'Empty':
             object_ = bpy.data.objects.new(name, None)
         elif subtype == 'Text':
-            #
-            # Text objects are added in a different way, ops not data, which
-            # happens to select them when they're added, and adds them to the
-            # scene.
-            bpy.ops.object.text_add()
-            object_ = bpy.data.objects[-1]
-            #
-            # Text objects always need a Text game property, to hold the text
-            # that they display.
-            bpy.ops.object.game_property_new(type='STRING', name='Text')
-            #
-            # The different way of adding doesn't set the object name, so set it
-            # here.
-            object_.name = name
-            # This would be the data way, but it seems to create a different
-            # type of thing.
-            # object_ = bpy.data.texts.new(name)
+            curve = bpy.data.curves.new(name, 'FONT')
+            object_ = bpy.data.objects.new(name, curve)
         else:
             object_ = bpy.data.objects.new(name, bpy.data.meshes[subtype])
     #
@@ -158,8 +143,8 @@ def set_up_object(name, params={}):
         # object_.dimensions = Vector(dimensions)
         object_.scale = Vector(dimensions)
     #
-    # Add the object to the current scene, if necessary.
-    if new_ and subtype != 'Text':
+    # Add the object to the current scene.
+    if new_:
         bpy.context.scene.objects.link(object_)
     #
     # Set its Blender ghost, if specified.
@@ -247,7 +232,7 @@ def configure_gateway(driver, controllers):
         sensor.use_all_keys = True
 
 def add_sensor(driver, subroutine, sensorType='ALWAYS'):
-    select_only(driver)
+    driver = select_only(driver)
     bpy.ops.logic.controller_add(type='PYTHON')
     #
     # Only way to access the controller just added is to get the last one now.
@@ -288,7 +273,7 @@ def set_up_objects(objectsDict):
 def set_game_property(object_, key, value):
     """Set a game property in the data context, i.e. before the game engine has
     started."""
-    select_only(object_)
+    object_ = select_only(object_)
     #
     # Attempt to add the value to a single property. This might not work.
     bpy.ops.object.game_property_new(type='STRING', name=key)

@@ -191,14 +191,17 @@ class Application(blender_driver.application.thread.Application):
     def game_keyboard(self, keyEvents):
         #
         # Dump the keyboard event, for diagnostic purposes.
-        print(self._name(''.join(("game_keyboard(,", str(keyEvents), ") ",
-                                  str(self.key_number(keyEvents))))))
+        keyString, ctrl, alt = self.key_events_to_string(keyEvents)
+        print(self._name('game_keyboard'), keyEvents
+              , '"'.join(('', keyString, ''))
+              , ctrl, alt)
+
         if self.arguments.dumpOnKey:
             print("Settings", self.settings)
             print("Arguments", self.arguments)
             print("Threads", threading.active_count())
             print("Python", pythonVersion)
-        if self.key_number(keyEvents) == 113 and self.arguments.quitOnQ:
+        if keyString == "q" and self.arguments.quitOnQ:
             self.game_terminate()
 
     def get_argument_parser(self):

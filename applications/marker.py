@@ -47,6 +47,9 @@ from mathutils import Matrix
 # object.
 # import bpy
 #
+# Font Drawing module, used to get text width.
+# https://docs.blender.org/api/blender_python_api_current/blf.html
+import blf
 # Local imports.
 #
 # Application demonstration module, which is used as a base.
@@ -59,19 +62,17 @@ class Application(pulsar.Application):
 
     templates = {
         'pulsar': {'subtype':'Cube', 'physicsType':'NO_COLLISION'
-                   ,'location': (0, 0, -1)
-                   # , 'dimensions': (0.1, 1, 2)
-                   },
+                   , 'location': (0, 0, -1)},
         'marker': {'subtype':'Cube', 'physicsType':'NO_COLLISION'
-                   ,'location': (0, 0, 2)
-                   , 'dimensions': (0.5, 0.5, 0.5)
-                   },
-        'counter': {'subtype':'Text', 'physicsType':'NO_COLLISION'
-                    ,'location': (3, 5, 3)
-                    },
-        'clock': {'subtype':'Text', 'physicsType':'NO_COLLISION'
-                    ,'location': (3, -5, 3)
-                    }
+                   , 'location': (0, 0, 2)
+                   , 'scale': (0.5, 0.5, 0.5)},
+        'counter': {'text':"counter text long"
+                    , 'physicsType':'NO_COLLISION'
+                    , 'location': (3, 5, 3)},
+        'clock': {'text':"short"
+                  , 'physicsType':'NO_COLLISION'
+                  ,'location': (3, -5, 3)},
+        'm10': {'text':"mmmmmmmmmm", 'physicsType':'NO_COLLISION'}
     }
     
     # Override.
@@ -86,15 +87,23 @@ class Application(pulsar.Application):
         object_ = self.gameScene.addObject(objectName, self.gameGateway)
         object_.worldPosition = self.bpy.data.objects[objectName].location
         if self.arguments.verbose:
-            print(self._name(objectName),
-                  self.bpy.data.objects[objectName].dimensions)
+            if hasattr(object_, 'text'):
+                print(self._name(objectName)
+                      , '"'.join(('text ', object_.text, ''))
+                      , blf.dimensions(0, object_.text)
+                      , self.bpy.data.objects[objectName].dimensions
+                      , blf.dimensions(0, "m" * 10))
+            else:
+                print(self._name(objectName)
+                      , self.bpy.data.objects[objectName].dimensions)
         return object_
 
     # Override.
     def game_initialise(self):
         #
         # Set up this application class's pulsar, which is different to the base
-        # class pulsar.
+        # class pulsar. The base class doesn't need to add the pulsar, because
+        # it doesn't do a delete_except in its data_initialise.
         self._objectPulsar = self.add_object("pulsar")
         self.arguments.pulsar = "pulsar"
         #
@@ -106,6 +115,15 @@ class Application(pulsar.Application):
         try:
             if self.arguments.verbose:
                 print(self._name('marker initialise'), "locked.")
+            
+            self._m10ObjectDims = self.bpy.data.objects['m10'
+                                                        ].dimensions.copy()
+            self._m10TextDims0 = blf.dimensions(0, "m" * 10)
+            if self.arguments.verbose:
+                print(self._name('game_initialise'), "dims0 set"
+                      , self._m10TextDims0, self._m10ObjectDims)
+            self._m10TextDims1 = None
+            
             #
             # Set up what this application uses.
             #
@@ -119,6 +137,16 @@ class Application(pulsar.Application):
                 Matrix.Rotation(radians(90), 4, 'Y'))
             self._objectCounter.worldOrientation.rotate(
                 Matrix.Rotation(radians(90), 4, 'X'))
+            # if self.arguments.verbose:
+            #     print(self._name("counter")
+            #           , '"'.join(('', self._objectCounter.text, ''))
+            #           , blf.dimensions(0, self._objectCounter.text)
+            #           , blf.dimensions(0, "m"), blf.dimensions(0, "mm"))
+            #     self._objectCounter.text = "m"
+            #     print(self._name("counter")
+            #           , '"'.join(('', self._objectCounter.text, ''))
+            #           , blf.dimensions(0, self._objectCounter.text)
+            #           , blf.dimensions(0, "m"), blf.dimensions(0, "mm"))
             #
             # Clock object, which is also a Blender Text.
             self._objectClock = self.add_object("clock")
@@ -147,6 +175,16 @@ class Application(pulsar.Application):
                         print(self._name('cycle count scale'), "Stop.")
                     return
                 self._objectCounter.text = str(self._objectCounterNumber)
+                if self.arguments.verbose:
+                    print(self._name('cycle count text')
+                          , '"'.join(('', self._objectCounter.text, ''))
+                          , blf.dimensions(0, self._objectCounter.text)
+                          , blf.dimensions(0, "m" * 10)
+                          , self._m10ObjectDims
+                          , self._m10TextDims0, self._m10TextDims1
+                          , self._m10TextDims1 if self._m10TextDims1 is None \
+                          else blf.dimensions(0, self._objectCounter.text)[0] *self._m10ObjectDims[0] / self._m10TextDims1[0] * self.bpy.data.objects['counter'].dimensions[0]
+                          )
                 self._objectCounterNumber = (
                     (self._objectCounterNumber + 1) % counterReset)
             finally:
@@ -163,6 +201,20 @@ class Application(pulsar.Application):
         super().game_tick_run()
         self.mainLock.acquire(True)
         try:
+            
+            if self._m10TextDims1 is None:
+                newDims = blf.dimensions(0, "m" * 10)
+                if self._m10TextDims0 == newDims:
+                    if self.arguments.verbose:
+                        print(self._name('game_tick_run'), "dims1 unset"
+                              , self._m10TextDims0, self._m10ObjectDims)
+                else:
+                    self._m10TextDims1 = newDims
+                    if self.arguments.verbose:
+                        print(self._name('game_tick_run'), "dims1 set"
+                              , self._m10TextDims1
+                              , self._m10TextDims0, self._m10ObjectDims)
+            
             #
             # Move the marker to one vertex of the pulsar.
             worldPosition = self._objectMarker.worldPosition.copy()
@@ -175,17 +227,16 @@ class Application(pulsar.Application):
             # Update the time displayed in the clock.
             self._objectClock.text = time.strftime("%H:%M:%S")
             #
-            # Move the clock to the middle of one face of the pulsar.
-            worldPosition = self._objectClock.worldPosition.copy()
+            # Move the clock to the middle of one face of the pulsar, offset by
+            # a little bit so it doesn't flicker.
+            worldPosition = self._objectPulsar.worldPosition.copy()
             worldPosition[0] = (
                     self._objectPulsar.worldPosition[0]
                     + self._objectPulsar.worldScale[0]
                     + 0.01)
-            for index in range(1, len(worldPosition)):
-                worldPosition[index] = self._objectPulsar.worldPosition[index]
-            self._objectClock.worldPosition = worldPosition.copy()
+            worldPositionCounter = worldPosition.copy()
             #
-            # Move the counter.
+            # Slide the clock around.
             counterRange = 50
             counterScale = 4.0
             counterPosition = self._objectCounterNumber % (counterRange * 2)
@@ -193,8 +244,22 @@ class Application(pulsar.Application):
                 counterPosition = (counterRange * 2) - counterPosition
             worldPosition[1] += (
                 (counterScale * float(counterPosition)) / float(counterRange))
-            worldPosition[2] += 1.0
-            self._objectCounter.worldPosition = worldPosition.copy()
+            self._objectClock.worldPosition = worldPosition.copy()
+            #
+            # Position the counter above the centre of the same face as the
+            # clock, and centered in the Y dimension.
+            worldPositionCounter[2] += 1.0
+            
+            if self._m10TextDims1 is not None:
+                worldPositionCounter[1] += (
+                    0.5
+                    * blf.dimensions(0, self._objectCounter.text)[0]
+                    * self._m10ObjectDims[0]
+                    / self._m10TextDims1[0]
+                    * self.bpy.data.objects['counter'].dimensions[0]
+                    )
+            
+            self._objectCounter.worldPosition = worldPositionCounter
         
         finally:
             self.mainLock.release()

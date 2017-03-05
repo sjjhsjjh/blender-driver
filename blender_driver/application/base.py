@@ -130,12 +130,41 @@ See also:
         """Command line switches for the application."""
         return self._arguments
     
-    def key_number(self, keyEvents):
-        # Doesn't handle multiple events or shift keys yet. It should probably
-        # get moved to a utility module when that happens. However the point of
-        # Blender Driver is kind of not to use so much of BGE for user
-        # interaction.
-        return keyEvents[0][0]
+    def key_events_to_string(self, keyEvents):
+        """Generate a string from a keyboard sensor event array. Handles
+        multiple keys, and left and right shift. Doesn't handle Caps Lock."""
+        # For keyEvents.
+        # https://docs.blender.org/api/blender_python_api_current/bge.types.SCA_KeyboardSensor.html
+        #
+        # For key constants and EventToCharacter
+        # https://docs.blender.org/api/blender_python_api_current/bge.events.html
+        #
+        # For KX_INPUT_* values
+        # https://docs.blender.org/api/blender_python_api_current/bge.logic.html#id5
+        #
+        # First, check for any shift keys.
+        shift = False
+        ctrl = False
+        alt = False
+        for key, status in keyEvents:
+            shift = (shift
+                     or key == self.bge.events.RIGHTSHIFTKEY
+                     or key == self.bge.events.LEFTSHIFTKEY)
+            ctrl = (ctrl
+                    or key == self.bge.events.LEFTCTRLKEY
+                    or key == self.bge.events.RIGHTCTRLKEY)
+            alt = (alt
+                   or key == self.bge.events.LEFTALTKEY
+                   or key == self.bge.events.RIGHTALTKEY)
+        #
+        # Build a list of key characters, possibly capitalised.
+        characters = []
+        for key, status in keyEvents:
+            if status == self.bge.logic.KX_INPUT_JUST_ACTIVATED:
+                characters.append(self.bge.events.EventToCharacter(key, shift))
+        #
+        # Concatenate and return.
+        return "".join(characters), ctrl, alt
     
     def game_initialise(self):
         """Method that is invoked just after the constructor in the Blender game

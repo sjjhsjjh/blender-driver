@@ -111,12 +111,16 @@ def set_up_object(name, params={}):
     #
     # Create a new object with the specified Blender mesh, if necessary.
     subtype = params.get('subtype')
+    text = params.get('text')
     if new_:
-        if subtype is None or subtype == 'Empty':
-            object_ = bpy.data.objects.new(name, None)
-        elif subtype == 'Text':
+        if text is not None:
             curve = bpy.data.curves.new(name, 'FONT')
+            curve.align_x = 'CENTER'
+            curve.align_y = 'CENTER'
+            curve.body = text
             object_ = bpy.data.objects.new(name, curve)
+        elif subtype is None or subtype == 'Empty':
+            object_ = bpy.data.objects.new(name, None)
         else:
             object_ = bpy.data.objects.new(name, bpy.data.meshes[subtype])
     #
@@ -138,10 +142,9 @@ def set_up_object(name, params={}):
         object_.location = Vector(location)
     #
     # Scale the object, if necessary.
-    dimensions = params.get('dimensions')
-    if dimensions is not None:
-        # object_.dimensions = Vector(dimensions)
-        object_.scale = Vector(dimensions)
+    scale = params.get('scale')
+    if scale is not None:
+        object_.scale = Vector(scale)
     #
     # Add the object to the current scene.
     if new_:
@@ -154,8 +157,8 @@ def set_up_object(name, params={}):
     #
     # Add the object to the required layers.
     #
-    # The gateway object, which has subtype None, goes on every layer.
-    # Template objects go on layer one only. This means that:
+    # The gateway object, which has subtype None and text None, goes on every
+    # layer. Template objects go on layer one only. This means that:
     #
     # -   Template objects aren't visible by default.
     # -   Template objects can be addObject'd later, by bge.
@@ -163,7 +166,7 @@ def set_up_object(name, params={}):
     #     gets imported, whatever layer happens to be active when BGE gets
     #     started.
     layer = 1
-    if subtype is None:
+    if subtype is None and text is None:
         layer = 0
     #
     # It seems that Blender doesn't allow an object to be on no layers at any
@@ -172,7 +175,7 @@ def set_up_object(name, params={}):
     object_.layers[layer] = True
     for index in range(len(object_.layers)):
         if index != layer:
-            object_.layers[index] = (subtype is None)
+            object_.layers[index] = (layer == 0)
     #
     # Refresh the current scene.
     bpy.context.scene.update()

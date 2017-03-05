@@ -118,7 +118,7 @@ class Application(blender_driver.application.thread.Application):
     def game_initialise(self):
         super().game_initialise()
         if self.arguments.verbose:
-            print(self._name('game_initialise_run'), self.arguments)
+            print(self._name('game_initialise'), self.arguments)
             print("Settings", self.settings)
             print("Game scene objects", self.gameScene.objects)
         print("Press any key to terminate BGE.")

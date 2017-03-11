@@ -49,6 +49,10 @@ from mathutils import Matrix
 #
 # Font Drawing module, used to get text width.
 # https://docs.blender.org/api/blender_python_api_current/blf.html
+#
+# bpy.ops.font.open(filepath="/home/jim/Downloads/fonts/IM Fell English/FeENrm2.ttf")
+# bpy.data.curves['ememem'].font = bpy.data.fonts['IM_FELL_English_Roman']
+#
 import blf
 #
 # Local imports.
@@ -66,10 +70,15 @@ class Application(blender_driver.application.thread.Application):
         'smalltext': {'text':"0\n0", 'physicsType':'NO_COLLISION'
                       , 'scale':(0.5, 0.5, 0.5)},
         'cube': {'subtype':'Cube', 'physicsType':'NO_COLLISION'
-                 , 'scale':(0.25, 0.5, 5.0)},
+                 , 'scale':(0.1, 0.1, 0.1)
+                 #, 'scale':(0.15, 0.5, 5.0)
+                 },
         'em': {'text':"m", 'physicsType':'NO_COLLISION'},
         'emem': {'text':"mm", 'physicsType':'NO_COLLISION'},
         'ememem': {'text':"mmm", 'physicsType':'NO_COLLISION'},
+        'en': {'text':"n", 'physicsType':'NO_COLLISION'},
+        'enen': {'text':"nn", 'physicsType':'NO_COLLISION'},
+        'enenen': {'text':"nnn", 'physicsType':'NO_COLLISION'},
         'emnlem': {'text':"m\nm", 'physicsType':'NO_COLLISION'},
         'emsmall': {'text':"m", 'physicsType':'NO_COLLISION'
                     , 'scale':(0.5, 0.5, 0.5)},
@@ -79,7 +88,12 @@ class Application(blender_driver.application.thread.Application):
                     , 'scale':(2.0, 1.0, 1.0)},
         'ememwide': {'text':"mm", 'physicsType':'NO_COLLISION'
                     , 'scale':(2.0, 1.0, 1.0)},
-        'nl': {'text':" \n", 'physicsType':'NO_COLLISION'},
+        'spacenl': {'text':" \n", 'physicsType':'NO_COLLISION'},
+        'space': {'text':" ", 'physicsType':'NO_COLLISION'},
+        'zero': {'text':"0", 'physicsType':'NO_COLLISION'
+                 , 'location': (0, -2, 0)},
+        'zerozero': {'text':"00", 'physicsType':'NO_COLLISION'
+                 , 'location': (0, -4, 0)},
     }
     
     # Override.
@@ -96,13 +110,7 @@ class Application(blender_driver.application.thread.Application):
     @textBoxIndex.setter
     def textBoxIndex(self, textBoxIndex):
         self._textBoxIndex = textBoxIndex % len(self._textBoxes)
-        if self._cube is not None:
-            cubePosition = self.textBox.worldPosition.copy()
-            cubePosition[0] -= (self._cubeDimensions[0] * 0.5) + 0.01
-            cubePosition[1] += self._cubeDimensions[1] * 0.5
-            cubePosition[2] += ((self.arguments.infoOffset * 0.5)
-                                - (self._cubeDimensions[2] * 0.5))
-            self._cube.worldPosition = cubePosition
+        self.update_info()
         
     @property
     def textBox(self):
@@ -112,8 +120,65 @@ class Application(blender_driver.application.thread.Application):
     def textInfo(self):
         return self._textInfo[self.textBoxIndex]
     
+    def postion_cube(self):
+        if self._cube is not None:
+            cubePosition = self.textBox.worldPosition.copy()
+            # cubePosition[0] -= (self._cubeDimensions[0]
+            #                     * 0.5
+            #                     * self._cube.worldScale[0]) #+ 0.01
+            # cubePosition[1] += (self._cubeDimensions[1]
+            #                     * 0.5
+            #                     * self._cube.worldScale[1])
+            # cubePosition[2] += ((self.arguments.infoOffset * 0.5)
+            #                     - (self._cubeDimensions[2] * 0.5))
+            self._cube.worldPosition = cubePosition
+        if self._cube2 is not None:
+            cubePosition = self.textBox.worldPosition.copy()
+            cubePosition[1] += self._textDimensions[self.textBoxIndex] * 1.35
+            self._cube2.worldPosition = cubePosition
+        
+    
     def update_info(self):
-        dimensionsFloat = blf.dimensions(0, self.textBox.text)
+        dimensionsFloat = list(blf.dimensions(0, self.textBox.text))
+
+        # # object_ = self.bpy.data.objects['text']
+        # name = 'temporary'
+        # curve = self.bpy.data.curves.new(name, 'FONT')
+        # curve.align_x = 'CENTER'
+        # curve.align_y = 'CENTER'
+        # curve.body = self.textBox.text
+        # object_ = self.bpy.data.objects.new(name, curve)
+        # # print(object_.dimensions)
+        # scene = self.bpy.data.scenes[0]
+        # # object_.data.body = self.textBox.text
+        # 
+        # scene.objects.link(object_)
+        # scene.update()
+        # # print(object_.dimensions)
+        # dimensionsFloat.extend((object_.dimensions[0], object_.dimensions[1]))
+        # self._textDimensions[self.textBoxIndex] = object_.dimensions[0]
+
+        name = 'ememem'
+        emememObjD = self.bpy.data.objects[name].dimensions[0]
+        emememTxtD = blf.dimensions(0, self.templates[name]['text'])[0]
+        boxTxtD = blf.dimensions(0, self.textBox.text)[0]
+        self._textDimensions[self.textBoxIndex] = (
+            (boxTxtD / emememTxtD) * emememObjD)
+        dimensionsFloat.append(self._textDimensions[self.textBoxIndex])
+
+
+
+        # if self._cube is not None:
+            # worldScale = self._cube.worldScale.copy()
+            # self._cube.worldScale = [0.15
+            #                          , object_.dimensions[0]# * 0.5
+            #                          , object_.dimensions[1]# * 0.5
+            #                          ]
+        # self.bpy.data.objects.remove(object_, True)
+        # self.bpy.data.curves.remove(curve, True)
+        
+        self.postion_cube()
+
         dimensionsStr = []
         for dimension in dimensionsFloat:
             dimensionsStr.append("{:.2f}".format(dimension))
@@ -126,6 +191,7 @@ class Application(blender_driver.application.thread.Application):
         try:
             self._textBoxIndex = None
             self._cube = None
+            self._cube2 = None
 
             boxes = self.arguments.boxes
             self._textBoxes = [None] * boxes
@@ -159,6 +225,8 @@ class Application(blender_driver.application.thread.Application):
                       , self._cubeDimensions, self._cube.worldScale)
             self.print_dimensions()
 
+            self._cube2 = self.gameScene.addObject('cube', self.gameGateway)
+
             # Next line invokes the setter, so the cube gets positioned.
             self.textBoxIndex = 0
             print("Ctrl-Q to terminate.")
@@ -167,7 +235,10 @@ class Application(blender_driver.application.thread.Application):
     
     def print_dimensions(self):
         if self.arguments.verbose:
-            for name in self.templates.keys():
+            keys = []
+            keys[:] = self.templates.keys()
+            keys.sort()
+            for name in keys:
                 template = self.templates[name]
                 if 'text' in template:
                     print(name
@@ -182,10 +253,29 @@ class Application(blender_driver.application.thread.Application):
             name = 'ememem'
             emememObjD = self.bpy.data.objects[name].dimensions[0]
             emememTxtD = blf.dimensions(0, self.templates[name]['text'])[0]
+            name = 'en'
+            enObjD = self.bpy.data.objects[name].dimensions[0]
+            enTxtD = blf.dimensions(0, self.templates[name]['text'])[0]
+            name = 'enen'
+            enenObjD = self.bpy.data.objects[name].dimensions[0]
+            enenTxtD = blf.dimensions(0, self.templates[name]['text'])[0]
+            name = 'enenen'
+            enenenObjD = self.bpy.data.objects[name].dimensions[0]
+            enenenTxtD = blf.dimensions(0, self.templates[name]['text'])[0]
             print(emObjD, emTxtD, ememObjD, ememTxtD)
             print(ememObjD - emObjD, ememTxtD - emTxtD)
-            print(ememObjD, ememTxtD, emememObjD, emememTxtD)
+            print("m", ememObjD - (2.0 * emObjD))
+            print("n", enenObjD - (2.0 * enObjD))
+            # print(ememObjD, ememTxtD, emememObjD, emememTxtD)
             print(emememObjD - ememObjD, emememTxtD - ememTxtD)
+            print((ememObjD - emObjD) / (ememTxtD - emTxtD))
+            print(2.0 * emObjD, (2.0 * emObjD) - ememObjD)
+            print(3.0 * emObjD, (3.0 * emObjD) - emememObjD)
+            
+            # Divide by this: ememTxtD - emTxtD
+            # Multiply by this: (ememObjD - emObjD)
+            # Add the value for an empty text, given by:
+            # emObjD - (ememObjD - emObjD)
             
 
     def add_text(self, objectName='text', text=""):
@@ -232,7 +322,7 @@ class Application(blender_driver.application.thread.Application):
         parser.add_argument(
             '--boxes', type=int, default=3, help='Number of text boxes.')
         parser.add_argument(
-            '--infoOffset', type=float, default=1.5, help=
+            '--infoOffset', type=float, default=3.5, help=
             'Vertical offset from a text box to its information panel.')
         parser.add_argument(
             '--verbose', action='store_true', help='Verbose logging.')

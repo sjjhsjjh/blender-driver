@@ -24,6 +24,14 @@ import importlib
 
 class Application(object):
     templates = None
+    
+    _applicationName = None
+    @property
+    def applicationName(self):
+        if self._applicationName is None:
+            self._applicationName = (
+                self.__class__.__module__.rpartition(".")[-1])
+        return self._applicationName
 
     @property
     def bpy(self):

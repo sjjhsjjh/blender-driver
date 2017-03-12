@@ -21,13 +21,13 @@ if __name__ == '__main__':
 # https://docs.python.org/3.5/library/math.html#math.radians
 from math import radians
 #
-# Module for logging current time and sleep.
-# https://docs.python.org/3.5/library/time.html
-import time
-#
 # This module uses Thread and Lock classes.
 # https://docs.python.org/3.4/library/threading.html#thread-objects
 import threading
+#
+# Module for logging current time and sleep.
+# https://docs.python.org/3.5/library/time.html
+import time
 #
 # Third party modules, in alphabetic order.
 #
@@ -61,34 +61,39 @@ except ImportError as error:
 # Local imports.
 #
 # Blender Driver application with threads and locks.
-import blender_driver.application.thread
+from . import demonstration
 #
 import blender_driver.textutils
 
 # Diagnostic print to show when it's imported, if all its own imports run OK.
 print("".join(('Application module "', __name__, '" ')))
 
-class Application(blender_driver.application.thread.Application):
+class Application(demonstration.Application):
 
     templates = {
-        'text': {'text':".\n.", 'physicsType':'NO_COLLISION'},
+        'text': {'text':".\n.", 'physicsType':'NO_COLLISION'
+                 , 'location': (0, 0, -1)},
         'smalltext': {'text':"0\n0", 'physicsType':'NO_COLLISION'
                       , 'scale':(0.5, 0.5, 0.5)},
         'cube': {'subtype':'Cube', 'physicsType':'NO_COLLISION'
-                 , 'scale':(0.1, 0.1, 0.1)
-                 #, 'scale':(0.15, 0.5, 5.0)
-                 }
-    }
+                 , 'scale':(0.1, 0.1, 0.1) },
+        'counter': {'text':"counter text long", 'physicsType':'NO_COLLISION'},
+        'clock': {'text':"short", 'physicsType':'NO_COLLISION'}
+        }
     
     # Override.
-    def _name(self, subroutine):
-        return " ".join((__package__, __name__, str(subroutine)))
+    _instructions = "Ctrl-Q to terminate.\nTAB to traverse."
 
     def data_initialise(self):
+        #
+        # Call the base class initialise, to show the banner.
+        super().data_initialise()
+        #
+        # Initialise what this class needs.
         self._textUtilities = blender_driver.textutils.TextUtilities(self.bpy)
         self._textUtilities.data_initialise(self.bpyutils)
         self.bpyutils.delete_except(
-            [self.dataGateway, 'Lamp']
+            [self.dataGateway, 'Lamp', self._bannerName]
             + list(self.templates.keys())
             + self._textUtilities.objectNames)
     
@@ -124,7 +129,7 @@ class Application(blender_driver.application.thread.Application):
         dimensions.append(textWidth)
         self.postion_cube()
         self.textInfo.text = "\n".join(
-            "{:.2f}".format(dimension) for dimension in dimensions)
+            "{:.2f}".format(_) for _ in dimensions)
 
     # Override.
     def game_initialise(self):
@@ -138,62 +143,86 @@ class Application(blender_driver.application.thread.Application):
             self._cube = None
             self._cube2 = None
 
-            boxes = self.arguments.boxes
-            self._textBoxes = [None] * boxes
-            self._textDimensions = [None] * boxes
-            self._textInfo = [None] * boxes
-            worldPosition = None
-            yOffset = 5.0
-            for index in range(boxes):
-                object_ = self.add_text('text', str(index + 1))
-                if worldPosition is None:
-                    worldPosition = object_.worldPosition.copy()
-                    worldPosition[1] -= yOffset * 0.5 * boxes
-                else:
-                    worldPosition[1] += yOffset
-                object_.worldPosition = worldPosition.copy()
-                self._textBoxes[index] = object_
-                
-                object_ = self.add_text('smalltext')
-                infoPosition = worldPosition.copy()
-                infoPosition[2] += self.arguments.infoOffset
-                object_.worldPosition = infoPosition
-                self._textInfo[index] = object_
+            self._set_up_text_boxes()
+            
+            self._objectClock = self.game_add_text("clock")
+            worldPosition = self.bannerObject.worldPosition.copy()
+            worldPosition[1] += 13.0
+            self._objectClock.worldPosition = worldPosition.copy()
+            #
+            # Counter object, which is a Blender Text.
+            self._objectCounter = self.game_add_text("counter")
+            self._objectCounterNumber = 0
+            self.position_counter()
 
-                self.textBoxIndex = index
-                self.update_info()
-                
             self._cube = self.gameScene.addObject('cube', self.gameGateway)
             self._cubeDimensions = self.bpy.data.objects['cube'].dimensions
-            if self.arguments.verbose:
-                print(self._name('game_initialise')
-                      , self._cubeDimensions, self._cube.worldScale)
+            self.verbosely(__name__, 'game_initialise'
+                           , self._cubeDimensions, self._cube.worldScale)
 
             self._cube2 = self.gameScene.addObject('cube', self.gameGateway)
 
             # Next line invokes the setter, so the cube gets positioned.
             self.textBoxIndex = 0
-            print("Ctrl-Q to terminate.")
         finally:
             self.mainLock.release()
+        #
+        # Spawn a thread on which to cycle the counter.
+        threading.Thread(target=self.cycle_count_run).start()
+        
+    def _set_up_text_boxes(self):
+        boxes = self.arguments.boxes
+        self._textBoxes = [None] * boxes
+        self._textDimensions = [None] * boxes
+        self._textInfo = [None] * boxes
+        worldPosition = None
+        yOffset = 5.0
+        for index in range(boxes):
+            object_ = self.game_add_text('text', str(index + 1))
+            if worldPosition is None:
+                worldPosition = object_.worldPosition.copy()
+                worldPosition[1] -= yOffset * 0.5 * boxes
+            else:
+                worldPosition[1] += yOffset
+            object_.worldPosition = worldPosition.copy()
+            self._textBoxes[index] = object_
+                
+            object_ = self.game_add_text('smalltext')
+            infoPosition = worldPosition.copy()
+            infoPosition[2] += self.arguments.infoOffset
+            object_.worldPosition = infoPosition
+            self._textInfo[index] = object_
 
-    def add_text(self, objectName='text', text=""):
-        object_ = self.gameScene.addObject(objectName, self.gameGateway)
-        object_.worldPosition = self.bpy.data.objects[objectName].location
-        object_.worldOrientation.rotate(Matrix.Rotation(radians(90), 4, 'Y'))
-        object_.worldOrientation.rotate(Matrix.Rotation(radians(90), 4, 'X'))
-        object_.text = text
-        return object_
-    
+            self.textBoxIndex = index
+            self.update_info()
+
+    def cycle_count_run(self):
+        """Cycle a counter for ever. Run as a thread."""
+        counterReset = 1000
+        while True:
+            # self.verbosely(__name__, 'cycle_count_run', "locking ...")
+            self.mainLock.acquire()
+            try:
+                if self.terminating():
+                    self.verbosely(__name__, 'cycle_count_run', "Stop.")
+                    return
+                self._objectCounter.text = str(self._objectCounterNumber)
+                self._objectCounterNumber = (
+                    (self._objectCounterNumber + 1) % counterReset)
+            finally:
+                self.mainLock.release()
+                # self.verbosely(__name__, 'cycle_count_run', "released.")
+            if self.arguments.sleep is not None:
+                time.sleep(self.arguments.sleep)
+
     def game_keyboard(self, keyEvents):
         if not self._textUtilities.initialised:
             self._textUtilities.game_initialise()
         keyString, ctrl, alt = self.key_events_to_string(keyEvents)
-        if self.arguments.verbose:
-            print(self._name('game_keyboard'), str(keyEvents)
-                  , '"'.join(('', keyString, ''))
-                  , ctrl, alt,
-                  self.bge.events.BACKSPACEKEY, self.bge.events.TABKEY)
+        self.verbosely(__name__, 'game_keyboard'
+                       , str(keyEvents) , '"'.join(('', keyString, ''))
+                       , ctrl, alt
+                       , self.bge.events.BACKSPACEKEY, self.bge.events.TABKEY)
         if keyString == "q" and ctrl:
             self.game_terminate()
             return
@@ -215,6 +244,34 @@ class Application(blender_driver.application.thread.Application):
             self.textBox.text = ''.join((self.textBox.text, keyString))
             self.update_info()
             
+    def game_tick_run(self):
+        #
+        # Formally, run the base class tick. Actually, it's a pass.
+        super().game_tick_run()
+        self.mainLock.acquire()
+        try:
+            #
+            # Update the time displayed in the clock.
+            self._objectClock.text = time.strftime("%H:%M:%S")
+            #
+            # Slide the counter around.
+            self.position_counter()
+        finally:
+            self.mainLock.release()
+    
+    def position_counter(self):
+        worldPosition = self._objectClock.worldPosition.copy()
+        worldPosition[2] -= 2.0
+        
+        counterRange = 50
+        counterScale = 4.0
+        counterPosition = self._objectCounterNumber % (counterRange * 2)
+        if counterPosition > counterRange:
+            counterPosition = (counterRange * 2) - counterPosition
+        worldPosition[1] += (
+            (counterScale * float(counterPosition)) / float(counterRange))
+        self._objectCounter.worldPosition = worldPosition.copy()
+
     def get_argument_parser(self):
         """Method that returns an ArgumentParser. Overriden."""
         parser = super().get_argument_parser()
@@ -222,8 +279,10 @@ class Application(blender_driver.application.thread.Application):
         parser.add_argument(
             '--boxes', type=int, default=3, help='Number of text boxes.')
         parser.add_argument(
-            '--infoOffset', type=float, default=3.5, help=
+            '--infoOffset', type=float, default=2.0, help=
             'Vertical offset from a text box to its information panel.')
         parser.add_argument(
-            '--verbose', action='store_true', help='Verbose logging.')
+            '--sleep', type=float, help=
+            "Sleep after each increment, for a floating point number of"
+            " seconds. Default is not to sleep.")
         return parser

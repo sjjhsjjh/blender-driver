@@ -8,8 +8,8 @@ This code illustrates:
 -   Basic use of the Blender Game Engine (BGE) KX_GameObject interface, to
     change the size of a game object.
 -   Termination of BGE when any key is pressed.
--   Spawning a single thread at the start of BGE execution. The thread is join'd
-    before terminating BGE.
+-   Spawning a single thread at the start of BGE execution. The thread is
+    joined before terminating BGE.
 -   Use of a thread lock to indicate termination is due.
 
 This application doesn't override game_tick, which is then a pass in the base
@@ -41,6 +41,13 @@ import time
 #
 # Third party modules, in alphabetic order.
 #
+# Blender library imports, in alphabetic order.
+#
+# Main Blender Python interface, which is used to get the size of a mesh.
+# Import isn't needed because the base class keeps a reference to the interface
+# object.
+# import bpy
+#
 # Blender Game Engine KX_GameObject
 # Import isn't needed because this class gets an object that has been created
 # elsewhere.
@@ -50,25 +57,25 @@ import time
 # from within the Blender Game Engine.
 # Import isn't needed because this class gets a Vector from the bpy layer.
 # http://www.blender.org/api/blender_python_api_current/mathutils.html
-# from mathutils import Vector
-# 
-# Main Blender Python interface, which is used to get the size of a mesh.
-# Import isn't needed because the base class keeps a reference to the interface
-# object.
-# import bpy
 #
 # Local imports.
 #
 # Blender Driver application with threads and locks.
-import blender_driver.application.thread
+from . import demonstration
 
-# Diagnostic print to show when it's imported, if all its own imports run OK.
-print("".join(('Application module "', __name__, '" ')))
+# Diagnostic print to show when it's imported. Only printed if all its own
+# imports run OK.
+print('"'.join(('Application module ', __name__, '.')))
 
-class Application(blender_driver.application.thread.Application):
-    def _name(self, subroutine):
-        return " ".join((__package__, __name__, str(subroutine)))
+class Application(demonstration.Application):
+    _instructions = "Press any key to terminate BGE."
+    _bannerName = 'banner'
     
+    # Overriden.
+    def game_initialise(self):
+        super().game_initialise()
+        threading.Thread(target=self.pulse_object_scale).start()
+ 
     def pulse_object_scale(self):
         """Pulse the scale of a game object for ever. Run as a thread."""
         minScale = self.arguments.minScale
@@ -85,17 +92,16 @@ class Application(blender_driver.application.thread.Application):
         while True:
             for cycle in range(3):
                 for scale in range(increments):
-                    if self.arguments.verbose:
-                        print(self._name('pulse_object_scale'), "locking ...")
-
+                    self.verbosely(
+                        __name__ , 'pulse_object_scale', "locking ...")
                     self.mainLock.acquire()
                     try:
-                        if self.arguments.verbose:
-                            print(self._name('pulse_object_scale'), "locked.")
+                        self.verbosely(
+                            __name__, 'pulse_object_scale', "locked.")
 
                         if self.terminating():
-                            if self.arguments.verbose:
-                                print(self._name('pulse object scale'), "Stop.")
+                            self.verbosely(
+                                __name__, 'pulse_object_scale', "Stop.")
                             return
                         scales = (
                             minScale
@@ -108,25 +114,15 @@ class Application(blender_driver.application.thread.Application):
                             worldScale[index] *= scales[(cycle+index)%3]
                         object_.worldScale = worldScale
                     finally:
-                        if self.arguments.verbose:
-                            print(self._name('pulse_object_scale releasing.'))
+                        self.verbosely(
+                            __name__, 'pulse_object_scale', "releasing.")
                         self.mainLock.release()
 
                     if self.arguments.sleep is not None:
                         time.sleep(self.arguments.sleep)
         
-    def game_initialise(self):
-        super().game_initialise()
-        if self.arguments.verbose:
-            print(self._name('game_initialise'), self.arguments)
-            print("Settings", self.settings)
-            print("Game scene objects", self.gameScene.objects)
-        print("Press any key to terminate BGE.")
-        threading.Thread(target=self.pulse_object_scale).start()
-        
     def game_keyboard(self, keyEvents):
-        if self.arguments.verbose:
-            print(self._name('game_keyboard'), "Terminating.")
+        self.verbosely(__name__, 'game_keyboard', "Terminating.")
         self.game_terminate()
         
     def get_argument_parser(self):
@@ -134,8 +130,8 @@ class Application(blender_driver.application.thread.Application):
         parser = super().get_argument_parser()
         parser.prog = ".".join((__name__, self.__class__.__name__))
         parser.add_argument(
-            '--increments', type=int, default=40,
-            help="Number of increments. Default: 40.")
+            '--increments', type=int, default=40, help=
+            "Number of increments. Default: 40.")
         parser.add_argument(
             '--changeScale', type=float, default=2.0,
             help="Change of scale. Default: 2.0.")
@@ -146,11 +142,7 @@ class Application(blender_driver.application.thread.Application):
             '--pulsar', default="Cube",
             help="Name of the object to pulse.")
         parser.add_argument(
-            '--sleep', type=float,
-            help=
+            '--sleep', type=float, help=
             "Sleep after each increment, for a floating point number of"
             " seconds. Default is not to sleep.")
-        parser.add_argument(
-            '--verbose', action='store_true', help=
-            'Verbose logging of lock acquisition and release.')
         return parser

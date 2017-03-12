@@ -35,7 +35,6 @@ class TextUtilities(object):
     _calibratorName = "TextUtilitiesmmmmm"
     _bpy = None
     _calibratorRatio = None
-    # _bpyutils = None
     _objectNames = None
     
     @property

@@ -57,6 +57,11 @@ import sys
 # Only used for --help description.
 # https://docs.python.org/3/library/textwrap.html
 import textwrap
+#
+# Local imports.
+#
+# Window and screen geometry utilities.
+from windowgeometry import WindowGeometry
 
 class Main(object):
     @property
@@ -97,6 +102,10 @@ class Main(object):
             " ../blender_driver/launch.py file, relative to the location of"
             " this script.")
         self._argumentParser.add_argument(
+            '-r', '--record', help=
+            "Record a screen capture video to the specified path,"
+            " using recordmydesktop.")
+        self._argumentParser.add_argument(
             '-t', '--terminal', action='store_true',
             help=
             "Open a new terminal window from which to run Blender. The Blender"
@@ -125,29 +134,35 @@ class Main(object):
 
     def _set_geometries(self):
         # Get the geometry specifiers. Terminal is a string, Blender is a list.
-        if self._arguments.geometries:
-            self._terminalGeometry \
-            , self._blenderGeometry = self.get_geometries()
+        if not self._arguments.geometries:
+            return
+        self._screenGeometry = WindowGeometry.from_X_display()
+        self._terminalGeometry, self._blenderGeometry = self.get_geometries()
+        if self._arguments.verbose:
+            print 'Screen geometry:', vars(self._screenGeometry)
+            print 'Blender geometry:', vars(self._blenderGeometry)
 
     def get_geometries(self):
         """Get sensible geometries for the terminal and blender.
         
-        Terminal one is an X geometry in a single string. Blender one is a list
-        of values suitable for appending to its command line."""
-        width, height =  self.get_X_resolution()
+        Terminal one is an X geometry in a single string. Blender one is a
+        WindowGeometry object."""
         terminalGeometry = None
-        blenderGeometry = None
-        if width < 1500:
+        screen = self._screenGeometry
+        if screen.width < 1500:
             # Small screen.
             # Put the terminal in the lower left corner.
             # Put blender one sixth of the way across, the full height of the
             # screen and two thirds of the width.
             terminalGeometry = '80x48+0-0'
-            blenderGeometry = (str(int(width / 6)),     # X position.
-                               '0',
-                               str(int(width * 2 / 3)), # Width.
-                               str(height) )
-        elif width > 3000:
+            blenderGeometry = WindowGeometry.from_xywh(
+                screen.x + int(screen.width / 6), screen.y
+                , int(screen.width * 2 / 3), screen.height)
+            # blenderGeometry = (int(width / 6),     # X position.
+            #                    0,                  # Y position.
+            #                    int(width * 2 / 3), # Width.
+            #                    height)             # Height.
+        elif screen.width > 3000:
             # Big screen.
             # Make blender fill the upper right quadrant.
             # Put the terminal in the lower right quadrant.
@@ -155,40 +170,28 @@ class Main(object):
             # Y position gets a fudge factor to accomodate the border on the
             # Blender window, i.e. move the terminal down so it isn't under the
             # border.
-            terminalGeometry = '+'.join((
-                '80x48', str(int(width/2)), str(int(height/2) + 100)))
-            blenderGeometry = (str(int(width/2)),   # X position.
-                               str(int(height/2)),  # Y position.
-                               str(int(width/2)),   # Width.
-                               str(int(height/2)) ) # Height.
+            terminalGeometry = "80x48+{:0d}-0".format(int(screen.width/2))
+            blenderGeometry = WindowGeometry.from_xywh(
+                screen.x + int(screen.width/2), screen.y,
+                int(screen.width/2), int(screen.height/2))
+            # blenderGeometry = (int(width/2),   # X position.
+            #                    int(height/2),  # Y position.
+            #                    int(width/2),   # Width.
+            #                    int(height/2) ) # Height.
             
         else:
-            raise NotImplementedError(''.join((
-                "No specified geometry for resolution. ",
-                str(width), 'x', str(height))))
+            raise NotImplementedError(" ".join((
+                "No specified geometry for screen dimensions:",
+                vars(screen))))
+        
+        if self._arguments.record is not None:
+            # recordmydesktop requires multiples of 16 for all offsets and
+            # sizes.
+            blenderGeometry.round(16)
+            # blenderGeometry = tuple(int(_ / 16) * 16 for _ in blenderGeometry)
 
         return terminalGeometry, blenderGeometry    
 
-    def get_X_resolution(self):
-        """Get the width and height of the screen in pixels, by calling an X
-        Windows tool."""
-        xdpyinfo = subprocess.Popen(['xdpyinfo'], stdout=subprocess.PIPE)
-        reDimensions = re.compile('.*dimensions:\s*([0-9]+)x([0-9]+)')
-        width = None
-        height = None
-        for line in xdpyinfo.stdout.readlines():
-            match = reDimensions.match(line)
-            if match:
-                if width is not None:
-                    # Don't know how to engineer this.
-                    print ''.join((
-                        'get_X_resolution() Using second setting on line "',
-                        line, '"'))
-                xy = match.group(1, 2)
-                width = int(xy[0])
-                height = int(xy[1])
-        return width, height
-    
     def _terminal_command(self):
         if not self._arguments.terminal:
             return []
@@ -239,8 +242,9 @@ class Main(object):
         return tuple(terminalCommand)
     
     # When everything catches up to python 3.3 then this could be changed to use
-    # shutil.which()
+    # the following.
     # import shutil
+    # shutil.which()
     def which(self, program, extras=()):
         """Find a program on the operating system path after, optionally,
         checking in a list of extra directories."""
@@ -263,8 +267,8 @@ class Main(object):
         #
         # Add the geometry switch and value, if specified.
         if self._blenderGeometry is not None:
-            command.append('--window-geometry')
-            command.extend(self._blenderGeometry)
+            command.extend(
+                self._blenderGeometry.for_blender(self._screenGeometry))
         #
         # Add the .blend file, if specified.
         if self._arguments.blend is not None:
@@ -310,28 +314,119 @@ class Main(object):
         
         return blenderPath
     
-    def _execute(self, command):
-        if self._arguments.verbose:
-            print self.argv0 + ' about to os.execvp.'
-            for commandi in command:
-                print ''.join(("\t\"", commandi, '"'))
+    def _start_recorder(self, blenderPopen):
+        if self._arguments.record is None:
+            return None
+        
+        if self._blenderGeometry is None:
+            recorderGeometry = None
+        else:
+            #
+            # Set the recorder geometry to be the same as the Blender window.
+            # There's an issue that the Blender window mightn't have finished
+            # initialising, which causes xwininfo to fail. So, keep trying until
+            # one of the following applies:
+            #
+            # -   It works.
+            # -   The Blender process seems to have ended.
+            while True:
+                try:
+                    recorderGeometry = WindowGeometry.from_X_window("Blender")
+                    #
+                    # If we get here then no exception was raised so we have a
+                    # geometry and are ready to continue.
+                    break
+                
+                except EnvironmentError as error:
+                    #
+                    # Assume no Blender window found. Check the process is still
+                    # running.
+                    blenderPopen.poll()
+                    if blenderPopen.returncode is not None:
+                        #
+                        # No longer running. Fail by re-raising
+                        raise
+                    #
+                    # Still running. Allow the code to go around the loop again.
+                    if self._arguments.verbose:
+                        print error
+                        print "Trying again."
         #
-        # Set a blank error message. It'll only be used in the case that execvp
-        # throws something that isn't an Exception subclass.
-        errorMessage = ''
+        # Assemble the recorder command line.
+        recorderCommand = [
+            'recordmydesktop', '--overwrite', '-o', self._arguments.record]
+        if recorderGeometry is not None:
+            recorderCommand.extend(recorderGeometry.for_recordmydesktop())
+        #
+        # Start the recorder.
         try:
-            # All being well, the next line doesn't return.
-            os.execvp(command[0], command)
+            if self._arguments.verbose:
+                print self.argv0, 'Starting recorder:\n\t', '\n\t'.join((
+                    '"'.join(("", _, "")) for _ in recorderCommand))
+                recorder = subprocess.Popen(recorderCommand)
+            else:
+                #
+                # Not verbose so discard all the recordmydesktop output. It
+                # prints encoding progress to stdout, and messages to
+                # stderr, so both get discarded.
+                recorder = subprocess.Popen(recorderCommand
+                                            , stdout=subprocess.DEVNULL
+                                            , stderr=subprocess.DEVNULL)
         except Exception as exception:
-            errorMessage = ''.join(("\n", str(exception), "."))
+            print ''.join(("Failed to start recorder."
+                           ,' Command line was:\n\t"'
+                           , '"\n\t"'.join(recorderCommand), '"\n'
+                           , str(exception), "."))
+            raise
+        return recorder
+    
+    def _execute(self, command):
+        """
+        Start Blender, possibly in a terminal, and the screen recorder.
+        """
         #
-        # If we get here, the execvp failed and there might be an error message.
-        print ''.join(('Failed to start Blender. Command line was \n\t"',
-                       '"\n\t"'.join(command), '"', errorMessage))
-        if self._arguments.blender is None:
-            print ''.join(('Try specifying an explicit path to the Blender',
-                           ' executable with the -B switch.'))
-        return 1
+        # 
+        return_ = 0
+        try:
+            popen = subprocess.Popen(command)
+        except Exception as exception:
+            print ''.join(('Failed to start Blender. Command line was:\n\t"'
+                           , '"\n\t"'.join(command), '"\n'
+                           , str(exception), "."))
+            if self._arguments.blender is None:
+                print ("Try specifying an explicit path to the Blender"
+                       " executable, with the -B switch.")
+            return 1
+        #
+        # Start the screen recorder, if specified.
+        try:
+            recorder = self._start_recorder(popen)
+        except Exception as exception:
+            popen.terminate()
+            print exception
+            return 1
+        #
+        # Wait for Blender to finish, so that we can get a return code, and so
+        # that we can stop the screen recorder.
+        popen.wait()
+        #
+        # The next line gets 1 following a normal Blender quit from the user
+        # interface. It's unfortunate but doesn't seem worth treating specially.
+        return_ = popen.returncode
+        #
+        # Stop the screen recorder, if any.
+        if recorder is not None:
+            print "Stopping recorder and waiting for it to encode..."
+            recorder.terminate()
+            recorder.wait()
+            recorderMessage = "OK"
+            if recorder.returncode != 0:
+                recorderMessage = "".join((
+                    "Failed: ", str(recorder.returncode), "."))
+            print "Recorder finished.", recorderMessage
+        #
+        # Return the Blender return code.
+        return return_
     
     def main(self):
         """Run it."""
@@ -364,12 +459,12 @@ class Main(object):
         #
         # Set internal and static properties.
         self._terminalGeometry = None
+        self._screenGeometry = None
         self._blenderGeometry = None
         self._set_argument_parser()
         #
-        # Copy the command line, for later.
+        # Shallow copy the command line, for later, using a slice.
         self._commandLine = commandLine[:]
-        
 
 def main(commandLine):
     sys.exit( Main(commandLine).main() )

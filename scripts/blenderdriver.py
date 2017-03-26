@@ -185,10 +185,10 @@ class Main(object):
                 vars(screen))))
         
         if self._arguments.record is not None:
+            #
             # recordmydesktop requires multiples of 16 for all offsets and
             # sizes.
             blenderGeometry.round(16)
-            # blenderGeometry = tuple(int(_ / 16) * 16 for _ in blenderGeometry)
 
         return terminalGeometry, blenderGeometry    
 

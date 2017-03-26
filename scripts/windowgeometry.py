@@ -17,7 +17,9 @@ if __name__ == '__main__':
 import subprocess
 
 class WindowGeometry(object):
-    
+    """
+    Represents a screen window, i.e. an X Y offset, and a width and a height.
+    """
     # Co-ordinates of the top-left corner of the window, measured from the
     # top-left corner of the screen.
     x = None
@@ -52,6 +54,9 @@ class WindowGeometry(object):
         return return_
 
     def set_from_X_display(self, ignoreWindowManager=False):
+        """
+        Set geometry to the size of the X display, by calling xwininfo.
+        """
         self.set_from_xwininfo(('xwininfo','-root'))
         if ignoreWindowManager:
             return self
@@ -106,6 +111,9 @@ class WindowGeometry(object):
 
     @classmethod
     def from_xywh(class_, *args):
+        """
+        Construct and call set_from_xywh. Factory method.
+        """
         return class_().set_from_xywh(*args)
     
     def set_from_xywh(self, x, y=None, width=None, height=None):
@@ -155,41 +163,14 @@ this subroutine gets the display size itself.
             , self.width
             , self.height))
     
-    def for_recordmydesktop(self, screenGeometry=None):
+    def for_recordmydesktop(self):
         """
 Sequence of values suitable for adding to a command line for the recordmydesktop
-utility. In theory, screen geometry isn't needed. In practice, if self
-represents a Blender window, then the window manager might have added a top
-margin.
+utility.
         """
-        # if screenGeometry is None:
-        #     screenGeometry = self.__class__.from_X_display()
         return (
             '-x', str(int(self.x))
-            , '-y', str(int(self.y)) #str(int(screenGeometry.height - self.height)),
+            , '-y', str(int(self.y))
             , '--width', str(int(self.width))
             , '--height', str(int(self.height)))
     
-    # Unused code parked here:
-    # def get_X_resolution(self):
-    #     """Get the width and height of the screen in pixels, by calling an X
-    #     Windows tool, xdpyinfo."""
-    #     xdpyinfo = subprocess.Popen(('xdpyinfo',), stdout=subprocess.PIPE)
-    #     reDimensions = re.compile('.*dimensions:\s*([0-9]+)x([0-9]+)')
-    #     width = None
-    #     height = None
-    #     for line in xdpyinfo.stdout.readlines():
-    #         match = reDimensions.match(line)
-    #         if match:
-    #             if width is not None:
-    #                 # Don't know how to engineer this.
-    #                 print ''.join((
-    #                     'get_X_resolution() Using second setting on line "',
-    #                     line, '"'))
-    #             xy = match.group(1, 2)
-    #             width = int(xy[0])
-    #             height = int(xy[1])
-    #     return width, height
-    
-
-

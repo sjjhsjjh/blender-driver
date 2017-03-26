@@ -36,14 +36,14 @@ class WindowGeometry(object):
         "Height": 'height'}
     
     @classmethod
-    def from_X_display(class_, *args):
+    def from_X_display(cls, *args):
         """Construct and call set_from_X_display. Factory method."""
-        return class_().set_from_X_display(*args)
+        return cls().set_from_X_display(*args)
 
     @classmethod
-    def from_X_window(class_, *args):
+    def from_X_window(cls, *args):
         """Construct and call set_from_X_window. Factory method."""
-        return class_().set_from_X_window(*args)
+        return cls().set_from_X_window(*args)
     
     def copy(self):
         return_ = self.__class__()
@@ -110,11 +110,11 @@ class WindowGeometry(object):
         return self
 
     @classmethod
-    def from_xywh(class_, *args):
+    def from_xywh(cls, *args):
         """
         Construct and call set_from_xywh. Factory method.
         """
-        return class_().set_from_xywh(*args)
+        return cls().set_from_xywh(*args)
     
     def set_from_xywh(self, x, y=None, width=None, height=None):
         """

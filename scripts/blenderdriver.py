@@ -314,7 +314,11 @@ class Main(object):
         
         return blenderPath
     
-    def _start_recorder(self, blenderPopen):
+    def _start_recorder(self, blenderPopen, blenderWindowName="Blender"):
+        """
+        Start a screen recorder, if specified. Returns a Popen for the screen
+        recorder process.
+        """
         if self._arguments.record is None:
             return None
         
@@ -331,7 +335,8 @@ class Main(object):
             # -   The Blender process seems to have ended.
             while True:
                 try:
-                    recorderGeometry = WindowGeometry.from_X_window("Blender")
+                    recorderGeometry = WindowGeometry.from_X_window(
+                        blenderWindowName)
                     #
                     # If we get here then no exception was raised so we have a
                     # geometry and are ready to continue.
@@ -374,7 +379,7 @@ class Main(object):
                                             , stderr=subprocess.DEVNULL)
         except Exception as exception:
             print ''.join(("Failed to start recorder."
-                           ,' Command line was:\n\t"'
+                           , ' Command line was:\n\t"'
                            , '"\n\t"'.join(recorderCommand), '"\n'
                            , str(exception), "."))
             raise

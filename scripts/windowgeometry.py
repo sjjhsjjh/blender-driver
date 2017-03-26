@@ -167,7 +167,8 @@ margin.
         return (
             '-x', str(int(self.x))
             , '-y', str(int(self.y)) #str(int(screenGeometry.height - self.height)),
-            , '--width', str(int(self.width)), '--height', str(int(self.height)))
+            , '--width', str(int(self.width))
+            , '--height', str(int(self.height)))
     
     # Unused code parked here:
     # def get_X_resolution(self):

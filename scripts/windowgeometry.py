@@ -20,6 +20,7 @@ class WindowGeometry(object):
     """
     Represents a screen window, i.e. an X Y offset, and a width and a height.
     """
+    #
     # Co-ordinates of the top-left corner of the window, measured from the
     # top-left corner of the screen.
     x = None

@@ -21,6 +21,8 @@ The command line to run this script is expected to be as follows.
         -- --switches-for launch_script \\
         -- --switches-for application
 
+Specifying a .blend file is optional.
+
 Tip: Use the blenderdriver.py script to create and run the command line."""
 
 # Standard library imports, in alphabetic order.

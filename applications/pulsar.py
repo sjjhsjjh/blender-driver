@@ -68,8 +68,6 @@ from . import demonstration
 print('"'.join(('Application module ', __name__, '.')))
 
 class Application(demonstration.Application):
-    _instructions = "Press any key to terminate BGE."
-    _bannerName = 'banner'
     
     # Overriden.
     def game_initialise(self):
@@ -120,7 +118,7 @@ class Application(demonstration.Application):
 
                     if self.arguments.sleep is not None:
                         time.sleep(self.arguments.sleep)
-        
+    
     def game_keyboard(self, keyEvents):
         self.verbosely(__name__, 'game_keyboard', "Terminating.")
         self.game_terminate()

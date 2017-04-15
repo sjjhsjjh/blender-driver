@@ -62,11 +62,20 @@ def initialise(controller):
         raise
     #
     # If the next code raises an exception, terminate in the driver object
-    # instead.
+    # instead ...
     try:
         context.driver.game_initialise()
     except:
-        context.driver.game_terminate()
+        try:
+            context.driver.game_terminate()
+        except Exception as exception:
+            # ... unless the driver object hasn't been initialised correctly and
+            # cannot terminate.
+            terminate_engine()
+            # Don't raise here; that would replace the original exception from
+            # the initialise with the exception from the terminate.
+            print("Failed to game_terminate after game_initialise failed.",
+                  exception)
         raise
 
 def initialise_application(object_):

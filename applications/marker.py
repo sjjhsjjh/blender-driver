@@ -21,6 +21,10 @@ if __name__ == '__main__':
 # https://docs.python.org/3.5/library/math.html#math.radians
 from math import radians
 #
+# Module for random number generation.
+# https://docs.python.org/3.5/library/random.html
+from random import randrange
+#
 # Module for logging current time and sleep.
 # https://docs.python.org/3.5/library/time.html
 import time
@@ -31,16 +35,28 @@ import threading
 #
 # Third party modules, in alphabetic order.
 #
-# Blender Game Engine KX_GameObject
-# Import isn't needed because this class gets an object that has been created
-# elsewhere.
-# https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
+# Blender library imports, in alphabetic order.
 #
-# Main Blender Python interface.
-# Import isn't needed because the base class keeps a reference to the interface
-# object.
-# import bpy
-#
+# These modules can only be imported if running from within Blender.
+try:
+    #
+    # Blender Game Engine KX_GameObject
+    # Import isn't needed because this class gets an object that has been created
+    # elsewhere.
+    # https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
+    #
+    # Blender Game Engine maths utilities, which can only be imported if running
+    # from within the Blender Game Engine.
+    # http://www.blender.org/api/blender_python_api_current/mathutils.html
+    from mathutils import Vector
+    #
+    # Main Blender Python interface.
+    # Import isn't needed because the base class keeps a reference to the interface
+    # object.
+    # import bpy
+except ImportError as error:
+    print(__doc__)
+    print(error)
 # Local imports.
 #
 # Application demonstration module, which is used as a base.
@@ -59,6 +75,8 @@ class Application(pulsar.Application):
         'asterisk': {'text':"*", 'physicsType':'NO_COLLISION'
                      , 'scale': (2, 2, 2)},
         'plus': {'text':"+", 'physicsType':'NO_COLLISION'
+                 , 'scale': (0.5, 0.5, 0.5)},
+        'minus': {'text':"-", 'physicsType':'NO_COLLISION'
                  , 'scale': (0.5, 0.5, 0.5)}
     }
     
@@ -92,12 +110,51 @@ class Application(pulsar.Application):
         self.mainLock.acquire()
         try:
             self.verbosely(__name__, 'game_initialise', "locked.")
-            self._objectMarker = self.add_object('marker')
+            
+            self._objectMarker1 = self.add_object('marker')
+            self._objectMarker2 = self.add_object('marker')
             self._objectAsterisk = self.game_add_text('asterisk')
             self._objectPlus = self.game_add_text('plus')
+            self._objectMinus = self.game_add_text('minus')
+            
+            self._dimension = 2
+            self.advance_dimension()
+            self._cornerTo = (1,1,1)
+            self.advance_corner()
+            self._perfFrom = 0.0
         finally:
             self.verbosely(__name__, 'game_initialise', "releasing.")
             self.mainLock.release()
+            
+    def advance_corner(self):
+        self._cornerFrom = self._cornerTo
+        cornerTo = list(self._cornerFrom)
+        cornerTo[self._dimension] *= -1
+        self._cornerTo = tuple(cornerTo)
+    
+    def advance_dimension(self):
+        if self.arguments.circuit:
+            self._dimension = 2 if self._dimension == 1 else 1
+        else:
+            self._dimension = randrange(len(self._cornerTo))
+    
+    def position_text(self, object_, faceText, fudgeY=-0.15, fudgeZ=-0.15):
+        worldPosition = object_.worldPosition.copy()
+        #
+        # Move the face text to the middle of one face of the object, offset by
+        # a little bit so it doesn't flicker.
+        worldPosition[0] += object_.worldScale[0] + 0.01
+        #
+        # Fudge the text positioning.
+        worldPosition[1] += fudgeY
+        worldPosition[2] += fudgeZ
+        faceText.worldPosition = worldPosition.copy()
+    
+    def get_corner(self, object_, signs):
+        return_ = object_.worldPosition.copy()
+        for index in range(len(return_)):
+            return_[index] += signs[index] * object_.worldScale[index]
+        return return_
 
     def game_tick_run(self):
         #
@@ -107,30 +164,52 @@ class Application(pulsar.Application):
         try:
             #
             # Move the marker to one vertex of the pulsar.
-            worldPosition = self._objectMarker.worldPosition.copy()
-            for index in range(len(worldPosition)):
-                worldPosition[index] = (
-                    self._objectPulsar.worldPosition[index]
-                    + self._objectPulsar.worldScale[index])
-            self._objectMarker.worldPosition = worldPosition.copy()
+            self._objectMarker1.worldPosition = self.get_corner(
+                self._objectPulsar, self._cornerFrom)
             #
-            # Move the plus to the middle of one face of the marker, offset
-            # by a little bit so it doesn't flicker.
-            worldPosition[0] += self._objectMarker.worldScale[0] + 0.01
+            # Position the plus on the marker.
+            self.position_text(self._objectMarker1, self._objectPlus)
             #
-            # Fudge the text positioning.
-            worldPosition[1] -= 0.15
-            worldPosition[2] -= 0.15
-            self._objectPlus.worldPosition = worldPosition.copy()
+            # Position the lead marker.
+            fromVector = self.get_corner(self._objectPulsar, self._cornerFrom)
+            fromScalar = fromVector[self._dimension]
+            toVector = self.get_corner(self._objectPulsar, self._cornerTo)
+            toScalar = toVector[self._dimension]
+            direction = 1 if fromScalar < toScalar else -1
+            nowScalar = fromScalar + (
+                self.arguments.speed
+                * (self._perfTick - self._perfFrom)
+                * direction)
+            
+            fromVector[self._dimension] = nowScalar
+            if ((fromScalar < toScalar and nowScalar >= toScalar)
+                or (fromScalar > toScalar and nowScalar <= toScalar)
+                ):
+                fromVector = toVector
+                self.advance_dimension()
+                self.advance_corner()
+                self._perfFrom = self._perfTick
+            self._objectMarker2.worldPosition = fromVector
             #
-            # Move the asterisk to the middle of one face of the pulsar, offset
-            # by a little bit so it doesn't flicker.
-            worldPosition = self._objectPulsar.worldPosition.copy()
-            worldPosition[0] += self._objectPulsar.worldScale[0] + 0.01
+            # Position the minus on the lead marker.
+            self.position_text(self._objectMarker2, self._objectMinus)
             #
-            # Fudge the text positioning.
-            worldPosition[1] -= 0.3
-            worldPosition[2] -= 1.0
-            self._objectAsterisk.worldPosition = worldPosition.copy()
+            # Position asterisk on the pulsar.
+            self.position_text(self._objectPulsar
+                               , self._objectAsterisk, -0.3, -1.0)
         finally:
             self.mainLock.release()
+
+    def get_argument_parser(self):
+        """Method that returns an ArgumentParser. Overriden."""
+        parser = super().get_argument_parser()
+        parser.prog = ".".join((__name__, self.__class__.__name__))
+        parser.add_argument(
+            '--speed', type=float, default=3.0, help=
+            "Speed of marker in Blender units (BU) per second. Default: 3.0.")
+        parser.add_argument(
+            '--circuit', action='store_true', help=
+            "Make the marker do a circuit of the visible face of the pulsar."
+            " Default is for the marker to pick a random direction when it"
+            " reaches a corner.")
+        return parser

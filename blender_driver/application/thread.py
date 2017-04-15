@@ -47,27 +47,10 @@ class Application(base.Application):
     def skippedTicks(self):
         return self._skippedTicks
 
-    def _run_with_tick_lock(self, run):
-        if self._tickLock.acquire(False):
-            try:
-                self._skippedTicks = 0
-                run()
-            finally:
-                self._tickLock.release()
-            return
-            
-        self._skippedTicks += 1
-        self.tick_skipped()
-        
-    def tick_skipped(self):
-        """Method that is run in a thread in every tick in which the tick lock
-        can't be acquired. Override it to print an error messsage."""
-        pass
-
     # Override.
     def game_initialise(self):
         """Method that is invoked just after the constructor in the Blender game
-        context. Call super if overriden."""
+        context. Call super first if overriden."""
         #
         # It might be unnecessary that the terminate lock is a threading.Lock()
         # instance. An ordinary property might do just as well, because it only
@@ -76,6 +59,9 @@ class Application(base.Application):
         self._mainLock = threading.Lock()
         self._tickLock = threading.Lock()
         self._skippedTicks = 0
+        #
+        # Reference time for when the game engine was started.
+        self._perfGameInitialise = time.perf_counter()
 
     # Override.
     def game_tick(self):
@@ -88,9 +74,29 @@ class Application(base.Application):
             args=(self.game_tick_run,)
         ).start()
 
+    def _run_with_tick_lock(self, run):
+        if self._tickLock.acquire(False):
+            try:
+                self._skippedTicks = 0
+                #
+                # Reference time for this tick.
+                self._perfTick = time.perf_counter() - self._perfGameInitialise
+                run()
+            finally:
+                self._tickLock.release()
+            return
+            
+        self._skippedTicks += 1
+        self.tick_skipped()
+        
     def game_tick_run(self):
         """Method that is run in a thread in every tick in which the tick lock
         can be acquired. Override it."""
+        pass
+
+    def tick_skipped(self):
+        """Method that is run in a thread in every tick in which the tick lock
+        can't be acquired. Override it to print an error messsage."""
         pass
 
     # Override.

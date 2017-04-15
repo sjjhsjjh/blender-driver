@@ -45,15 +45,11 @@ try:
     # elsewhere.
     # https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
     #
-    # Blender Game Engine maths utilities, which can only be imported if running
-    # from within the Blender Game Engine.
-    # http://www.blender.org/api/blender_python_api_current/mathutils.html
-    from mathutils import Vector
-    #
     # Main Blender Python interface.
     # Import isn't needed because the base class keeps a reference to the interface
     # object.
     # import bpy
+    pass
 except ImportError as error:
     print(__doc__)
     print(error)

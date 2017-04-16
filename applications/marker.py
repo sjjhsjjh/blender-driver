@@ -23,15 +23,11 @@ from math import radians
 #
 # Module for random number generation.
 # https://docs.python.org/3.5/library/random.html
-from random import randrange
+import random
 #
 # Module for logging current time and sleep.
 # https://docs.python.org/3.5/library/time.html
 import time
-#
-# This module uses Thread and Lock classes.
-# https://docs.python.org/3.4/library/threading.html#thread-objects
-import threading
 #
 # Third party modules, in alphabetic order.
 #
@@ -107,17 +103,19 @@ class Application(pulsar.Application):
         try:
             self.verbosely(__name__, 'game_initialise', "locked.")
             
-            self._objectMarker1 = self.add_object('marker')
-            self._objectMarker2 = self.add_object('marker')
+            self._objectPursuitMarker = self.add_object('marker')
+            self._objectLeadMarker = self.add_object('marker')
             self._objectAsterisk = self.game_add_text('asterisk')
             self._objectPlus = self.game_add_text('plus')
             self._objectMinus = self.game_add_text('minus')
             
+            random.seed(self.arguments.seed)
+            
+            self._cornerTo = (1,1,1)
             self._dimension = 2
             self.advance_dimension()
-            self._cornerTo = (1,1,1)
             self.advance_corner()
-            self._perfFrom = 0.0
+            self._movedPerf = 0.0
         finally:
             self.verbosely(__name__, 'game_initialise', "releasing.")
             self.mainLock.release()
@@ -132,7 +130,7 @@ class Application(pulsar.Application):
         if self.arguments.circuit:
             self._dimension = 2 if self._dimension == 1 else 1
         else:
-            self._dimension = randrange(len(self._cornerTo))
+            self._dimension = random.randrange(len(self._cornerTo))
     
     def position_text(self, object_, faceText, fudgeY=-0.15, fudgeZ=-0.15):
         worldPosition = object_.worldPosition.copy()
@@ -156,56 +154,79 @@ class Application(pulsar.Application):
         #
         # Formally, run the base class tick. Actually, it's a pass.
         super().game_tick_run()
-        self.mainLock.acquire(True)
+        self.mainLock.acquire()
+        #
+        # Next flag would be a way to terminate from within the tick without
+        # raising an exception.
+        # terminate = False
         try:
             #
-            # Move the marker to one vertex of the pulsar.
-            self._objectMarker1.worldPosition = self.get_corner(
+            # Position the asterisk on the pulsar.
+            self.position_text(self._objectPulsar
+                               , self._objectAsterisk, -0.3, -1.0)
+            #
+            # Position the pursuit marker on one vertex of the pulsar.
+            self._objectPursuitMarker.worldPosition = self.get_corner(
                 self._objectPulsar, self._cornerFrom)
             #
-            # Position the plus on the marker.
-            self.position_text(self._objectMarker1, self._objectPlus)
+            # Position the plus on the pursuit marker.
+            self.position_text(self._objectPursuitMarker, self._objectPlus)
             #
             # Position the lead marker.
             fromVector = self.get_corner(self._objectPulsar, self._cornerFrom)
-            fromScalar = fromVector[self._dimension]
             toVector = self.get_corner(self._objectPulsar, self._cornerTo)
+            #nowVector = self._objectPulsar.worldPosition
+            #
+            fromScalar = fromVector[self._dimension]
             toScalar = toVector[self._dimension]
             direction = 1 if fromScalar < toScalar else -1
-            nowScalar = fromScalar + (
-                self.arguments.speed
-                * (self._perfTick - self._perfFrom)
-                * direction)
-            
-            fromVector[self._dimension] = nowScalar
-            if ((fromScalar < toScalar and nowScalar >= toScalar)
-                or (fromScalar > toScalar and nowScalar <= toScalar)
-                ):
-                fromVector = toVector
+            nowScalar = (self._objectLeadMarker.worldPosition[self._dimension]
+                         + (self.arguments.speed
+                            * (self.tickPerf - self._movedPerf)
+                            * direction))
+
+#            fromVector[self._dimension] = nowScalar
+            # if ((fromScalar < toScalar and nowScalar >= toScalar)
+            #     or (fromScalar > toScalar and nowScalar <= toScalar)
+            #     ):
+            if ((nowScalar >= fromScalar and nowScalar >= toScalar)
+                or
+                (nowScalar <= fromScalar and nowScalar <= toScalar)
+               ):
+                # fromVector = toVector
+                # self._objectLeadMarker.worldPosition = toVector
                 self.advance_dimension()
                 self.advance_corner()
-                self._perfFrom = self._perfTick
-            self._objectMarker2.worldPosition = fromVector
+            else:
+                toVector[self._dimension] = nowScalar
+            self._movedPerf = self.tickPerf
+            self._objectLeadMarker.worldPosition = toVector
             #
             # Position the minus on the lead marker.
-            self.position_text(self._objectMarker2, self._objectMinus)
-            #
-            # Position asterisk on the pulsar.
-            self.position_text(self._objectPulsar
-                               , self._objectAsterisk, -0.3, -1.0)
+            self.position_text(self._objectLeadMarker, self._objectMinus)
+        # except:
+        #     terminate = True
+        #     self.verbosely(__name__, "game_tick_run discarded exception.")
         finally:
             self.mainLock.release()
+            
+        # if terminate:
+        #     self.game_terminate(self.arguments.verbose)
+        #     self.verbosely(__name__, "game_tick_run terminated.")
 
     def get_argument_parser(self):
         """Method that returns an ArgumentParser. Overriden."""
         parser = super().get_argument_parser()
         parser.prog = ".".join((__name__, self.__class__.__name__))
         parser.add_argument(
-            '--speed', type=float, default=3.0, help=
-            "Speed of marker in Blender units (BU) per second. Default: 3.0.")
-        parser.add_argument(
             '--circuit', action='store_true', help=
             "Make the marker do a circuit of the visible face of the pulsar."
             " Default is for the marker to pick a random direction when it"
             " reaches a corner.")
+        parser.add_argument(
+            '--seed', type=int, default=0, help=
+            "Random seed.")
+        parser.add_argument(
+            '--speed', type=float, default=4.0, help=
+            "Speed of marker in Blender units (BU) per second. Default: 3.0.")
         return parser

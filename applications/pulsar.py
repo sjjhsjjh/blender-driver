@@ -72,7 +72,8 @@ class Application(demonstration.Application):
     # Overriden.
     def game_initialise(self):
         super().game_initialise()
-        threading.Thread(target=self.pulse_object_scale).start()
+        threading.Thread(
+            target=self.pulse_object_scale, name="pulse_object_scale" ).start()
  
     def pulse_object_scale(self):
         """Pulse the scale of a game object for ever. Run as a thread."""

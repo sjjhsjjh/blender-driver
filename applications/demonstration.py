@@ -84,9 +84,8 @@ class Application(blender_driver.application.thread.Application):
         self._bannerObject = self.data_add_banner()
         
     def data_add_banner(self):
-        banner = "\n".join(("Blender Driver"
-                            , self.applicationName
-                            , self._instructions))
+        banner = "\n".join(
+            ("Blender Driver" , self.applicationName , self._instructions))
         return self.bpyutils.set_up_object(
             self._bannerName, {'text':banner, 'physicsType':'NO_COLLISION'
                                , 'location': (-5, -8, 3)})

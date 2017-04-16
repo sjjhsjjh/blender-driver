@@ -140,21 +140,6 @@ class Application(base.Application):
 
     # Override.
     def game_terminate(self, verbose=False):
-    #     verbose = True
-    #     if self._tickLock.acquire(False):
-    #         if verbose:
-    #             print("Acquired _tickLock in game_terminate")
-    #         self._tickLock.release()
-    #         self._game_terminate(verbose)
-    #     else:
-    #         if verbose:
-    #             print("Didn't acquire _tickLock in game_terminate")
-    #         threading.Thread(
-    #             target=self._game_terminate,
-    #             args=(verbose,)
-    #         ).start()
-    #     
-    # def _game_terminate(self, verbose=False):
         self.game_terminate_lock(verbose)
         if verbose:
             print("Terminating threads, first round.")

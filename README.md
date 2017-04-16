@@ -30,7 +30,7 @@ The demonstration should start. Press any key to stop the demonstration, then
 key Escape to clear the Blender splash, then Ctrl-Q Return to quit Blender.
 
 The demonstration should look like the video here:
-[https://vimeo.com/210125332](https://vimeo.com/210125332)
+[https://vimeo.com/213425082](https://vimeo.com/213425082)
 
 Next Steps
 ==========

@@ -29,7 +29,7 @@ main(sys.argv + [
     '--start'
     , '--applicationModule', ".".join(('applications', application))
     , '--'
-    , '--minScale', "1.5"
+    , '--minScale', "1.0"
     , '--changeScale', "0.75"
     , '--circuit'
     , '--sleep', "0.01"])

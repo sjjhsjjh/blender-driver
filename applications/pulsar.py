@@ -12,10 +12,8 @@ This code illustrates:
     joined before terminating BGE.
 -   Use of a thread lock to indicate termination is due.
 
-This application doesn't override game_tick, which is then a pass in the base
-class. It doesn't switch off the tick controller. If it does then the thread
-doesn't seem to get scheduled at any time after the game_initialise has
-finished.
+This application doesn't override the Blender Driver game_tick, which is then a
+pass in the base class.
 
 This module can only be used from within the Blender Game Engine."""
 # Exit if run other than as a module.

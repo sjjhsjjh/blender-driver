@@ -6,8 +6,12 @@ This application doesn't make anything happen in the 3D scene. It demonstrates
 various things relating to use of Python in the Blender Game Engine (BGE).
 
 -   When a controllers module gets loaded by BGE.
+-   When the BGE Python instance can get execution cycles.
 -   Use of threads and thread locks for synchronisation.
 -   Keyboard events.
+
+The command line options can switch off some things on which Blender Driver
+relies, to demonstrate reliance.
 
 This module can only be used from within the Blender Game Engine."""
 # Exit if run other than as a module.

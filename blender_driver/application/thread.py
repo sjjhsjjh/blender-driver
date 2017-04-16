@@ -38,6 +38,10 @@ class Application(base.Application):
         return self._mainLock
     
     def terminating(self):
+        """
+        Check whether the application is being terminated. To be super-safe,
+        only call this after acquiring mainLock.
+        """
         if self._terminateLock.acquire(False):
             self._terminateLock.release()
             return False

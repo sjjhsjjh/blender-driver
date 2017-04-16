@@ -3,6 +3,18 @@
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 """Python module for Blender Driver demonstration application.
 
+This application adds to the pulsar application. The code illustrates:
+
+-   Basic use of the Blender Game Engine (BGE) KX_GameObject interface, to
+    move a game object.
+-   Adding simple texts to game objects.
+-   Use of Python time.perf_counter() to observe how much time has passed, and
+    then move an object to a calculated location based on it moving at a
+    constant speed.
+
+This application makes use of the Blender Driver thread application's
+game_tick_run interface.
+
 This module can only be used from within the Blender Game Engine."""
 # Exit if run other than as a module.
 if __name__ == '__main__':
@@ -93,8 +105,8 @@ class Application(pulsar.Application):
         # class pulsar. The base class doesn't need to add the pulsar, because
         # it doesn't delete it in its data_initialise, in turn because it
         # doesn't have a templates collection.
-        self._objectPulsar = self.add_object("pulsar")
         self.arguments.pulsar = "pulsar"
+        self._objectPulsar = self.add_object(self.arguments.pulsar)
         #
         # Do base class initialisation.
         super().game_initialise()
@@ -148,6 +160,11 @@ class Application(pulsar.Application):
         return_ = object_.worldPosition.copy()
         for index in range(len(return_)):
             return_[index] += signs[index] * object_.worldScale[index]
+            # The above should probably multiply by bpy dimensions[index] and
+            # then divide by 2. To do that, the code would probably have to
+            # access the object in the data layer, which can only be done by
+            # name as far as I know. The dimensions[] of a Cube are all 2
+            # anyway so I skipped it.
         return return_
 
     def game_tick_run(self):
@@ -155,15 +172,11 @@ class Application(pulsar.Application):
         # Formally, run the base class tick. Actually, it's a pass.
         super().game_tick_run()
         self.mainLock.acquire()
-        #
-        # Next flag would be a way to terminate from within the tick without
-        # raising an exception.
-        # terminate = False
         try:
             #
             # Position the asterisk on the pulsar.
-            self.position_text(self._objectPulsar
-                               , self._objectAsterisk, -0.3, -1.0)
+            self.position_text(
+                self._objectPulsar, self._objectAsterisk, -0.3, -1.0)
             #
             # Position the pursuit marker on one vertex of the pulsar.
             self._objectPursuitMarker.worldPosition = self.get_corner(
@@ -173,28 +186,21 @@ class Application(pulsar.Application):
             self.position_text(self._objectPursuitMarker, self._objectPlus)
             #
             # Position the lead marker.
-            fromVector = self.get_corner(self._objectPulsar, self._cornerFrom)
+            fromScalar = self.get_corner(
+                self._objectPulsar, self._cornerFrom)[self._dimension]
             toVector = self.get_corner(self._objectPulsar, self._cornerTo)
-            #nowVector = self._objectPulsar.worldPosition
-            #
-            fromScalar = fromVector[self._dimension]
             toScalar = toVector[self._dimension]
             direction = 1 if fromScalar < toScalar else -1
             nowScalar = (self._objectLeadMarker.worldPosition[self._dimension]
                          + (self.arguments.speed
                             * (self.tickPerf - self._movedPerf)
                             * direction))
-
-#            fromVector[self._dimension] = nowScalar
-            # if ((fromScalar < toScalar and nowScalar >= toScalar)
-            #     or (fromScalar > toScalar and nowScalar <= toScalar)
-            #     ):
+            #
+            # Check whether it has reached the next corner.
             if ((nowScalar >= fromScalar and nowScalar >= toScalar)
                 or
                 (nowScalar <= fromScalar and nowScalar <= toScalar)
                ):
-                # fromVector = toVector
-                # self._objectLeadMarker.worldPosition = toVector
                 self.advance_dimension()
                 self.advance_corner()
             else:
@@ -204,15 +210,8 @@ class Application(pulsar.Application):
             #
             # Position the minus on the lead marker.
             self.position_text(self._objectLeadMarker, self._objectMinus)
-        # except:
-        #     terminate = True
-        #     self.verbosely(__name__, "game_tick_run discarded exception.")
         finally:
             self.mainLock.release()
-            
-        # if terminate:
-        #     self.game_terminate(self.arguments.verbose)
-        #     self.verbosely(__name__, "game_tick_run terminated.")
 
     def get_argument_parser(self):
         """Method that returns an ArgumentParser. Overriden."""

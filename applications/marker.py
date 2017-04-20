@@ -212,7 +212,7 @@ class Application(pulsar.Application):
             self.position_text(self._objectLeadMarker, self._objectMinus)
         finally:
             self.mainLock.release()
-
+            
     def get_argument_parser(self):
         """Method that returns an ArgumentParser. Overriden."""
         parser = super().get_argument_parser()

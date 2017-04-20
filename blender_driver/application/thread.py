@@ -116,7 +116,10 @@ class Application(base.Application):
                     self.mainLock.release()
                 run()
             except Exception as exception:
-                print("Exception in _run_with_tick_lock")
+                # Catch the exception here and put it into a shared place.
+                # (It's OK while this code has acquired tickLock.) This thread
+                # can then be allowed to finish. The exception will be raised in
+                # the next tick, see game_tick, above.
                 self._tickRaise = exception
             except:
                 self._tickRaise = Exception(
@@ -129,27 +132,28 @@ class Application(base.Application):
         self.tick_skipped()
         
     def game_tick_run(self):
-        """Method that is run in a thread in every tick in which the tick lock
-        can be acquired. Override it."""
+        """
+        Method that is run in a thread in every tick in which the tick lock
+        can be acquired. Override it.
+        If an exception is raised, it will be kept until the next tick, so that
+        it can be raised on the main thread, which will cause BGE to terminate.
+        """
         pass
 
     def tick_skipped(self):
-        """Method that is run in a thread in every tick in which the tick lock
-        can't be acquired. Override it to print an error messsage."""
+        """
+        Method that is run in a thread in every tick in which the tick lock
+        can't be acquired. Override it to print an error messsage.
+        """
         pass
 
     # Override.
     def game_terminate(self, verbose=False):
         self.game_terminate_lock(verbose)
-        if verbose:
-            print("Terminating threads, first round.")
         self.game_terminate_threads(verbose)
         if verbose:
             print("Terminating game.")
         super().game_terminate()
-        if verbose:
-            print("Terminating threads, second round.")
-        self.game_terminate_threads(verbose)
 
     def game_terminate_lock(self, verbose=False):
         if verbose:

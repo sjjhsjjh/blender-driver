@@ -41,7 +41,7 @@ class RestInterface(object):
         """Get one item."""
         pass
     
-    def rest_traverse(self, paths, creating=False):
+    def rest_traverse(self, path, creating=False):
         """Descend the structure."""
         pass
 
@@ -71,96 +71,195 @@ class RestInterface(object):
             return self.principal
         
         if self._list is not None:
-            return list(
-                (None if _ is None else _.rest_get()) for _ in self._list)
+            return self._list
+            # return list(
+            #     (None if _ is None else _.rest_get()) for _ in self._list)
         
         if self._dict is not None:
-            return_ = {}
-            for key in self._dict:
-                return_[key] = self._dict[key].rest_get()
-            return return_
+            return self._dict
+            # return_ = {}
+            # for key in self._dict:
+            #     return_[key] = self._dict[key].rest_get()
+            # return return_
         
         return None
     
-    @staticmethod
-    def get_key_attr(object, specifier):
-        if hasattr(object, specifier):
-            return getattr(object, specifier), True
-        else:
-            return object[specifier], False
+    class PointType(Enum):
+        LIST = 1
+        DICTIONARY = 2
+        ATTR = 3
     
-    def rest_put(self, value, paths=None):
-        self.verbosely('rest_put', value, paths)
-        point = self
-        length = (0 if paths is None else
-                  # 1 if isinstance(paths, str) else
-                  len(paths))
-        parent = None
+    @staticmethod
+    def get_point(parent, specifier):
+        if specifier is None:
+            raise TypeError("Specifier must be string or numeric,"
+                            " cannot be None.")
+        numeric = not isinstance(specifier, str)
+        type = None
+        if numeric:
+            type = RestInterface.PointType.LIST
+            try:
+                point = parent[specifier]
+            except IndexError:
+                point = None
+            except TypeError:
+                type = None
+                point = None
+        else:
+            type = RestInterface.PointType.DICTIONARY
+            try:
+                in_ = specifier in parent
+            except TypeError:
+                type = None
+                in_ = False
+            if in_:
+                point = parent[specifier]
+            elif hasattr(parent, specifier):
+                point = getattr(parent, specifier)
+                type = RestInterface.PointType.ATTR
+            else:
+                point = None
+                
+        return point, numeric, type
+    
+    def create_point(self, path, index, numeric, parent=None):
+        """
+        Default create_point, which can be overridden.
+        """
+        if numeric:
+           return []
+        else:
+            return {}
+        # return None
+    
+    def create_tree(self, value, path, index, numeric):
+        parent = self.create_point(path, index, numeric)
+        # Recurse if parent is None.
+        pass
+    
+    def rest_put(self, value, path=None):
+        self.verbosely('rest_put', value, path)
+        length = (0 if path is None else
+                  # 1 if isinstance(path, str) else
+                  len(path))
+
+
+
+        parent = self.principal
         leg = None
-        point = self
-        setattr_ = False
-        restDescent = True
+        point = None
+        type = None
         for index in range(length):
-            leg = paths[index]
+            leg = path[index]
             legStr = leg.join(('"', '"')) if isinstance(leg, str) else str(leg)
             self.verbosely(
-                "{:2d} {}\n  {}\n  {}\n   {}".format(
-                index, legStr, parent, point, point._list))
+                "{:2d} {}\n  {}\n  {}".format(index, legStr, parent, point))
 
-            parent = point
+
+            # It's OK for parent to be None when index is zero.
+
+
+            point, numeric, type = RestInterface.get_point(parent, leg)
             
-            # Check is point has leg.
+            if type is None:
+                value = self.create_tree(value, path, index, numeric)
+                self.verbosely("Inserting", tree)
+                # if index == 0:
+                #     self.principal = tree
+                #     # if tree is None:
+                #     #     if numeric:
+                #     #         self.verbosely('Inserting list.')
+                #     #         self._list = point
+                #     #         parent = self._list
+                #     #     else:
+                #     #         self.verbosely('Inserting dictionary.')
+                #     #         self._dict = point
+                #     #         parent = self._dict
+                #     # else:
+                #     #     self.principal = point
+                #     #     parent = self.principal
+                # else:
+                #     # leg is numeric or string.
+                #     parent[leg] = point
+                break
+
+                # point, numeric, type = RestInterface.get_point(parent, leg)
+
+            # if type is None:
+            #     raise AssertionError("type was None twice.")
+            
+            if point is None:
+                if type == RestInterface.PointType.LIST:
+                    self.verbosely('Extending list.')
+                    parent.extend([None] * ((leg - len(parent)) + 1))
+                else:
+                    raise NotImplementedError()
+                # elif type == RestInterface.PointType.DICTIONARY:
+                    # self.verbosely('Extending dictionary.')
+                    # parent[leg] = None
+                point, numeric, type = RestInterface.get_point(parent, leg)
+
+            if type is None:
+                raise AssertionError("type was None after point was None.")
+            
+            
+
+            
             # If it doesn't, create a suitable point that can contain leg.
+            # Default suitable point is determined by the type of leg:
+            # -   dict if string.
+            # -   list if numeric.
+            # Have an overridable function that returns the new point.
+            # Maybe make RestInterface override all the __getitem__ family so
+            # that it can present as an array or dictionary.
             
             
-            if isinstance(leg, str):
-                if restDescent:
-                    if point.principal is None:
-                        if point._dict is None:
-                            self.verbosely('Adding dictionary', id(point))
-                            point._dict = {}
-                        if leg not in point._dict:
-                            point._dict[leg] = RestInterface()
-                        point = point._dict[leg]
-                    else:
-                        restDescent = False
-                        parent = point.principal
-                        point, setattr_ = RestInterface.get_key_attr(
-                            parent, leg)
-                else:
-                    point, setattr_ = RestInterface.get_key_attr(point, leg)
-            else:
-                # Assume integer.
-                setattr_ = False
-                if restDescent:
-                    if point.principal is None:
-                        if point._list is None:
-                            self.verbosely('Adding list', id(point))
-                            point._list = []
-                        if len(point._list) <= leg:
-                            self.verbosely('Extending list', id(point))
-                            point._list.extend([None] * (
-                                (leg - len(point._list)) + 1))
-                        if point._list[leg] is None:
-                            point._list[leg] = RestInterface()
-                        point = point._list[leg]
-                    else:
-                        # Assume principal is a list and descend into it.
-                        restDescent = False
-                        parent = point.principal
-                        point = point.principal[leg]
-                else:
-                    point = point[leg]
-                    
+            # if isinstance(leg, str):
+            #     if restDescent:
+            #         if point.principal is None:
+            #             if point._dict is None:
+            #                 self.verbosely('Adding dictionary', id(point))
+            #                 point._dict = {}
+            #             if leg not in point._dict:
+            #                 point._dict[leg] = RestInterface()
+            #             point = point._dict[leg]
+            #         else:
+            #             restDescent = False
+            #             parent = point.principal
+            #             point, setattr_ = RestInterface.get_key_attr(
+            #                 parent, leg)
+            #     else:
+            #         point, setattr_ = RestInterface.get_key_attr(point, leg)
+            # else:
+            #     # Assume integer.
+            #     setattr_ = False
+            #     if restDescent:
+            #         if point.principal is None:
+            #             if point._list is None:
+            #                 self.verbosely('Adding list', id(point))
+            #                 point._list = []
+            #             if len(point._list) <= leg:
+            #                 self.verbosely('Extending list', id(point))
+            #                 point._list.extend([None] * (
+            #                     (leg - len(point._list)) + 1))
+            #             if point._list[leg] is None:
+            #                 point._list[leg] = RestInterface()
+            #             point = point._list[leg]
+            #         else:
+            #             # Assume principal is a list and descend into it.
+            #             restDescent = False
+            #             parent = point.principal
+            #             point = point.principal[leg]
+            #     else:
+            #         point = point[leg]
 
-        if setattr_:
+        if type is None:
+            parent.principal = value
+        elif type == RestInterface.PointType.ATTR:
             setattr(parent, leg, value)
         else:
-            if restDescent:
-                point.principal = value
-            else:
-                parent[leg] = value
-            
+            # leg could be numeric or string; parent could be list or dict.
+            parent[leg] = value
 
     def __init__(self):
         self.verbose = False

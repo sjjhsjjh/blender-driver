@@ -20,6 +20,43 @@ class Principal(object):
     def __init__(self, value=None):
         self.salad = value
 
+try:
+    point, numeric, pointType = RestInterface.get_point(None, 0)
+except TypeError as typeError:
+    print(typeError)
+
+try:
+    point, numeric, pointType = RestInterface.get_point(None, 'key1')
+except TypeError as typeError:
+    print(typeError)
+
+parent = []
+point, numeric, pointType = RestInterface.get_point(parent, 0)
+print( parent, point, numeric, pointType)
+
+parent = ['atfirst']
+point, numeric, pointType = RestInterface.get_point(parent, 0)
+print( parent, point, numeric, pointType)
+
+point, numeric, pointType = RestInterface.get_point(parent, 'key1')
+print( parent, point, numeric, pointType)
+
+parent = {}
+point, numeric, pointType = RestInterface.get_point(parent, 'key1')
+print( parent, point, numeric, pointType)
+
+parent = {'key1': 8}
+point, numeric, pointType = RestInterface.get_point(parent, 'key1')
+print( parent, point, numeric, pointType)
+
+parent = Principal("one")
+point, numeric, pointType = RestInterface.get_point(parent, 'salad')
+print( parent, point, numeric, pointType)
+
+point, numeric, pointType = RestInterface.get_point(parent, 'nonsalad')
+print( parent, point, numeric, pointType)
+
+
 restInterface = RestInterface()
 restInterface.rest_put(1)
 # print(vars(restInterface))
@@ -31,6 +68,7 @@ restInterface.rest_put(Principal("one"))
 print(vars(restInterface.principal))
 
 restInterface = RestInterface()
+# restInterface.verbose = True
 restInterface.rest_put(Principal("two"), [0])
 # print(vars(restInterface))
 print(restInterface.rest_get())
@@ -41,6 +79,7 @@ restInterface.rest_put(2, [0])
 print(restInterface.rest_get())
 
 restInterface = RestInterface()
+restInterface.verbose = True
 restInterface.rest_put(2, [0,1])
 print(restInterface.rest_get())
 restInterface.rest_put(3, [0,2])

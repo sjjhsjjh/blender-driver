@@ -63,26 +63,25 @@ class RestInterface(object):
     def principal(self, principal):
         self._principal = principal
     
-    # For POST and PUT only?
-    principalClass = None
+    @staticmethod
+    def str_quote(str_, quote):
+        if isinstance(str_, str):
+            return str_.join((quote, quote))
+        else:
+            return str(str_)
     
-    def rest_get(self):
-        if self.principal is not None:
-            return self.principal
-        
-        if self._list is not None:
-            return self._list
-            # return list(
-            #     (None if _ is None else _.rest_get()) for _ in self._list)
-        
-        if self._dict is not None:
-            return self._dict
-            # return_ = {}
-            # for key in self._dict:
-            #     return_[key] = self._dict[key].rest_get()
-            # return return_
-        
-        return None
+    @staticmethod
+    def pathify(path, quote='"'):
+        if path is not None:
+            if isinstance(path, str):
+                yield path, RestInterface.str_quote(path, quote)
+            else:
+                try:
+                    for item in path:
+                        yield item, RestInterface.str_quote(item, quote)
+                except TypeError:
+                    # Not a string, also not iterable. Probably a number.
+                    yield path, str(path)
     
     class PointType(Enum):
         LIST = 1
@@ -92,8 +91,7 @@ class RestInterface(object):
     @staticmethod
     def get_point(parent, specifier):
         if specifier is None:
-            raise TypeError("Specifier must be string or numeric,"
-                            " cannot be None.")
+            raise TypeError("Specifier must be string or numeric, but is None.")
         numeric = not isinstance(specifier, str)
         type = None
         if numeric:
@@ -103,6 +101,9 @@ class RestInterface(object):
             except IndexError:
                 point = None
             except TypeError:
+                type = None
+                point = None
+            except KeyError:
                 type = None
                 point = None
         else:
@@ -122,48 +123,153 @@ class RestInterface(object):
                 
         return point, numeric, type
     
-    def create_point(self, path, index, numeric, parent=None):
+    @staticmethod
+    def get_path(parent, path):
+        for leg, legStr in RestInterface.pathify(path):
+            point, numeric, type = RestInterface.get_point(parent, leg)
+            if type is None:
+                raise TypeError(" ".join((
+                    "Couldn't get point for ", legStr, "in", str(parent))))
+            if point is None:
+                error = " ".join((
+                    "No point for", legStr, "in", str(parent)))
+                raise IndexError(error) if numeric else KeyError(error)
+            parent = point
+        
+        return parent
+    
+    def make_point(self, path, index, point=None):
         """
-        Default create_point, which can be overridden.
+        Default make_point, which can be overridden.
         """
-        if numeric:
-           return []
+        specifier = path[index]
+        if isinstance(specifier, str):
+            try:
+                if specifier not in point:
+                    point[specifier] = None
+                return point
+            except TypeError:
+                # None, or not a dictionary, so create a dictionary.
+                return {specifier: None}
         else:
-            return {}
-        # return None
+            # It would be super-neat to do this be try:ing the len() and then
+            # except TypeError: to set length zero. The problem is that all
+            # iterables are OK for len(), so string and dictionary values don't
+            # generate the exception.
+            length = 0
+            if isinstance(point, tuple) or isinstance(point, list):
+                length = len(point)
+                if length > specifier:
+                    return point
+            extension = (None,) * ((specifier - length) + 1)
+            if isinstance(point, tuple):
+                return point + extension
+            try:
+                point.extend(extension)
+                return point
+            except AttributeError:
+                # None or not a list, so create a list.
+                return list(extension)
     
-    def create_tree(self, value, path, index, numeric):
-        parent = self.create_point(path, index, numeric)
-        # Recurse if parent is None.
-        pass
+    def _set_path(self, parent, path, value, enumerator):
+        self.verbosely(__name__, 'set_path()', parent, path, value)
+        point0 = None
+        point1 = parent
+        return_ = None
+        type = None
+        lastLeg = None
+        while True:
+            try:
+                index, (leg, legStr) = next(enumerator)
+                lastLeg = leg
+            except StopIteration:
+                break
+
+            point0 = point1
+            point1, numeric, type = RestInterface.get_point(point0, leg)
+            if numeric and isinstance(point0, str):
+                # Sorry, have to force descent into a string to fail.
+                point1 = None
+            self.verbosely(
+                "{:2d} {}\n  {}\n  {}\n  {} {}".format(
+                    index, legStr, point0, point1 , str(numeric), str(type)))
+
+            if type is None or point1 is None:
+                point0 = self.make_point(path, index, point0)
+                point1, numeric, type = RestInterface.get_point(point0, leg)
+
+            if type is None:
+                raise AssertionError("".join((
+                    "type was None twice at ", str(point0)
+                    ," path:", str(path), " index:", index
+                    , " leg:", legStr, ".")))
+            
+            if return_ is None:
+                return_ = point0
+                self.verbosely(__name__, 'set_path set return', return_)
+
+            if point1 is None:
+                # Nowhere to descend.
+                #
+                # Generate a new tree, recursively.
+                value = self._set_path(None, path, value, enumerator)
+                #
+                # Break out of the loop so that the value setting code inserts
+                # the new tree.
+                break
+
+        self.verbosely(__name__, 'set_path loop finished'
+                       , lastLeg, point0, return_)
+        if lastLeg is None:
+            return_ = value
+        elif type == RestInterface.PointType.ATTR:
+            setattr(point0, lastLeg, value)
+        else:
+            # leg could be numeric or string; parent could be list or dict ...
+            #
+            # ... or tuple. If it's a tuple then make it into a list, and
+            # therefore mutable, first. Also, if the tuple is what we were going
+            # to return, change that too.
+            wasReturn = (point0 is return_)
+            if isinstance(point0, tuple):
+                point0 = list(point0)
+                if wasReturn:
+                    return_ = point0
+                    self.verbosely(__name__, 'set_path set wasReturn', return_)
+            point0[lastLeg] = value
+
+        if isinstance(parent, tuple) and isinstance(return_, list):
+            return_ = tuple(return_)
+        return return_
     
+    def set_path(self, parent, path, value):
+        return self._set_path(
+            parent, path, value, enumerate(RestInterface.pathify(path)))
+
     def rest_put(self, value, path=None):
         self.verbosely('rest_put', value, path)
-        length = (0 if path is None else
-                  # 1 if isinstance(path, str) else
-                  len(path))
 
+        self.principal = self.create_tree(self.principal, path, value)
 
-
-        parent = self.principal
+        parent = None
         leg = None
-        point = None
+        point = self.principal
         type = None
-        for index in range(length):
-            leg = path[index]
+        for index, leg in enumerate(paths(path)):
             legStr = leg.join(('"', '"')) if isinstance(leg, str) else str(leg)
             self.verbosely(
                 "{:2d} {}\n  {}\n  {}".format(index, legStr, parent, point))
 
 
             # It's OK for parent to be None when index is zero.
+            parent = point
 
 
             point, numeric, type = RestInterface.get_point(parent, leg)
             
             if type is None:
                 value = self.create_tree(value, path, index, numeric)
-                self.verbosely("Inserting", tree)
+                self.verbosely("Tree value", value)
                 # if index == 0:
                 #     self.principal = tree
                 #     # if tree is None:
@@ -182,13 +288,14 @@ class RestInterface(object):
                 #     # leg is numeric or string.
                 #     parent[leg] = point
                 break
-
+ 
                 # point, numeric, type = RestInterface.get_point(parent, leg)
 
             # if type is None:
             #     raise AssertionError("type was None twice.")
             
             if point is None:
+                raise NotImplementedError()
                 if type == RestInterface.PointType.LIST:
                     self.verbosely('Extending list.')
                     parent.extend([None] * ((leg - len(parent)) + 1))
@@ -253,18 +360,19 @@ class RestInterface(object):
             #     else:
             #         point = point[leg]
 
-        if type is None:
-            parent.principal = value
+        if parent is None:
+            self.principal = value
         elif type == RestInterface.PointType.ATTR:
             setattr(parent, leg, value)
         else:
             # leg could be numeric or string; parent could be list or dict.
             parent[leg] = value
 
+    def rest_get(self, path=None):
+        return RestInterface.get_path(self.principal, path)
+    
     def __init__(self):
         self.verbose = False
-        self._dict = None
-        self._list = None
         self._principal = None
 
     # def __str__(self):

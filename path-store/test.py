@@ -1,491 +1,418 @@
-#!/usr/bin/python3
+#!/usr/bin/python
+# (c) 2017 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
+# Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
+"""Path Store unit tests."""
+# Exit if run other than as a module.
 
-from base import RestInterface
-
-# 
-# def paths(path):
-#     if path is not None:
-#         if isinstance(path, str):
-#             yield path
-#         else:
-#             try:
-#                 for item in path:
-#                     yield item
-#             except TypeError:
-#                 yield path
-# 
-# pather = paths("bli")
-# enumerate_ = enumerate(pather)
-# print(next(enumerate_))
-# # print(next(pather))
-# 
-# pather = paths(5)
-# print(next(pather))
-# 
-# pather = paths((2, 4))
-# print(next(pather))
-# enumerate_ = enumerate(pather)
-# print(next(enumerate_))
-# print(next(pather))
-# 
-# pather = paths(None)
-# try:
-#     print(next(pather))
-# except StopIteration:
-#     print()
-
-
-
-
-
+# Standard library imports, in alphabetic order.
+#
+# Unit test module.
+import unittest
+#
+# Local imports.
+#
+# Module under test.
+import pathstore
 
 
 class Principal(object):
-    
     def __init__(self, value=None):
         self.salad = value
 
-print("pathify tests")
-print("Test 1", list(RestInterface.pathify(None)))
-print("Test 2", list(RestInterface.pathify(1)))
-print("Test 3", list(RestInterface.pathify("jio")))
-print("Test 4", list(RestInterface.pathify(("jio", 2))))
-print()
+class TestPathify(unittest.TestCase):
+    def test_None(self):
+        self.assertEqual(list(pathstore.pathify(None)), [])
+    def test_one_number(self):
+        self.assertEqual(list(pathstore.pathify(1)), [(1, "1")])
+    def test_one_string(self):
+        self.assertEqual(list(pathstore.pathify("jio")), [("jio", '"jio"')])
+    def test_string_number(self):
+        self.assertEqual(
+            list(pathstore.pathify(("jio", 2)))
+            , [("jio", '"jio"'), (2, "2")])
 
+class TestDescendOne(unittest.TestCase):
+    def test_None_numeric(self):
+        point, numeric, pointType = pathstore.descend_one(None, 0)
+        self.assertIsNone(point)
+        self.assertTrue(numeric)
+        self.assertIsNone(pointType)
+    def test_None_string(self):
+        point, numeric, pointType = pathstore.descend_one(None, 'key1')
+        self.assertIsNone(point)
+        self.assertFalse(numeric)
+        self.assertIsNone(pointType)
+    def test_empty_list_numeric(self):
+        point, numeric, pointType = pathstore.descend_one([], 0)
+        self.assertIsNone(point)
+        self.assertTrue(numeric)
+        self.assertEqual(pointType, pathstore.PointType.LIST)
+    def test_list_numeric(self):
+        point, numeric, pointType = pathstore.descend_one(['atfirst'], 0)
+        self.assertEqual(point, 'atfirst')
+        self.assertTrue(numeric)
+        self.assertEqual(pointType, pathstore.PointType.LIST)
+    def test_list_string(self):
+        point, numeric, pointType = pathstore.descend_one(['atfirst'], 'key1')
+        self.assertIsNone(point)
+        self.assertFalse(numeric)
+        self.assertEqual(pointType, pathstore.PointType.DICTIONARY)
+    def test_empty_dictionary_string(self):
+        point, numeric, pointType = pathstore.descend_one({}, 'key1')
+        self.assertIsNone(point)
+        self.assertFalse(numeric)
+        self.assertEqual(pointType, pathstore.PointType.DICTIONARY)
+    def test_dictionary_string(self):
+        point, numeric, pointType = pathstore.descend_one({'key1': 8}, 'key1')
+        self.assertEqual(point, 8)
+        self.assertFalse(numeric)
+        self.assertEqual(pointType, pathstore.PointType.DICTIONARY)
+    def test_attr_string(self):
+        parent = Principal("one")
+        point, numeric, pointType = pathstore.descend_one(parent, 'salad')
+        self.assertEqual(point, "one")
+        self.assertFalse(numeric)
+        self.assertEqual(pointType, pathstore.PointType.ATTR)
+    def test_attr_string_not_found(self):
+        parent = Principal("one")
+        point, numeric, pointType = pathstore.descend_one(parent, 'nonsalad')
+        self.assertIsNone(point)
+        self.assertFalse(numeric)
+        self.assertIsNone(pointType)
 
-print("get_point tests")
+class TestDescend(unittest.TestCase):
+    def test_None_None(self):
+        value = pathstore.descend(None, None)
+        self.assertIsNone(value)
+    def test_string_None(self):
+        parent = "t1 parent"
+        value = pathstore.descend(parent, None)
+        self.assertIs(parent, value)
+    def test_None_numeric(self):
+        with self.assertRaises(TypeError) as context:
+            pathstore.descend(None, 0)
+        self.assertEqual(
+            str(context.exception), "Couldn't get point for 0 in None")
+    def test_empty_numeric(self):
+        with self.assertRaises(IndexError) as context:
+            pathstore.descend([], 0)
+        self.assertEqual(str(context.exception), "No point for 0 in []")
+    def test_empty_string(self):
+        with self.assertRaises(TypeError) as context:
+            pathstore.descend({}, 0)
+        self.assertEqual(
+            str(context.exception), "Couldn't get point for 0 in {}")
+    def test_short_list_numeric(self):
+        with self.assertRaises(IndexError) as context:
+            pathstore.descend(["Blibb", "Abb"], 2)
+        self.assertEqual(
+            str(context.exception), "No point for 2 in ['Blibb', 'Abb']")
+    def test_list_string(self):
+        parent = ["Blibb", "Abb"]
+        expected = KeyError(" ".join((
+            'No point for "keyZero" in', str(parent))))
+        with self.assertRaises(KeyError) as context:
+            pathstore.descend(parent, "keyZero")
+        self.assertEqual(str(context.exception), str(expected))
+    def test_list_numerics(self):
+        parent = ["Blibb", "Abb"]
+        with self.subTest(path=0):
+            value = pathstore.descend(parent, 0)
+            self.assertIs(value, parent[0])
+        for path in (1, [1]):
+            with self.subTest(path=path):
+                value = pathstore.descend(parent, path)
+                self.assertIs(value, parent[1])
+    def test_list_in_list(self):
+        parent = [0.0, [1.0, 1.1]]
+        self.assertEqual(pathstore.descend(parent, 0), 0.0)
+        self.assertIs(pathstore.descend(parent, 1), parent[1])
+        self.assertIs(pathstore.descend(parent, [1]), parent[1])
+        self.assertEqual(pathstore.descend(parent, (1, 0)), 1.0)
+        with self.assertRaises(TypeError) as context:
+            pathstore.descend(parent, [0, 0])
+        self.assertEqual(
+            str(context.exception), "Couldn't get point for 0 in 0.0")
+        with self.assertRaises(TypeError) as context:
+            pathstore.descend(parent, [0, 1])
+        self.assertEqual(
+            str(context.exception), "Couldn't get point for 1 in 0.0")
+    def test_dictionary_in_dictionary(self):
+        parent = {'kaye': "valee", 'kdee': {'kb': "bee", 'ksee': "sea"}}
+        self.assertIs(pathstore.descend(parent, None), parent)
+        self.assertIs(pathstore.descend(parent, 'kaye'), parent['kaye'])
+        with self.assertRaises(TypeError) as context:
+            pathstore.descend(parent, 3)
+        self.assertEqual(
+            str(context.exception)
+            , "".join(("Couldn't get point for 3 in ", str(parent))))
+        self.assertEqual(pathstore.descend(parent, ('kdee', 'kb')), "bee")
+    def test_list_in_dictionary(self):
+        parent = {'kaye': "valee"
+                  , 'kdee': {'kb': "bee", 'ksee': "sea"}
+                  , 'kale': [23, 45, 67]}
+        self.assertIs(pathstore.descend(parent, None), parent)
+        self.assertIs(pathstore.descend(parent, 'kaye'), parent['kaye'])
+        with self.assertRaises(TypeError) as context:
+            pathstore.descend(parent, 3)
+        self.assertEqual(
+            str(context.exception)
+            , "".join(("Couldn't get point for 3 in ", str(parent))))
+        self.assertEqual(pathstore.descend(parent, ('kale', 2)), 67)
+    def test_attr(self):
+        value = "bobo"
+        parent = Principal(value)
+        self.assertIs(pathstore.descend(parent, None), parent)
+        with self.assertRaises(TypeError) as context:
+            pathstore.descend(parent, 0)
+        self.assertEqual(
+            str(context.exception)
+            , "".join(("Couldn't get point for 0 in ", str(parent))))
+        self.assertIs(pathstore.descend(parent, 'salad'), value)
+        self.assertEqual(pathstore.descend(parent, ('salad', 1)), value[1])
 
-try:
-    point, numeric, pointType = RestInterface.get_point(None, 0)
-except TypeError as typeError:
-    print(typeError)
+class TestMakePoint(unittest.TestCase):
+    def test_zero(self):
+        self.assertEqual(pathstore.make_point(0), [None])
+        point0 = []
+        point1 = pathstore.make_point(0, point0)
+        self.assertIs(point1, point0)
+        self.assertEqual(point0, [None])
+        point0 = ["ma"]
+        point1 = pathstore.make_point(0, point0)
+        self.assertIs(point1, point0)
+        self.assertEqual(point0, ["ma"])
+    def test_one(self):
+        self.assertEqual(pathstore.make_point(1), [None, None])
+        point0 = []
+        point1 = pathstore.make_point(1, point0)
+        self.assertIs(point1, point0)
+        self.assertEqual(point0, [None, None])
+        point0 = ["ma"]
+        point1 = pathstore.make_point(1, point0)
+        self.assertIs(point1, point0)
+        self.assertEqual(point0, ["ma", None])
+        point0 = ("ba",)
+        point1 = pathstore.make_point(1, point0)
+        self.assertIsNot(point1, point0)
+        self.assertEqual(point1, ("ba", None))
+        point0 = {'car': "veh"}
+        point1 = pathstore.make_point(1, point0)
+        self.assertIsNot(point1, point0)
+        self.assertEqual(point1, [None, None])
+    def test_string(self):
+        specifier = 'memzero'
+        self.assertEqual(pathstore.make_point(specifier), {specifier: None})
+        point0 = {}
+        point1 = pathstore.make_point(specifier, point0)
+        self.assertIs(point1, point0)
+        self.assertEqual(point0, {specifier: None})
+        point0 = {specifier: "Member Zero"}
+        point1 = pathstore.make_point(specifier, point0)
+        self.assertIs(point1, point0)
+        self.assertEqual(point1, {specifier: "Member Zero"})
+        point0 = ()
+        point1 = pathstore.make_point(specifier, point0)
+        self.assertIsNot(point1, point0)
+        self.assertEqual(point1, {specifier: None})
 
-try:
-    point, numeric, pointType = RestInterface.get_point(None, 'key1')
-except TypeError as typeError:
-    print(typeError)
+class TestInsert(unittest.TestCase):
+    def test_zero(self):
+        path = [0]
+        value = "blob"
 
-print("Test 1")
-parent = []
-point, numeric, pointType = RestInterface.get_point(parent, 0)
-print(parent, point, numeric, pointType)
-print()
+        point0 = None
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIsNot(point0, point1)
+        self.assertEqual(point1, ["blob"])
 
-print("Test 2")
-parent = ['atfirst']
-point, numeric, pointType = RestInterface.get_point(parent, 0)
-print(parent, point, numeric, pointType)
-print()
+        point0 = []
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, ["blob"])
 
-print("Test 3")
-point, numeric, pointType = RestInterface.get_point(parent, 'key1')
-print(parent, point, numeric, pointType)
-print()
+        point0 = [None]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, ["blob"])
 
-print("Test 4")
-parent = {}
-point, numeric, pointType = RestInterface.get_point(parent, 'key1')
-print(parent, point, numeric, pointType)
-print()
+        point0 = ["ma"]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, ["blob"])
 
-print("Test 5")
-parent = {'key1': 8}
-point, numeric, pointType = RestInterface.get_point(parent, 'key1')
-print(parent, point, numeric, pointType)
-print()
+    def test_one(self):
+        path = [1]
+        value = "blob"
+        
+        point0 = None
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIsNot(point0, point1)
+        self.assertEqual(point1, [None, "blob"])
 
-print("Test 6")
-parent = Principal("one")
-point, numeric, pointType = RestInterface.get_point(parent, 'salad')
-print(parent, point, numeric, pointType)
-print()
+        point0 = []
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, [None, "blob"])
+        
+        point0 = [None, None]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, [None, "blob"])
+        
+        point0 = ["ma"]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, ["ma", "blob"])
 
-print("Test 7")
-point, numeric, pointType = RestInterface.get_point(parent, 'nonsalad')
-print(parent, point, numeric, pointType)
-print()
+        point0 = ["ma", "mo"]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, ["ma", "blob"])
 
-print("get_path tests")
+        point0 = ["ma", "mo", "mi"]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, ["ma", "blob", "mi"])
 
-print("Test 1")
-parent = None
-path = None
-value = RestInterface.get_path(parent, path)
-print(parent, path, value)
-print()
+        point0 = ["ma", None, "mi"]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, ["ma", "blob", "mi"])
 
-print("Test 2")
-parent = "t1 parent"
-path = None
-value = RestInterface.get_path(parent, path)
-print(parent, path, value)
-print()
+        point0 = ("ba",)
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIsNot(point0, point1)
+        self.assertEqual(point1, ("ba", "blob"))
+       
+        point0 = {'car': "veh"}
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIsNot(point0, point1)
+        self.assertEqual(point1, [None, "blob"])
+        
+        point0 = {'tooky':0, 'wonkey': "babb"}
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIsNot(point0, point1)
+        self.assertEqual(point1, [None, "blob"])
 
-print("Test 3")
-parent = None
-path = 0
-try:
-    value = RestInterface.get_path(parent, path)
-    raise AssertionError("TypeError expected.")
-except TypeError as error:
-    print(parent, path, str(error))
-print()
+        point0 = "Stringiness"
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIsNot(point0, point1)
+        self.assertEqual(point1, [None, "blob"])
+    
+    def test_zero_one(self):
+        path = [0, 1]
+        value = "Inner"
 
-print("Test 4")
-parent = []
-path = 0
-try:
-    value = RestInterface.get_path(parent, path)
-    raise AssertionError("IndexError expected.")
-except IndexError as error:
-    print(parent, path, str(error))
-print()
+        point0 = ["Outer String"]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, [[None, "Inner"]])
 
-print("Test 5")
-parent = {}
-path = 0
-try:
-    value = RestInterface.get_path(parent, path)
-    raise AssertionError("TypeError expected.")
-except TypeError as error:
-    print(parent, path, str(error))
-print()
+        point0 = [{'hand':"yy"}]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, [[None, "Inner"]])
+        
+        point0 = [[]]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, [[None, "Inner"]])
+        
+        point0_0 = []
+        point0 = [point0_0]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertIs(point1[0], point0_0)
+        self.assertEqual(point1, [[None, "Inner"]])
+        
+        point0_0 = ["Another"]
+        point0 = [point0_0]
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertIs(point1[0], point0_0)
+        self.assertIs(pathstore.descend(point0, 0), point0_0)
+        self.assertEqual(point1, [["Another", "Inner"]])
+        
+# 
+# print("rest_put tests")
+# 
+# test = "1"
+# print("Test", test)
+# subTest = ".".join((test, "1"))
+# restInterface = RestInterface()
+# restInterface.rest_put(1)
+# print(subTest, restInterface.principal)
+# subTest = ".".join((test, "2"))
+# restInterface = RestInterface()
+# restInterface.rest_put(Principal("one"))
+# print(subTest, vars(restInterface.principal))
+# subTest = ".".join((test, "3"))
+# restInterface = RestInterface()
+# restInterface.rest_put(Principal("two"), [0])
+# print(subTest, restInterface.rest_get())
+# subTest = ".".join((test, "4"))
+# restInterface = RestInterface()
+# restInterface.rest_put(2, [0])
+# print(subTest, restInterface.rest_get())
+# print()
+# 
+# test = "2"
+# print("Test", test)
+# subTest = ".".join((test, "1"))
+# restInterface = RestInterface()
+# restInterface.rest_put(2, [0,1])
+# print(subTest, restInterface.rest_get())
+# subTest = ".".join((test, "2"))
+# restInterface.rest_put(3, [0,2])
+# print(subTest, restInterface.rest_get())
+# subTest = ".".join((test, "3"))
+# restInterface.rest_put(4, [1])
+# print(subTest, restInterface.rest_get())
+# print()
+# 
+# test = "3"
+# print("Test", test)
+# subTest = ".".join((test, "1"))
+# restInterface = RestInterface()
+# restInterface.rest_put(['blib', 'blab'])
+# print(subTest, restInterface.rest_get())
+# subTest = ".".join((test, "2"))
+# restInterface.rest_put('bleb', (1,))
+# print(subTest, restInterface.rest_get())
+# print()
+# 
+# test = "4"
+# print("Test", test)
+# subTest = ".".join((test, "1"))
+# restInterface = RestInterface()
+# restInterface.rest_put({'keypie': 'cap'})
+# print(subTest, restInterface.rest_get())
+# restInterface.rest_put('bleb', 'keypie')
+# print(subTest, restInterface.rest_get())
+# print()
+# 
+# test = "5"
+# print("Test", test)
+# subTest = ".".join((test, "1"))
+# restInterface = RestInterface()
+# restInterface.rest_put(Principal('bacon'))
+# print(subTest, vars(restInterface.rest_get()))
+# subTest = ".".join((test, "2"))
+# restInterface.rest_put('pork', ['salad'])
+# print(subTest, vars(restInterface.rest_get()))
+# print()
+# 
+# test = "6"
+# print("Test", test)
+# subTest = ".".join((test, "1"))
+# restInterface = RestInterface()
+# restInterface.rest_put('clap', ('piker',))
+# print(subTest, restInterface.rest_get())
+# subTest = ".".join((test, "2"))
+# restInterface.rest_put('bleb', ['keypit'])
+# print(subTest, restInterface.rest_get())
+# print()
 
-print("Test 6")
-parent = ["Blibb", "Abb"]
-path = 2
-try:
-    value = RestInterface.get_path(parent, path)
-    raise AssertionError("IndexError expected.")
-except IndexError as error:
-    print(parent, path, str(error))
-print()
-
-print("Test 7")
-parent = ["Blibb", "Abb"]
-path = "keyZero"
-try:
-    value = RestInterface.get_path(parent, path)
-    raise AssertionError("KeyError expected.")
-except KeyError as error:
-    print(parent, path, str(error))
-print()
-
-print("Test 8")
-parent = ["Blibb", "Abb"]
-path = 0
-value = RestInterface.get_path(parent, path)
-print(parent, path, value)
-path = 1
-value = RestInterface.get_path(parent, path)
-print(parent, path, value)
-path = [1]
-value = RestInterface.get_path(parent, path)
-print(parent, path, value)
-print()
-
-print("Test 9")
-parent = [0.0, [1.0, 1.1]]
-path = 0
-value = RestInterface.get_path(parent, path)
-print(parent, path, value)
-path = 1
-value = RestInterface.get_path(parent, path)
-print(parent, path, value)
-path = [1]
-value = RestInterface.get_path(parent, path)
-print(parent, path, value)
-path = (1, 0)
-value = RestInterface.get_path(parent, path)
-print(parent, path, value)
-path = [0, 0]
-try:
-    value = RestInterface.get_path(parent, path)
-    raise AssertionError("TypeError expected.")
-except TypeError as error:
-    print(parent, path, str(error))
-path = [0, 1]
-try:
-    value = RestInterface.get_path(parent, path)
-    raise AssertionError("TypeError expected.")
-except TypeError as error:
-    print(parent, path, str(error))
-print()
-
-parent = {'kaye': "valee", 'kdee': {'kb': "bee", 'ksee': "sea"}}
-print("Test 10", parent)
-path = None
-value = RestInterface.get_path(parent, path)
-print(path, value)
-path = 'kaye'
-value = RestInterface.get_path(parent, path)
-print(path, value)
-path = 3
-try:
-    value = RestInterface.get_path(parent, path)
-    raise AssertionError("TypeError expected.")
-except TypeError as error:
-    print(path, str(error))
-path = ('kdee', 'kb')
-value = RestInterface.get_path(parent, path)
-print(path, value)
-print()
-
-parent = {
-    'kaye': "valee"
-    , 'kdee': {'kb': "bee", 'ksee': "sea"}
-    , 'kale': [23, 45, 67]
-    }
-print("Test 11")
-print(parent)
-path = None
-value = RestInterface.get_path(parent, path)
-print(path, value)
-path = 'kaye'
-value = RestInterface.get_path(parent, path)
-print(path, value)
-path = 3
-try:
-    value = RestInterface.get_path(parent, path)
-    raise AssertionError("TypeError expected.")
-except TypeError as error:
-    print(path, str(error))
-path = ('kale', 2)
-value = RestInterface.get_path(parent, path)
-print(path, value)
-print()
-
-parent = Principal("bobo")
-print("Test 12")
-print(id(parent), vars(parent))
-path = None
-value = RestInterface.get_path(parent, path)
-print(path, id(value), value)
-path = 0
-try:
-    value = RestInterface.get_path(parent, path)
-    raise AssertionError("TypeError expected.")
-except TypeError as error:
-    print(path, str(error))
-path = 'salad'
-value = RestInterface.get_path(parent, path)
-print(path, value)
-path = ('salad', 1)
-value = RestInterface.get_path(parent, path)
-print(path, value)
-print()
-
-print("make_point tests")
-restInterface = RestInterface()
-print("Test", 1)
-path = [0]
-index = 0
-point0 = None
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-point0 = []
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-point = ["ma"]
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-print()
-
-print("Test", 2)
-path = [1]
-index = 0
-point0 = None
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-point0 = []
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-point0 = ["ma"]
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-point0 = ("ba",)
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-point0 = {'car': "veh"}
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-print()
-
-print("Test", 3)
-path = ['memzero']
-index = 0
-point0 = None
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-point0 = {}
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-point0 = {'memzero': "Member Zero"}
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-point0 = ()
-point1 = restInterface.make_point(path, index, point0)
-print(path, index, point0, point1, point0 is point1)
-print()
-
-print("set_path tests")
-
-restInterface = RestInterface()
-test = "1"
-print("Test", test)
-path = [0]
-value = "blob"
-subTest = ".".join((test, "1"))
-point0 = None
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-subTest = ".".join((test, "2"))
-point0 = []
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-subTest = ".".join((test, "3"))
-point0 = ["ma"]
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-print()
-
-test = "2"
-print("Test", test)
-path = [1]
-value = "blob"
-subTest = ".".join((test, "1"))
-point0 = None
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-subTest = ".".join((test, "2"))
-point0 = []
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-subTest = ".".join((test, "3"))
-point0 = ["ma"]
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-subTest = ".".join((test, "4"))
-point0 = ("ba",)
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-subTest = ".".join((test, "5"))
-point0 = {'car': "veh"}
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-subTest = ".".join((test, "6"))
-point0 = {'tooky':0, 'wonkey': "babb"}
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-subTest = ".".join((test, "7"))
-point0 = "Stringiness"
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-print()
-
-test = "3"
-print("Test", test)
-subTest = ".".join((test, "1"))
-point0 = ["Outer String"]
-path = [0, 1]
-value = "Inner"
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-subTest = ".".join((test, "2"))
-point0 = [{'hand':"yy"}]
-path = [0, 1]
-value = "Inner"
-print("Before", subTest, point0)
-point1 = restInterface.set_path(point0, path, value)
-print("After", subTest, path, value, point0, point1, point0 is point1)
-print()
-
-print("rest_put tests")
-
-test = "1"
-print("Test", test)
-subTest = ".".join((test, "1"))
-restInterface = RestInterface()
-restInterface.rest_put(1)
-print(subTest, restInterface.principal)
-subTest = ".".join((test, "2"))
-restInterface = RestInterface()
-restInterface.rest_put(Principal("one"))
-print(subTest, vars(restInterface.principal))
-subTest = ".".join((test, "3"))
-restInterface = RestInterface()
-restInterface.rest_put(Principal("two"), [0])
-print(subTest, restInterface.rest_get())
-subTest = ".".join((test, "4"))
-restInterface = RestInterface()
-restInterface.rest_put(2, [0])
-print(subTest, restInterface.rest_get())
-print()
-
-test = "2"
-print("Test", test)
-subTest = ".".join((test, "1"))
-restInterface = RestInterface()
-restInterface.rest_put(2, [0,1])
-print(subTest, restInterface.rest_get())
-subTest = ".".join((test, "2"))
-restInterface.rest_put(3, [0,2])
-print(subTest, restInterface.rest_get())
-subTest = ".".join((test, "3"))
-restInterface.rest_put(4, [1])
-print(subTest, restInterface.rest_get())
-print()
-
-test = "3"
-print("Test", test)
-subTest = ".".join((test, "1"))
-restInterface = RestInterface()
-restInterface.rest_put(['blib', 'blab'])
-print(subTest, restInterface.rest_get())
-subTest = ".".join((test, "2"))
-restInterface.rest_put('bleb', (1,))
-print(subTest, restInterface.rest_get())
-print()
-
-test = "4"
-print("Test", test)
-subTest = ".".join((test, "1"))
-restInterface = RestInterface()
-restInterface.rest_put({'keypie': 'cap'})
-print(subTest, restInterface.rest_get())
-restInterface.rest_put('bleb', 'keypie')
-print(subTest, restInterface.rest_get())
-print()
-
-test = "5"
-print("Test", test)
-subTest = ".".join((test, "1"))
-restInterface = RestInterface()
-restInterface.rest_put(Principal('bacon'))
-print(subTest, vars(restInterface.rest_get()))
-subTest = ".".join((test, "2"))
-restInterface.rest_put('pork', ['salad'])
-print(subTest, vars(restInterface.rest_get()))
-print()
-
-test = "6"
-print("Test", test)
-subTest = ".".join((test, "1"))
-restInterface = RestInterface()
-restInterface.rest_put('clap', ('piker',))
-print(subTest, restInterface.rest_get())
-subTest = ".".join((test, "2"))
-restInterface.rest_put('bleb', ['keypit'])
-print(subTest, restInterface.rest_get())
-print()
+if __name__ == '__main__':
+    unittest.main()

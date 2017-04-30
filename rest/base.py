@@ -152,12 +152,12 @@ class RestInterface(object):
                 # None, or not a dictionary, so create a dictionary.
                 return {specifier: None}
         else:
-            # It would be super-neat to do this be try:ing the len() and then
+            # It would be super-neat to do this by try:ing the len() and then
             # except TypeError: to set length zero. The problem is that all
             # iterables are OK for len(), so string and dictionary values don't
             # generate the exception.
             length = 0
-            if isinstance(point, tuple) or isinstance(point, list):
+            if isinstance(point, (tuple, list)):
                 length = len(point)
                 if length > specifier:
                     return point
@@ -183,7 +183,7 @@ class RestInterface(object):
 
         point, numeric, type = RestInterface.get_point(parent, leg)
         if numeric and isinstance(parent, str):
-            # Sorry, have to force descent into a string to fail.
+            # Sorry, hack to force descent into a string to fail if setting.
             point = None
         
         self.verbosely(__name__,

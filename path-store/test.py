@@ -7,29 +7,42 @@
 # Standard library imports, in alphabetic order.
 #
 # Unit test module.
+# https://docs.python.org/3.5/library/unittest.html
 import unittest
 #
 # Local imports.
 #
-# Module under test.
+# Modules under test.
 import pathstore
-
+import rest
 
 class Principal(object):
     def __init__(self, value=None):
         self.salad = value
 
+class TestStrQuote(unittest.TestCase):
+    def test_None(self):
+        self.assertEqual(pathstore.str_quote(None), "None")
+    def test_str(self):
+        self.assertEqual(pathstore.str_quote("blib"), '"blib"')
+    def test_number(self):
+        self.assertEqual(pathstore.str_quote(2), "2")
+    def test_dict(self):
+        dict_ = {'alp':"bet", 'pla':2}
+        self.assertEqual(pathstore.str_quote(dict), str(dict))
+
 class TestPathify(unittest.TestCase):
     def test_None(self):
         self.assertEqual(list(pathstore.pathify(None)), [])
+    def test_list_None(self):
+        self.assertEqual(list(pathstore.pathify((None,))), [None])
     def test_one_number(self):
-        self.assertEqual(list(pathstore.pathify(1)), [(1, "1")])
+        self.assertEqual(list(pathstore.pathify(1)), [1])
     def test_one_string(self):
-        self.assertEqual(list(pathstore.pathify("jio")), [("jio", '"jio"')])
+        self.assertEqual(list(pathstore.pathify("jio")), ["jio"])
     def test_string_number(self):
         self.assertEqual(
-            list(pathstore.pathify(("jio", 2)))
-            , [("jio", '"jio"'), (2, "2")])
+            list(pathstore.pathify(("jio", 2))), ["jio", 2])
 
 class TestDescendOne(unittest.TestCase):
     def test_None_numeric(self):
@@ -300,6 +313,14 @@ class TestInsert(unittest.TestCase):
         self.assertIsNot(point0, point1)
         self.assertEqual(point1, [None, "blob"])
     
+    def test_insert_None(self):
+        path = [1]
+
+        point0 = [None, "goner"]
+        point1 = pathstore.insert(point0, path, None)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, [None, "goner"])
+        
     def test_zero_one(self):
         path = [0, 1]
         value = "Inner"
@@ -333,22 +354,83 @@ class TestInsert(unittest.TestCase):
         self.assertIs(point1[0], point0_0)
         self.assertIs(pathstore.descend(point0, 0), point0_0)
         self.assertEqual(point1, [["Another", "Inner"]])
+
+    def test_string(self):
+        path = "blib"
+        value = "blob"
         
-# 
-# print("rest_put tests")
-# 
-# test = "1"
-# print("Test", test)
-# subTest = ".".join((test, "1"))
-# restInterface = RestInterface()
-# restInterface.rest_put(1)
-# print(subTest, restInterface.principal)
-# subTest = ".".join((test, "2"))
-# restInterface = RestInterface()
-# restInterface.rest_put(Principal("one"))
-# print(subTest, vars(restInterface.principal))
-# subTest = ".".join((test, "3"))
-# restInterface = RestInterface()
+        point0 = None
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIsNot(point0, point1)
+        self.assertEqual(point1, {'blib': "blob"})
+        
+        point0 = 5
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIsNot(point0, point1)
+        self.assertEqual(point1, {'blib': "blob"})
+        
+        point0 = None
+        point1 = pathstore.insert(point0, [path], value)
+        self.assertIsNot(point0, point1)
+        self.assertEqual(point1, {'blib': "blob"})
+        
+        point0 = {}
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, {'blib': "blob"})
+        
+        point0 = []
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIsNot(point0, point1)
+        self.assertEqual(point1, {'blib': "blob"})
+        
+        point0 = {'blib': "bleb"}
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, {'blib': "blob"})
+        
+        point0 = {'blyb': "bleb"}
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, {'blib': "blob", 'blyb': "bleb"})
+        
+        point0 = {'blib': "bleb", 'blil': ["bib", "bab"]}
+        point1 = pathstore.insert(point0, path, value)
+        self.assertIs(point0, point1)
+        self.assertEqual(point1, {'blib': "blob", 'blil': ["bib", "bab"]})
+
+class TestMerge(unittest.TestCase):
+    def test_list_dict(self):
+        principal0 = [
+            {'a':"ava", 'b':"beaver"},
+            {'c':"Cival", 'd':"devalue"}
+        ]
+        path = [1]
+        value = {'d':"nudie", 'e':"evaluate"}
+        principal1 = [
+            {'a':"ava", 'b':"beaver"},
+            {'c':"Cival", 'd':"nudie", 'e':"evaluate"}
+        ]
+        # print()
+        # principal = pathstore.insert(principal0, path, value
+        #                              , logger=pathstore.default_logger_print)
+        principal = pathstore.insert(principal0, path, value)
+        self.assertIs(principal, principal0)
+        self.assertEqual(principal, principal1)
+        # print(principal)
+
+
+class TestRestPut(unittest.TestCase):
+    def test_no_path(self):
+        restInterface = rest.RestInterface()
+        restInterface.rest_put(None)
+        self.assertIsNone(restInterface.rest_get())
+        restInterface.rest_put(1)
+        self.assertEqual(restInterface.rest_get(), 1)
+        principal = Principal("one")
+        restInterface.rest_put(principal)
+        self.assertIs(restInterface.rest_get(), principal)
+      
 # restInterface.rest_put(Principal("two"), [0])
 # print(subTest, restInterface.rest_get())
 # subTest = ".".join((test, "4"))
@@ -413,6 +495,10 @@ class TestInsert(unittest.TestCase):
 # restInterface.rest_put('bleb', ['keypit'])
 # print(subTest, restInterface.rest_get())
 # print()
+
+# To Do:
+# -   Test with principal that has setters, and do the optimise ToDo in
+#     pathstore.py file.
 
 if __name__ == '__main__':
     unittest.main()

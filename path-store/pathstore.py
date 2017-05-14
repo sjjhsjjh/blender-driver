@@ -18,25 +18,29 @@ if __name__ == '__main__':
 # https://docs.python.org/3.5/library/enum.html
 from enum import Enum
 
-def str_quote(str_, quote):
-    """Utility to add quotes to strings."""
+def str_quote(str_, quote='"'):
+    """Utility to add quotes to strings, but just stringify non-strings."""
     if isinstance(str_, str):
         return str_.join((quote, quote))
     else:
         return str(str_)
 
-def pathify(path, quote='"'):
-    """Generator that returns tuples of: path[N], str_quote(path[N])."""
+def pathify(path):
+    """Generator that returns a list suitable for path store navigation:
+    
+    -   A zero-element list, if path is None.
+    -   A one-element list, if path is a string or isn't iterable.
+    -   A list of each item, otherwise.
+    """
     if path is not None:
         if isinstance(path, str):
-            yield path, str_quote(path, quote)
+            yield path
         else:
             try:
                 for item in path:
-                    yield item, str_quote(item, quote)
+                    yield item
             except TypeError:
-                # Not a string, also not iterable. Probably a number.
-                yield path, str(path)
+                yield path
 
 class PointType(Enum):
     LIST = 1
@@ -78,19 +82,38 @@ def descend_one(parent, specifier):
     return point, numeric, type
 
 def descend(parent, path):
-    for leg, legStr in pathify(path):
+    for leg in pathify(path):
         point, numeric, type = descend_one(parent, leg)
         if type is None:
             raise TypeError(" ".join((
-                "Couldn't get point for", legStr, "in", str(parent))))
+                "Couldn't get point for", str_quote(leg), "in", str(parent))))
         if point is None:
-            error = " ".join(("No point for", legStr, "in", str(parent)))
+            error = " ".join((
+                "No point for", str_quote(leg), "in", str(parent)))
             raise IndexError(error) if numeric else KeyError(error)
         parent = point
     return parent
 
+def iterify(source):
+    try:
+        # Dictionary.
+        return source.items()
+    except AttributeError:
+        pass
+
+    if isinstance(source, str):
+        return None
+
+    try:
+        # List or tuple.
+        return enumerate(source)
+    except TypeError:
+        return None
+
 def make_point(specifier, point=None):
-    """Make or create a suitable point that can hold specifier."""
+    """Make or create a suitable point that can hold specifier.
+    If a point is specified as input, the new point is based on it.
+    """
     if isinstance(specifier, str):
         try:
             if specifier not in point:
@@ -119,68 +142,121 @@ def make_point(specifier, point=None):
             # None or not a list, so create a list.
             return list(extension)
 
+def default_point_maker(path, index, point=None):
+    return make_point(path[index], point)
+
+def default_logger_pass(origin__name__, *args):
+    return False
+
+def default_logger_print(origin__name__, *args):
+    # Komodo Edit flags the next line as an error but it's fine.
+    print(origin__name__, *args)
+    return True
+
 def insert(parent
            , path
            , value
-           , enumerator=None
-           , logger=None
-           , point_maker=None
+           , point_maker=default_point_maker
+           , logger=default_logger_pass
            ):
-    def no_log(origin__name__, *args):
-        pass
-    if logger is None:
-        logger = no_log
-    logger(__name__, 'insert()', parent, path, value)
+
+    # Concealed inner subroutine.
+    def _insert(parent, path, value, point_maker, logger, enumerator):
+        logger(__name__, 'insert()', parent, path, value)
+        try:
+            index, leg = next(enumerator)
+        except StopIteration:
+            if value is None:
+                logger(__name__, 'insert merging None.')
+                return parent
+            legIterator = iterify(value)
+            if legIterator is None:
+                logger(__name__, 'insert replacing.')
+                return value
+            pathLen = len(path)
+            for legKey, legValue in legIterator:
+                logger(__name__, 'insert merge', str_quote(legKey), legValue)
+                if legValue is None:
+                    continue
+                path.append(legKey)
+                parent = _insert(parent, path, legValue, point_maker, logger
+                                 , enumerate(pathify(legKey), pathLen))
+                path.pop()
     
-    def default_point_maker(path, index, point):
-        return make_point(path[index], point)
-    if point_maker is None:
-        point_maker = default_point_maker
-
-    if enumerator is None:
-        enumerator = enumerate(pathify(path))
-
-    try:
-        index, (leg, legStr) = next(enumerator)
-    except StopIteration:
-        return value
+            return parent
     
-    wasTuple = isinstance(parent, tuple)
+        wasTuple = isinstance(parent, tuple)
 
-    point, numeric, type = descend_one(parent, leg)
-    if numeric and isinstance(parent, str):
-        # Sorry, hack to force descent into a string to fail if setting.
-        point = None
-    
-    logger(__name__, "{:2d} {}\n  {}\n  {}\n  {} {}".format(
-        index, legStr, parent, point, str(numeric), str(type)))
 
-    if type is None or point is None:
-        parent = point_maker(path, index, parent)
-        logger(__name__, 'insert made point', parent)
+# Could treat leg -1 as a special case here.
+# If leg is -1, discard parent unless it is a list or tuple,
+# and change leg to len(parent)
+
+
         point, numeric, type = descend_one(parent, leg)
-
-    if type is None:
-        raise AssertionError("".join((
-            "type was None twice at ", str(parent)
-            ," path:", str(path), " index:", str(index)
-            , " leg:", legStr, ".")))
-
-    value = insert(point, path, value, enumerator, logger, point_maker)
-
-    # ToDo: optimise to set only if new value is different to current value.
-    if type == PointType.ATTR:
-        setattr(parent, leg, value)
-    else:
-        # leg could be numeric or string; parent could be list or dict ...
-        #
-        # ... or tuple. If it's a tuple then make it into a list, and
-        # therefore mutable, first.
-        if isinstance(parent, tuple):
-            parent = list(parent)
-        parent[leg] = value
-
-    if wasTuple and isinstance(parent, list):
-        parent = tuple(parent)
+        if numeric and isinstance(parent, str):
+            # Sorry, hack to force descent into a string to fail if setting.
+            point = None
+        
+        logger(__name__, "{:2d} {}\n  {}\n  {}\n  {} {}".format(
+            index, str_quote(leg), parent, point, str(numeric), str(type)))
     
-    return parent
+        if type is None or point is None:
+            parent = point_maker(path, index, parent)
+            logger(__name__, 'insert made point', parent)
+            point, numeric, type = descend_one(parent, leg)
+    
+        if type is None:
+            raise AssertionError("".join((
+                "type was None twice at ", str(parent)
+                ," path:", str(path), " index:", str(index)
+                , " leg:", str_quote(leg), ".")))
+    
+        value = _insert(point, path, value, point_maker, logger, enumerator)
+    
+        # ToDo: optimise to set only if new value is different to current value.
+        if type == PointType.ATTR:
+            setattr(parent, leg, value)
+        else:
+            # leg could be numeric or string; parent could be list or dict ...
+            #
+            # ... or tuple. If it's a tuple then make it into a list, and
+            # therefore mutable, first.
+            if isinstance(parent, tuple):
+                parent = list(parent)
+            parent[leg] = value
+    
+        if wasTuple and isinstance(parent, list):
+            parent = tuple(parent)
+        
+        return parent
+
+    return _insert(parent
+                   , list(pathify(path))
+                   , value
+                   , point_maker
+                   , logger
+                   , enumerate(pathify(path)))
+
+# def merge(source
+#           , destination=None
+#           , point_maker=default_point_maker
+#           , logger=None):
+#     # paths = []
+#     # index = 0
+# 
+# 
+# # If source is None, return destination.
+# # If source is a simple type, return source.
+# # Otherwise, go back to the vertical and insert each item in source into
+# # destination.
+# 
+# 
+# 
+#     #
+#     #  Assume source is a dictionary.
+#     
+#     for path, value in sourceIter:
+#         destination = insert(destination, (path,), value, point_maker, logger)
+# 
+#     return destination

@@ -102,26 +102,34 @@ def iterify(source):
         pass
 
     if isinstance(source, str):
-        return None
+        raise TypeError()
 
-    try:
-        # List or tuple.
-        return enumerate(source)
-    except TypeError:
-        return None
+    # Assume list or tuple. The next line raises TypeError if source isn't a
+    # list or tuple, which is what we want.
+    return enumerate(source)
 
 def make_point(specifier, point=None):
     """Make or create a suitable point that can hold specifier.
     If a point is specified as input, the new point is based on it.
     """
     if isinstance(specifier, str):
-        try:
-            if specifier not in point:
-                point[specifier] = None
+        # The if on the next line might be unnecessary. It might be the case
+        # that hasattr(None, specifier) is False for all specifier. For safety
+        # and perhaps readability, however, it seems better to make a special
+        # check for None.
+        if point is None:
+            return {}
+        if isinstance(point, dict) or hasattr(point, specifier):
             return point
-        except TypeError:
-            # None, or not a dictionary, so create a dictionary.
-            return {specifier: None}
+        return {}
+        #     
+        # try:
+        #     if specifier not in point:
+        #         point[specifier] = None
+        #     return point
+        # except TypeError:
+        #     # None, or not a dictionary, so create a dictionary.
+        #     return {specifier: None}
     else:
         # It would be super-neat to do this by try:ing the len() and then
         # except TypeError: to set length zero. The problem is that all
@@ -153,110 +161,111 @@ def default_logger_print(origin__name__, *args):
     print(origin__name__, *args)
     return True
 
+def merge(parent
+          , value
+          , point_maker=default_point_maker
+          , pointMakerPath=None
+          , logger=default_logger_pass
+          ):
+    logger(__name__, 'merge()', parent, value, pointMakerPath)
+    if value is None:
+        logger(__name__, 'merge None.')
+        return parent
+    try:
+        legIterator = iterify(value)
+    except TypeError:
+        logger(__name__, 'merge replacing.')
+        return value
+
+    path = list(pathify(pointMakerPath))
+    pathLen = len(path)
+    
+    def enumerate_one(index, item):
+        yield index, item
+    
+    for legKey, legValue in legIterator:
+        logger(__name__, 'merge iteration', str_quote(legKey), legValue)
+        if legValue is None:
+            continue
+        path.append(legKey)
+        parent = _insert(parent, path, legValue, point_maker, logger
+                         , enumerate_one(pathLen, legKey))
+        path.pop()
+
+    logger(__name__, 'merge return', parent)
+    return parent
+
 def insert(parent
            , path
            , value
            , point_maker=default_point_maker
            , logger=default_logger_pass
            ):
-
-    # Concealed inner subroutine.
-    def _insert(parent, path, value, point_maker, logger, enumerator):
-        logger(__name__, 'insert()', parent, path, value)
-        try:
-            index, leg = next(enumerator)
-        except StopIteration:
-            if value is None:
-                logger(__name__, 'insert merging None.')
-                return parent
-            legIterator = iterify(value)
-            if legIterator is None:
-                logger(__name__, 'insert replacing.')
-                return value
-            pathLen = len(path)
-            for legKey, legValue in legIterator:
-                logger(__name__, 'insert merge', str_quote(legKey), legValue)
-                if legValue is None:
-                    continue
-                path.append(legKey)
-                parent = _insert(parent, path, legValue, point_maker, logger
-                                 , enumerate(pathify(legKey), pathLen))
-                path.pop()
-    
-            return parent
-    
-        wasTuple = isinstance(parent, tuple)
-
-
-# Could treat leg -1 as a special case here.
-# If leg is -1, discard parent unless it is a list or tuple,
-# and change leg to len(parent)
-
-
-        point, numeric, type = descend_one(parent, leg)
-        if numeric and isinstance(parent, str):
-            # Sorry, hack to force descent into a string to fail if setting.
-            point = None
-        
-        logger(__name__, "{:2d} {}\n  {}\n  {}\n  {} {}".format(
-            index, str_quote(leg), parent, point, str(numeric), str(type)))
-    
-        if type is None or point is None:
-            parent = point_maker(path, index, parent)
-            logger(__name__, 'insert made point', parent)
-            point, numeric, type = descend_one(parent, leg)
-    
-        if type is None:
-            raise AssertionError("".join((
-                "type was None twice at ", str(parent)
-                ," path:", str(path), " index:", str(index)
-                , " leg:", str_quote(leg), ".")))
-    
-        value = _insert(point, path, value, point_maker, logger, enumerator)
-    
-        # ToDo: optimise to set only if new value is different to current value.
-        if type == PointType.ATTR:
-            setattr(parent, leg, value)
-        else:
-            # leg could be numeric or string; parent could be list or dict ...
-            #
-            # ... or tuple. If it's a tuple then make it into a list, and
-            # therefore mutable, first.
-            if isinstance(parent, tuple):
-                parent = list(parent)
-            parent[leg] = value
-    
-        if wasTuple and isinstance(parent, list):
-            parent = tuple(parent)
-        
-        return parent
-
+    logger(__name__, 'insert()', parent, path, value)
     return _insert(parent
-                   , list(pathify(path))
+                   , tuple(pathify(path))
                    , value
                    , point_maker
                    , logger
                    , enumerate(pathify(path)))
 
-# def merge(source
-#           , destination=None
-#           , point_maker=default_point_maker
-#           , logger=None):
-#     # paths = []
-#     # index = 0
-# 
-# 
-# # If source is None, return destination.
-# # If source is a simple type, return source.
-# # Otherwise, go back to the vertical and insert each item in source into
-# # destination.
-# 
-# 
-# 
-#     #
-#     #  Assume source is a dictionary.
-#     
-#     for path, value in sourceIter:
-#         destination = insert(destination, (path,), value, point_maker, logger)
-# 
-#     return destination
+def _insert(parent, path, value, point_maker, logger, enumerator):
+    try:
+        index, leg = next(enumerator)
+    except StopIteration:
+        return merge(parent, value, point_maker, path, logger)
+
+    wasTuple = isinstance(parent, tuple)
+
+# Could treat leg -1 as a special case here.
+# If leg is -1, discard parent unless it is a list or tuple,
+# and change leg to len(parent)
+
+    point, numeric, type = descend_one(parent, leg)
+    if numeric and isinstance(parent, str):
+        # Sorry, hack to force descent into a string to fail if setting.
+        point = None
+    
+    logger(__name__, "{:2d} {}\n  {}\n  {}\n  {} {}".format(
+        index, str_quote(leg)
+        , parent, str_quote(point), str(numeric), str(type)))
+
+    if type is None or point is None:
+        parent = point_maker(path, index, parent)
+        logger(__name__, 'made point', parent)
+        point, numeric, type = descend_one(parent, leg)
+
+    if type is None:
+        raise AssertionError("".join((
+            "type was None twice at ", str(parent)
+            ," path:", str(path), " index:", str(index)
+            , " leg:", str_quote(leg), ".")))
+
+    value = _insert(point, path, value, point_maker, logger, enumerator)
+
+    if type is PointType.ATTR:
+        if getattr(parent, leg) is value:
+            logger(__name__, "setter optimised:", type)
+        else:
+            setattr(parent, leg, value)
+    elif type is PointType.DICTIONARY:
+        if (leg in parent) and (parent[leg] is value):
+            logger(__name__, "setter optimised:", type)
+        else:
+            parent[leg] = value
+    elif type is PointType.LIST:
+        if parent[leg] is value:
+            logger(__name__, "setter optimised:", type)
+        else:
+            # If it's a tuple then make it into a list, and therefore mutable,
+            # first.
+            if isinstance(parent, tuple):
+                parent = list(parent)
+            parent[leg] = value
+    else:
+        raise AssertionError(" ".join(("Unknown PointType:", str(type))))
+
+    if wasTuple and isinstance(parent, list):
+        parent = tuple(parent)
+    
+    return parent

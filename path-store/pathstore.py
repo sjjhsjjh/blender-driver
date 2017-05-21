@@ -47,7 +47,7 @@ class PointType(Enum):
     DICTIONARY = 2
     ATTR = 3
 
-def descend_one(parent, specifier):
+def descend(parent, specifier):
     if specifier is None:
         raise TypeError("Specifier must be string or numeric, but is None.")
     numeric = not isinstance(specifier, str)
@@ -81,9 +81,9 @@ def descend_one(parent, specifier):
             
     return point, numeric, type
 
-def descend(parent, path):
+def get(parent, path=None):
     for leg in pathify(path):
-        point, numeric, type = descend_one(parent, leg)
+        point, numeric, type = descend(parent, leg)
         if type is None:
             raise TypeError(" ".join((
                 "Couldn't get point for", str_quote(leg), "in", str(parent))))
@@ -122,14 +122,6 @@ def make_point(specifier, point=None):
         if isinstance(point, dict) or hasattr(point, specifier):
             return point
         return {}
-        #     
-        # try:
-        #     if specifier not in point:
-        #         point[specifier] = None
-        #     return point
-        # except TypeError:
-        #     # None, or not a dictionary, so create a dictionary.
-        #     return {specifier: None}
     else:
         # It would be super-neat to do this by try:ing the len() and then
         # except TypeError: to set length zero. The problem is that all
@@ -161,59 +153,43 @@ def default_logger_print(origin__name__, *args):
     print(origin__name__, *args)
     return True
 
-def merge(parent
-          , value
-          , point_maker=default_point_maker
-          , pointMakerPath=None
-          , logger=default_logger_pass
-          ):
-    logger(__name__, 'merge()', parent, value, pointMakerPath)
-    if value is None:
-        logger(__name__, 'merge None.')
-        return parent
-    try:
-        legIterator = iterify(value)
-    except TypeError:
-        logger(__name__, 'merge replacing.')
-        return value
-
-    path = list(pathify(pointMakerPath))
-    pathLen = len(path)
-    
-    def enumerate_one(index, item):
-        yield index, item
-    
-    for legKey, legValue in legIterator:
-        logger(__name__, 'merge iteration', str_quote(legKey), legValue)
-        if legValue is None:
-            continue
-        path.append(legKey)
-        parent = _insert(parent, path, legValue, point_maker, logger
-                         , enumerate_one(pathLen, legKey))
-        path.pop()
-
-    logger(__name__, 'merge return', parent)
-    return parent
-
-def insert(parent
-           , path
-           , value
-           , point_maker=default_point_maker
-           , logger=default_logger_pass
-           ):
-    logger(__name__, 'insert()', parent, path, value)
+def replace(parent
+            , value
+            , path=None
+            , point_maker=default_point_maker
+            , logger=default_logger_pass
+            ):
+    logger(__name__, 'replace()', parent, path, value)
     return _insert(parent
                    , tuple(pathify(path))
                    , value
                    , point_maker
                    , logger
-                   , enumerate(pathify(path)))
+                   , enumerate(pathify(path))
+                   , True)
 
-def _insert(parent, path, value, point_maker, logger, enumerator):
+def merge(parent
+          , value
+          , path=None
+          , point_maker=default_point_maker
+          , logger=default_logger_pass
+          ):
+    logger(__name__, 'merge()', parent, path, value)
+    return _insert(parent
+                   , tuple(pathify(path))
+                   , value
+                   , point_maker
+                   , logger
+                   , enumerate(pathify(path))
+                   , False)
+
+def _insert(parent, path, value, point_maker, logger, enumerator, setReplace):
     try:
         index, leg = next(enumerator)
     except StopIteration:
-        return merge(parent, value, point_maker, path, logger)
+        if setReplace:
+            parent = None
+        return _merge(parent, value, point_maker, path, logger)
 
     wasTuple = isinstance(parent, tuple)
 
@@ -221,7 +197,7 @@ def _insert(parent, path, value, point_maker, logger, enumerator):
 # If leg is -1, discard parent unless it is a list or tuple,
 # and change leg to len(parent)
 
-    point, numeric, type = descend_one(parent, leg)
+    point, numeric, type = descend(parent, leg)
     if numeric and isinstance(parent, str):
         # Sorry, hack to force descent into a string to fail if setting.
         point = None
@@ -233,7 +209,7 @@ def _insert(parent, path, value, point_maker, logger, enumerator):
     if type is None or point is None:
         parent = point_maker(path, index, parent)
         logger(__name__, 'made point', parent)
-        point, numeric, type = descend_one(parent, leg)
+        point, numeric, type = descend(parent, leg)
 
     if type is None:
         raise AssertionError("".join((
@@ -241,7 +217,8 @@ def _insert(parent, path, value, point_maker, logger, enumerator):
             ," path:", str(path), " index:", str(index)
             , " leg:", str_quote(leg), ".")))
 
-    value = _insert(point, path, value, point_maker, logger, enumerator)
+    value = _insert(
+        point, path, value, point_maker, logger, enumerator, setReplace)
 
     if type is PointType.ATTR:
         if getattr(parent, leg) is value:
@@ -268,4 +245,33 @@ def _insert(parent, path, value, point_maker, logger, enumerator):
     if wasTuple and isinstance(parent, list):
         parent = tuple(parent)
     
+    return parent
+
+def _merge(parent, value, point_maker, pointMakerPath, logger):
+    logger(__name__, '_merge()', parent, value, pointMakerPath)
+    if value is None:
+        logger(__name__, '_merge None.')
+        return parent
+    try:
+        legIterator = iterify(value)
+    except TypeError:
+        logger(__name__, '_merge replacing.')
+        return value
+
+    path = list(pathify(pointMakerPath))
+    pathLen = len(path)
+    
+    def enumerate_one(index, item):
+        yield index, item
+    
+    for legKey, legValue in legIterator:
+        logger(__name__, '_merge iteration', str_quote(legKey), legValue)
+        if legValue is None:
+            continue
+        path.append(legKey)
+        parent = _insert(parent, path, legValue, point_maker, logger
+                         , enumerate_one(pathLen, legKey), False)
+        path.pop()
+
+    logger(__name__, '_merge return', parent)
     return parent

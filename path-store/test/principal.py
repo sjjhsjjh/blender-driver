@@ -16,6 +16,11 @@ if __name__ == '__main__':
 # Unit test module.
 # https://docs.python.org/3.5/library/unittest.html
 import unittest
+#
+# Local imports.
+#
+# Modules under test.
+import pathstore
 
 class SetCounter(object):
     @property
@@ -45,7 +50,6 @@ class Principal(SetCounter):
 class SetCounterDict(dict, SetCounter):
     def __setitem__(self, key, value):
         self.incrementSetCount()
-        print('SetCounterDict', key, value)
         return dict.__setitem__(self, key, value)
 
     def __init__(self, *args, **kwargs):
@@ -67,6 +71,25 @@ class SetCounterList(list, SetCounter):
         SetCounter.__init__(self)
         list.__init__(self, *args, **kwargs)
 
+class PointMakerTracker(object):
+    def tracker_for(self, path, index, point):
+        return str(path), index, str(point)
+
+    def track(self, path, index, point):
+        self.makerTrack.append(self.tracker_for(path, index, point))
+        return self.makerTrack
+    
+    def point_maker(self, path, index, point, return_=None):
+        self.track(path, index, point)
+        if return_ is None:
+            return_ = pathstore.default_point_maker(path, index, point)
+        self.lastPoint = return_
+        return return_
+
+    def __init__(self):
+        self.makerTrack = []
+        self.lastPoint = None
+
 class TestPrincipal(unittest.TestCase):
     def test_set_count(self):
         principal = Principal()
@@ -87,3 +110,34 @@ class TestPrincipal(unittest.TestCase):
         self.assertEqual(setCounterList.setterCount, 1)
         setCounterList[:] = ["aye", "bee", "see"]
         self.assertEqual(setCounterList.setterCount, 2)
+    
+    def test_point_maker_tracker(self):
+        pointMakerTracker = PointMakerTracker()
+        self.assertEqual(pointMakerTracker.makerTrack, [])
+        path = ("abc", "de", "fgh", "ij", "kl")
+        point0 = 4
+        expected = [(str(path), 3, str(point0))]
+        point1 = pointMakerTracker.track(path, 3, point0)
+        self.assertEqual(pointMakerTracker.makerTrack, expected)
+
+        point1 = pointMakerTracker.track(path, 3, point0)
+        self.assertEqual(pointMakerTracker.makerTrack, expected * 2)
+
+    def test_point_maker_tracker_insert(self):
+        pointMakerTracker = PointMakerTracker()
+        point0 = None
+        path = 0
+        expected = [pointMakerTracker.tracker_for((path,), 0, point0)]
+        point1 = pathstore.merge(
+            point0, None, path, point_maker=pointMakerTracker.point_maker)
+        self.assertEqual(pointMakerTracker.makerTrack, expected)
+        
+        pointMakerTracker = PointMakerTracker()
+        point0 = None
+        path = ('abc', 'de', 'fgh', 'ij', 'kl')
+        expected = [
+            (str(path), index, str(point0)) for index in range(len(path))]
+        point1 = pathstore.merge(
+            point0, None, path, point_maker=pointMakerTracker.point_maker)
+        self.assertEqual(pointMakerTracker.makerTrack, expected)
+        self.assertEqual(point1, {'abc':{'de':{'fgh':{'ij':{'kl': None}}}}})

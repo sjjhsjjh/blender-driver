@@ -26,49 +26,49 @@ import pathstore
 
 class TestDescendOne(unittest.TestCase):
     def test_None_numeric(self):
-        point, numeric, pointType = pathstore.descend_one(None, 0)
+        point, numeric, pointType = pathstore.descend(None, 0)
         self.assertIsNone(point)
         self.assertTrue(numeric)
         self.assertIsNone(pointType)
     def test_None_string(self):
-        point, numeric, pointType = pathstore.descend_one(None, 'key1')
+        point, numeric, pointType = pathstore.descend(None, 'key1')
         self.assertIsNone(point)
         self.assertFalse(numeric)
         self.assertIsNone(pointType)
     def test_empty_list_numeric(self):
-        point, numeric, pointType = pathstore.descend_one([], 0)
+        point, numeric, pointType = pathstore.descend([], 0)
         self.assertIsNone(point)
         self.assertTrue(numeric)
         self.assertEqual(pointType, pathstore.PointType.LIST)
     def test_list_numeric(self):
-        point, numeric, pointType = pathstore.descend_one(['atfirst'], 0)
+        point, numeric, pointType = pathstore.descend(['atfirst'], 0)
         self.assertEqual(point, 'atfirst')
         self.assertTrue(numeric)
         self.assertEqual(pointType, pathstore.PointType.LIST)
     def test_list_string(self):
-        point, numeric, pointType = pathstore.descend_one(['atfirst'], 'key1')
+        point, numeric, pointType = pathstore.descend(['atfirst'], 'key1')
         self.assertIsNone(point)
         self.assertFalse(numeric)
         self.assertEqual(pointType, pathstore.PointType.DICTIONARY)
     def test_empty_dictionary_string(self):
-        point, numeric, pointType = pathstore.descend_one({}, 'key1')
+        point, numeric, pointType = pathstore.descend({}, 'key1')
         self.assertIsNone(point)
         self.assertFalse(numeric)
         self.assertEqual(pointType, pathstore.PointType.DICTIONARY)
     def test_dictionary_string(self):
-        point, numeric, pointType = pathstore.descend_one({'key1': 8}, 'key1')
+        point, numeric, pointType = pathstore.descend({'key1': 8}, 'key1')
         self.assertEqual(point, 8)
         self.assertFalse(numeric)
         self.assertEqual(pointType, pathstore.PointType.DICTIONARY)
     def test_attr_string(self):
         parent = Principal("one")
-        point, numeric, pointType = pathstore.descend_one(parent, 'testAttr')
+        point, numeric, pointType = pathstore.descend(parent, 'testAttr')
         self.assertEqual(point, "one")
         self.assertFalse(numeric)
         self.assertEqual(pointType, pathstore.PointType.ATTR)
     def test_attr_string_not_found(self):
         parent = Principal("one")
-        point, numeric, pointType = pathstore.descend_one(parent, 'nonsalad')
+        point, numeric, pointType = pathstore.descend(parent, 'nonsalad')
         self.assertIsNone(point)
         self.assertFalse(numeric)
         self.assertIsNone(pointType)

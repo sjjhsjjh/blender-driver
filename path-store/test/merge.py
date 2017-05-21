@@ -18,10 +18,19 @@ import unittest
 #
 # Local imports.
 #
+# Utilities.
+from .principal import Principal
+#
 # Modules under test.
 import pathstore
 
 class TestMerge(unittest.TestCase):
+    def test_into_none(self):
+        value = {'kiki':"valoo", 'ikik':"valet"}
+        parent = pathstore.merge(None, value)
+        self.assertEqual(parent, value)
+        self.assertIsNot(parent, value)
+    
     def test_list_dict(self):
         principal0 = [
             {'ak':"ava", 'bk':"beaver"},
@@ -33,10 +42,16 @@ class TestMerge(unittest.TestCase):
             {'ak':"ava", 'bk':"beaver"},
             {'ck':"Cival", 'dk':"nudie", 'ek':"evaluate"}
         ]
-        # print()
-        # principal = pathstore.insert(principal0, path, value
-        #                              , logger=pathstore.default_logger_print)
-        principal = pathstore.insert(principal0, path, value)
+        principal = pathstore.merge(principal0, value, path)
         self.assertIs(principal, principal0)
         self.assertEqual(principal, principal1)
-        # print(principal)
+
+    def test_into_principal(self):
+        nativePrincipal = Principal("three")
+        nativePrincipal.countedStr = "four"
+        principal0 = Principal()
+        principal1 = pathstore.merge(
+            principal0, {'testAttr': "three", 'countedStr':"four"})
+        self.assertIs(principal1, principal0)
+        self.assertEqual(nativePrincipal.countedStr, principal1.countedStr)
+        self.assertEqual(nativePrincipal.testAttr, principal1.testAttr)

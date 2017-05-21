@@ -4,7 +4,7 @@
 """Path Store unit test utility classes.
 Classes in this module can be tested like:
 
-    python3 path-store/test.py TestPrincipal
+    python3 path_store/test.py TestPrincipal
 """
 # Exit if run other than as a module.
 if __name__ == '__main__':

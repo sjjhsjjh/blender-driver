@@ -3,7 +3,7 @@
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 """Path Store unit test module. Tests in this module can be run like:
 
-    python3 path-store/test.py TestPathify
+    python3 path_store/test.py TestPathify
 """
 # Exit if run other than as a module.
 if __name__ == '__main__':

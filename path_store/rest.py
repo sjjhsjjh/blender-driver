@@ -19,7 +19,7 @@ from enum import Enum
 # Local imports.
 #
 # Path Store module.
-import pathstore
+from . import pathstore
 
 
 

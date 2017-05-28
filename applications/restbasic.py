@@ -67,103 +67,59 @@ from path_store.rest import RestInterface
 # imports run OK.
 print('"'.join(('Application module ', __name__, '.')))
 
-
-class VectorSetter(list):
-    
-    def __setitem__(self, index, value):
-        # print("VectorSetter setitem", index, value)
-        vector = getattr(self._host, self._attr).copy()
-        # vector = self._vector.copy()
-        vector[index] = value
-        setattr(self._host, self._attr, vector)
-        # self._setter(vector)
-        # self._vector[index] = value
-    
-    def set(self, value):
-        setattr(self._host, self._attr, self._attrClass(value))
-    
-    def __init__(self, host, attr):
-        self._host = host
-        self._attr = attr
-        self._attrClass = getattr(self._host, self._attr).__class__
-
-# class HostedAttribute(object):
-
-
+# ToDo:
+# -   Moved HostedProperty class somewhere.
+# -   Have three objects, each using a different set mechanism.
+# -   Move Wrapper class somewhere, and rename.
 
 class HostedProperty(property):
-    
-    class HostHolder(object):
-        
+    class _HostHolder(object):
         def __getitem__(self, index):
-            # print("HostHolder getitem", index)
             host = getattr(self._instance, self._hostName)
             attr = getattr(host, self._attrName)
             return attr[index]
 
         def __setitem__(self, index, value):
-            # print("HostHolder setitem", index, value)
-            # mutable = list(getattr(self.host, self._attr))
             host = getattr(self._instance, self._hostName)
             attr = getattr(host, self._attrName)
             mutable = list(attr)
             mutable[index] = value
-            # setattr(self._host, self._attr, vector)
-            # self.set(None, mutable)
             setattr(host, self._attrName, attr.__class__(mutable))
+        
+        def __delitem__(self, specifier):
+            raise NotImplementedError()
         
         def __init__(self, instance, hostName, attrName):
             self._instance = instance
             self._hostName = hostName
             self._attrName = attrName
-    
-    # @property
-    # def host(self):
-    #     return self._host
-    # @host.setter
-    # def host(self, host):
-    #     self._host = host
-    #     if host is not None:
-    #         self._attrClass = getattr(self._host, self._attr).__class__
-
-            
-    # Getter for the host attribute goes here.
-
 
     def get(self, instance):
-        # return getattr(getattr(instance, self._hostName), self._name)
-        return getattr(instance, self._name)
-        # return getattr(self.host, self._attr)
-        # return self
+        return getattr(instance, self._propertyName)
 
     def set(self, instance, value):
-        # if isinstance(value, tuple):
-        #     host = value[0]
-        #     value = value[1]
-        # else:
-        #     host = self._host
-        # 
-        # setattr(self._host, self._attr, self._attrClass(value))
-        # return setattr(instance, self._name, value)
         #
         # Setting to None initialises the holder.
-        print('HostedProperty setter', value)
         if value is None:
-            hostHolder = self.HostHolder(instance, self._hostName, self._attr)
-            setattr(instance, self._name, hostHolder)
+            setattr(instance
+                    , self._propertyName
+                    , self._HostHolder(instance
+                                       , self._hostName
+                                       , self._attrName))
         else:
             host = getattr(instance, self._hostName)
-            attr = getattr(host, self._attr)
             # ToDo: Optimisation goes here.
-            setattr(host, self._attr, attr.__class__(value))
-
+            setattr(host
+                    , self._attrName
+                    , getattr(host, self._attrName).__class__(value))
 
     def delete(self, instance):
-        delattr(instance, self._name)
+        delattr(instance, self._propertyName)
     
-    def __init__(self, attr, hostName, name=None):
-        self._attr = attr
-        self._name = '_' + attr if name is None else name
+    def __init__(self, attrName, hostName, propertyName=None):
+        self._attrName = attrName
+        self._propertyName = \
+            '_' + attrName if propertyName is None else propertyName
         self._hostName = hostName
         super().__init__(self.get, self.set, self.delete)
 
@@ -172,28 +128,11 @@ class Wrapper(object):
     def bgeObject(self):
         return self._bgeObject
     
-    # @property
-    # def worldScale(self):
-    #     return self._worldScale
-    # @worldScale.setter
-    # def worldScale(self, worldScale):
-    #     self._worldScale.set(worldScale)
-    #     # self._bgeObject.worldScale = worldScale
-    # # def setWorldScale(self, worldScale):
-    # #     self.worldScale = worldScale
-    
     worldScale = HostedProperty('worldScale', 'bgeObject')
     
     def __init__(self, bgeObject):
         self._bgeObject = bgeObject
-        # self._worldScale = VectorSetter(
-        #     self._bgeObject.worldScale, self.__class__.worldScale.fset)
-        # self._worldScale = VectorSetter(self._bgeObject, 'worldScale')
-        # self.worldScale = TupleProperty('worldScale')
-        self.worldScale = None # TupleProperty('worldScale', self._bgeObject)
-        # self.worldScale.host = self._bgeObject
-
-
+        self.worldScale = None
 
 class Application(demonstration.Application):
     

@@ -49,8 +49,8 @@ class RestInterface(object):
         return True
 
     def point_maker(self, path, index, point):
-        """
-        Default make_point, which can be overridden.
+        """Default point_maker, which can be overridden so that a subclass can
+        have custom points in the path store.
         """
         return pathstore.default_point_maker(path, index, point)
     

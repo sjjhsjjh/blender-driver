@@ -220,27 +220,8 @@ def _insert(parent, path, value, point_maker, logger, enumerator, setReplace):
     value = _insert(
         point, path, value, point_maker, logger, enumerator, setReplace)
 
-    if type is PointType.ATTR:
-        if getattr(parent, leg) is value:
-            logger(__name__, "setter optimised:", type)
-        else:
-            setattr(parent, leg, value)
-    elif type is PointType.DICTIONARY:
-        if (leg in parent) and (parent[leg] is value):
-            logger(__name__, "setter optimised:", type)
-        else:
-            parent[leg] = value
-    elif type is PointType.LIST:
-        if parent[leg] is value:
-            logger(__name__, "setter optimised:", type)
-        else:
-            # If it's a tuple then make it into a list, and therefore mutable,
-            # first.
-            if isinstance(parent, tuple):
-                parent = list(parent)
-            parent[leg] = value
-    else:
-        raise AssertionError(" ".join(("Unknown PointType:", str(type))))
+    if not _set(parent, leg, value, type):
+        logger(__name__, "setter optimised:", type)
 
     if wasTuple and isinstance(parent, list):
         parent = tuple(parent)
@@ -275,3 +256,27 @@ def _merge(parent, value, point_maker, pointMakerPath, logger):
 
     logger(__name__, '_merge return', parent)
     return parent
+
+def _set(parent, key, value, type):
+    if type is PointType.ATTR:
+        if getattr(parent, key) is value:
+            return False
+        else:
+            setattr(parent, key, value)
+    elif type is PointType.DICTIONARY:
+        if (key in parent) and (parent[key] is value):
+            return False
+        else:
+            parent[key] = value
+    elif type is PointType.LIST:
+        if parent[key] is value:
+            return False
+        else:
+            # If it's a tuple then make it into a list, and therefore mutable,
+            # first.
+            if isinstance(parent, tuple):
+                parent = list(parent)
+            parent[key] = value
+    else:
+        raise AssertionError(" ".join(("Unknown PointType:", str(type))))
+    return True

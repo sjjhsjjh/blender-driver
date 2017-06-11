@@ -21,8 +21,10 @@ import unittest
 #
 # Modules under test.
 import pathstore
+from hosted import HostedProperty
 
 class SetCounter(object):
+    """Class that provides a counter in its instance."""
     @property
     def setterCount(self):
         return self._setterCount
@@ -33,21 +35,41 @@ class SetCounter(object):
     def __init__(self, countStart=0):
         self._setterCount = countStart
 
+class TupleHost(object):
+    hostedTuple = None
+    
+    def __init__(self, tupleValue):
+        try:
+            self.hostedTuple = tuple(tupleValue)
+        except TypeError:
+            self.hostedTuple = tuple()
+
 class Principal(SetCounter):
+    
+    hostedTuple = HostedProperty('hostedTuple', 'tupleHost')
+    
+    @property
+    def tupleHost(self):
+        return self._tupleHost
+    
     @property
     def countedStr(self):
+        """String property that counts whenever it is set."""
         return self._countedStr
     @countedStr.setter
     def countedStr(self, countedStr):
         self._countedStr = countedStr
         self.incrementSetCount()
     
-    def __init__(self, value=None):
+    def __init__(self, value=None, hostedTuple=None):
         self.testAttr = value
         self._countedStr = None
+        self.hostedTuple = None
+        self._tupleHost = TupleHost(hostedTuple)
         super().__init__()
 
 class SetCounterDict(dict, SetCounter):
+    """Dictionary subclass that counts whenever an item is set."""
     def __setitem__(self, key, value):
         self.incrementSetCount()
         return dict.__setitem__(self, key, value)
@@ -57,6 +79,7 @@ class SetCounterDict(dict, SetCounter):
         dict.__init__(self, *args, **kwargs)
 
 class SetCounterList(list, SetCounter):
+    """List subclass that counts whenever an item is set."""
     def __setitem__(self, key, value):
         self.incrementSetCount()
         # The previous line ignores possible complexities:
@@ -72,6 +95,9 @@ class SetCounterList(list, SetCounter):
         list.__init__(self, *args, **kwargs)
 
 class PointMakerTracker(object):
+    """Class that provides a Path Store point maker implementation that tracks
+    every call.
+    """
     def tracker_for(self, path, index, point):
         return str(path), index, str(point)
 
@@ -91,6 +117,7 @@ class PointMakerTracker(object):
         self.lastPoint = None
 
 class TestPrincipal(unittest.TestCase):
+    """Unit tests for the Principal utility module."""
     def test_set_count(self):
         principal = Principal()
         self.assertEqual(principal.setterCount, 0)
@@ -141,3 +168,24 @@ class TestPrincipal(unittest.TestCase):
             point0, None, path, point_maker=pointMakerTracker.point_maker)
         self.assertEqual(pointMakerTracker.makerTrack, expected)
         self.assertEqual(point1, {'abc':{'de':{'fgh':{'ij':{'kl': None}}}}})
+
+    def test_tuple_holder(self):
+        tupleHost = TupleHost([None])
+        tuple_ = (None,)
+        self.assertEqual(tupleHost.hostedTuple, tuple_)
+        self.assertIsInstance(tupleHost.hostedTuple, tuple)
+        
+        principal = Principal(None, [1,2])
+        self.assertEqual([1,2], list(principal.hostedTuple[:]))
+
+        principal.hostedTuple[1] = 3
+        self.assertEqual([1,3], list(principal.hostedTuple[:]))
+        
+        principal.hostedTuple[2:2] = (4,)
+        self.assertEqual([1,3,4], list(principal.hostedTuple[:]))
+        
+        principal.hostedTuple[0:1] = (5, 6, 7)
+        self.assertEqual([5,6,7,3,4], list(principal.hostedTuple[:]))
+        
+        del principal.hostedTuple[1]
+        self.assertEqual([5,7,3,4], list(principal.hostedTuple[:]))

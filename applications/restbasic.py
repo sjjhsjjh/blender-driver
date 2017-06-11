@@ -62,66 +62,15 @@ import time
 from . import demonstration
 
 from path_store.rest import RestInterface
+from path_store.hosted import HostedProperty
 
 # Diagnostic print to show when it's imported. Only printed if all its own
 # imports run OK.
 print('"'.join(('Application module ', __name__, '.')))
 
 # ToDo:
-# -   Moved HostedProperty class somewhere.
 # -   Have three objects, each using a different set mechanism.
 # -   Move Wrapper class somewhere, and rename.
-
-class HostedProperty(property):
-    class _HostHolder(object):
-        def __getitem__(self, index):
-            host = getattr(self._instance, self._hostName)
-            attr = getattr(host, self._attrName)
-            return attr[index]
-
-        def __setitem__(self, index, value):
-            host = getattr(self._instance, self._hostName)
-            attr = getattr(host, self._attrName)
-            mutable = list(attr)
-            mutable[index] = value
-            setattr(host, self._attrName, attr.__class__(mutable))
-        
-        def __delitem__(self, specifier):
-            raise NotImplementedError()
-        
-        def __init__(self, instance, hostName, attrName):
-            self._instance = instance
-            self._hostName = hostName
-            self._attrName = attrName
-
-    def get(self, instance):
-        return getattr(instance, self._propertyName)
-
-    def set(self, instance, value):
-        #
-        # Setting to None initialises the holder.
-        if value is None:
-            setattr(instance
-                    , self._propertyName
-                    , self._HostHolder(instance
-                                       , self._hostName
-                                       , self._attrName))
-        else:
-            host = getattr(instance, self._hostName)
-            # ToDo: Optimisation goes here.
-            setattr(host
-                    , self._attrName
-                    , getattr(host, self._attrName).__class__(value))
-
-    def delete(self, instance):
-        delattr(instance, self._propertyName)
-    
-    def __init__(self, attrName, hostName, propertyName=None):
-        self._attrName = attrName
-        self._propertyName = \
-            '_' + attrName if propertyName is None else propertyName
-        self._hostName = hostName
-        super().__init__(self.get, self.set, self.delete)
 
 class Wrapper(object):
     @property
@@ -141,12 +90,39 @@ class Application(demonstration.Application):
         super().game_initialise()
         threading.Thread(
             target=self.pulse_object_scale, name="pulse_object_scale" ).start()
- 
-    def pulse_object_scale(self):
-        """Pulse the scale of a game object for ever. Run as a thread."""
+    
+    def _get_scales(self):
         minScale = self.arguments.minScale
         changeScale = self.arguments.changeScale
         increments = self.arguments.increments
+        cycleDec = 0
+        scale = 0
+
+        yield_ = [None] * 3
+        while True:
+            # Set list and indexes
+            #
+            # What was decrementing will be unchanging.
+            yield_[cycleDec] = minScale
+            #
+            # Next dimension will be decrementing.
+            cycleDec = (cycleDec + 1) % 3
+            #
+            # Next next dimension will be incrementing.
+            cycleInc = (cycleDec + 1) % 3
+            
+            for scale in range(increments):
+                yield_[cycleDec] = (
+                    minScale
+                    + (changeScale * (increments - scale) / increments))
+                yield_[cycleInc] = (
+                    minScale
+                    + (changeScale * (scale + 1) / increments))
+            
+                yield yield_
+ 
+    def pulse_object_scale(self):
+        """Pulse the scale of a game object for ever. Run as a thread."""
         objectName = self.arguments.pulsar
         #
         # Get the underlying dimensions of the Blender mesh, from the data
@@ -160,44 +136,40 @@ class Application(demonstration.Application):
         objin.verbose = self.arguments.verbose
         objin.rest_put(object_)
         
-        
+        get_scales = self._get_scales()
         while True:
-            for cycle in range(3):
-                for scale in range(increments):
-                    self.verbosely(
-                        __name__ , 'pulse_object_scale', "locking ...")
-                    self.mainLock.acquire()
-                    try:
-                        self.verbosely(
-                            __name__, 'pulse_object_scale', "locked.")
+            self.verbosely(__name__ , 'pulse_object_scale', "locking ...")
+            self.mainLock.acquire()
+            try:
+                self.verbosely(__name__, 'pulse_object_scale', "locked.")
+                if self.terminating():
+                    self.verbosely(__name__, 'pulse_object_scale', "Stop.")
+                    get_scales.close()
+                    return
+                scales = next(get_scales)
+                # worldScale = dimensions.copy()
+                worldScale = list(dimensions)
+                # for index in range(3):
+                    # objin.rest_patch(
+                    #     worldScale[index] * scales[(cycle+index)%3]
+                    #     , ('worldScale', index))
+                    #
+                    #
+                    # object_.worldScale = worldScale
+                    #
+                    # objin.rest_patch(
+                    #     worldScale[index] * scales[index]
+                    #     , ('worldScale', index))
+                for index, value in enumerate(scales):
+                    worldScale[index] *= value
 
-                        if self.terminating():
-                            self.verbosely(
-                                __name__, 'pulse_object_scale', "Stop.")
-                            return
-                        scales = (
-                            minScale
-                            + (changeScale * (scale + 1) / increments)
-                            , minScale
-                            + (changeScale * (increments - scale) / increments)
-                            , minScale)
-                        # worldScale = dimensions.copy()
-                        worldScale = list(dimensions)
-                        for index in range(3):
-                            objin.rest_patch(
-                                worldScale[index] * scales[(cycle+index)%3]
-                                , ('worldScale', index))
-                            # worldScale[index] *= scales[(cycle+index)%3]
-                        # object_.worldScale = worldScale
+                objin.rest_put(worldScale, 'worldScale')
+            finally:
+                self.verbosely(__name__, 'pulse_object_scale', "releasing.")
+                self.mainLock.release()
 
-                        # objin.rest_put(worldScale, 'worldScale')
-                    finally:
-                        self.verbosely(
-                            __name__, 'pulse_object_scale', "releasing.")
-                        self.mainLock.release()
-
-                    if self.arguments.sleep is not None:
-                        time.sleep(self.arguments.sleep)
+            if self.arguments.sleep is not None:
+                time.sleep(self.arguments.sleep)
     
     def game_keyboard(self, keyEvents):
         self.verbosely(__name__, 'game_keyboard', "Terminating.")

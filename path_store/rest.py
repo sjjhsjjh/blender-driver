@@ -19,9 +19,11 @@ from enum import Enum
 # Local imports.
 #
 # Path Store module.
-from . import pathstore
-
-
+try:
+    import path_store.pathstore
+    pathstore = path_store.pathstore
+except ImportError:
+    import pathstore
 
 # Import some classes from the Blender mathutils module, so that values of these
 # types can be detected by GET. They need to be converted into list()s so that

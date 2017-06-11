@@ -59,7 +59,7 @@ import blender_driver.application.thread
 print('"'.join(('Application module ', __name__, '.')))
 
 class Application(blender_driver.application.thread.Application):
-    _instructions = "Press any key to terminate BGE."
+    _instructions = "Press ESC to crash BGE, or any other key to terminate."
     _bannerName = 'banner'
     _bannerObject = None
     

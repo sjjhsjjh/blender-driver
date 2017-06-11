@@ -71,6 +71,8 @@ print('"'.join(('Application module ', __name__, '.')))
 # ToDo:
 # -   Have three objects, each using a different set mechanism.
 # -   Move Wrapper class somewhere, and rename.
+# -   Back fit _get_scales into pulsar.
+# -   Use the Python logging module.
 
 class Wrapper(object):
     @property

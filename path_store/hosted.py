@@ -26,8 +26,14 @@ class HostedProperty(property):
     # initialises the host name and attribute name.
 
     class _Holder(object):
+        """Inner class that gets set into the property in the principal class,
+        not the host. It catches attempts to set items in immutable objects and
+        replaces them by creating a new modifiable instance of the object,
+        modifying it, then casting it back to the immutable type and setting it.
+        """
         
-        # The specifier parameter could, in all cases, be a slice.
+        # The specifier parameter could, in all cases, be a slice or a simple
+        # index.
         
         def _get_host_attr(self):
             host = getattr(self._instance, self._hostName)

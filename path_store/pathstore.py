@@ -48,6 +48,14 @@ class PointType(Enum):
     ATTR = 3
 
 def descend(parent, specifier):
+    """Descend one level, either by array index, dictionary key, or object
+    attribute. Returns a tuple of:
+    
+    0.  The point descended to, or None.
+    1.  True if the specifier is numeric, or False otherwise.
+    2.  pathstore.PointType value for the type of descent used, or None if
+        descent wasn't possible.
+    """
     if specifier is None:
         raise TypeError("Specifier must be string or numeric, but is None.")
     numeric = not isinstance(specifier, str)
@@ -82,6 +90,15 @@ def descend(parent, specifier):
     return point, numeric, type
 
 def get(parent, path=None):
+    """Descend from the parent along the path. Returns the point descended to,
+    or raises:
+    
+    -   IndexError if there was a missing point in a list or tuple.
+    -   KeyError if there was a missing point in a dictionary.
+    -   TypeError if descent was impossible for any other reason.
+    
+    If path is None or empty, returns the parent.
+    """
     for leg in pathify(path):
         point, numeric, type = descend(parent, leg)
         if type is None:
@@ -95,6 +112,9 @@ def get(parent, path=None):
     return parent
 
 def iterify(source):
+    """Generator function that returns either source.items(), for a dictionary,
+    or enumerate(source), for a list or tuple.
+    """
     try:
         # Dictionary.
         return source.items()
@@ -159,6 +179,9 @@ def replace(parent
             , point_maker=default_point_maker
             , logger=default_logger_pass
             ):
+    """Descend from the parent along the path and replace whatever is there with
+    a new value.
+    """
     logger(__name__, 'replace()', parent, path, value)
     return _insert(parent
                    , tuple(pathify(path))
@@ -174,6 +197,9 @@ def merge(parent
           , point_maker=default_point_maker
           , logger=default_logger_pass
           ):
+    """Descend from the parent along the path and merge a specified value into
+    whatever is there.
+    """
     logger(__name__, 'merge()', parent, path, value)
     return _insert(parent
                    , tuple(pathify(path))

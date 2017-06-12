@@ -38,6 +38,9 @@ class RestMethod(Enum):
     PUT    = 5
 
 class RestInterface(object):
+    """Class for a RESTful interface onto a principal object, implemented by
+    Path Store.
+    """
     @property
     def principal(self):
         return self._principal
@@ -74,17 +77,6 @@ class RestInterface(object):
     def __init__(self):
         self.verbose = False
         self._principal = None
-
-
-class RestBGEObject(RestInterface):
-    
-    def rest_POST(self, parameters):
-        # Add an object to the scene.
-        # Make the object instance be self.restPrincipal
-        # call super().restPOST(parameters) which will set each thing in the
-        # parameters dictionary.
-        pass
-
 
 # Do:
 #

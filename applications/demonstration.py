@@ -63,9 +63,14 @@ class Application(blender_driver.application.thread.Application):
     _bannerName = 'banner'
     _bannerObject = None
     
+    
     @property
     def bannerObject(self):
         return self._bannerObject
+    
+    @property
+    def dontDeletes(self):
+        return self._dontDeletes
     
     def verbosely(self, origin__name__, *args):
         """Print, if verbose. Always pass __name__ as the first argument."""
@@ -82,6 +87,9 @@ class Application(blender_driver.application.thread.Application):
         #
         # Do common initialisation for subclasses.
         self._bannerObject = self.data_add_banner()
+        self._dontDeletes = [self.dataGateway, 'Lamp', self._bannerName]
+        if self.templates is not None:
+            self._dontDeletes.extend(self.templates.keys())
         
     def data_add_banner(self):
         banner = "\n".join(
@@ -102,6 +110,14 @@ class Application(blender_driver.application.thread.Application):
             print(self._instructions)
         finally:
             self.mainLock.release()
+
+    def game_add_object(self, objectName):
+        object_ = self.gameScene.addObject(objectName, self.gameGateway)
+        object_.worldPosition = self.bpy.data.objects[objectName].location
+        self.verbosely(__name__, 'game_add_object'
+                       , objectName
+                       , self.bpy.data.objects[objectName].dimensions)
+        return object_
 
     def game_add_text(self, objectName, text=None):
         object_ = self.gameScene.addObject(objectName, self.gameGateway)

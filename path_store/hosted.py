@@ -20,10 +20,10 @@ class HostedProperty(property):
     """
     
     # Instances of this class get added to the class object, and the initialiser
-    # is run in context of the class, not instance. There needs to be some way
-    # to initialise the property's host name and attribute name. This is done in
-    # a kludgey way at the moment. Setting the property to None actually
-    # initialises the host name and attribute name.
+    # is run in context of the class, not the instance. There needs to be some
+    # way to initialise the property's host name and attribute name. This is a
+    # kludge at the moment: Setting the property to None actually create a new
+    # holder object and sets the host name and attribute name into it.
 
     class _Holder(object):
         """Inner class that gets set into the property in the principal class,
@@ -93,4 +93,3 @@ class HostedProperty(property):
             '_' + attrName if propertyName is None else propertyName
         self._hostName = hostName
         super().__init__(self.get, self.set, self.delete)
-

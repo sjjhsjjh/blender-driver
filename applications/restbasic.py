@@ -61,32 +61,29 @@ import time
 # Blender Driver application with threads and locks.
 from . import demonstration
 
+from path_store.blender_game_engine import GameObject
+
 from path_store.rest import RestInterface
-from path_store.hosted import HostedProperty
 
 # Diagnostic print to show when it's imported. Only printed if all its own
 # imports run OK.
 print('"'.join(('Application module ', __name__, '.')))
 
 # ToDo:
-# -   Have three objects, each using a different set mechanism.
-# -   Move Wrapper class somewhere, and rename.
 # -   Back fit _get_scales into pulsar.
 # -   Use the Python logging module.
 
-class Wrapper(object):
-    @property
-    def bgeObject(self):
-        return self._bgeObject
-    
-    worldScale = HostedProperty('worldScale', 'bgeObject')
-    
-    def __init__(self, bgeObject):
-        self._bgeObject = bgeObject
-        self.worldScale = None
-
 class Application(demonstration.Application):
     
+    templates = {
+        'pulsar': {'subtype':'Cube', 'physicsType':'NO_COLLISION'
+                   , 'location': (0, 0, -1)}
+    }
+
+    def data_initialise(self):
+        super().data_initialise()
+        self.bpyutils.delete_except(self.dontDeletes)
+
     # Overriden.
     def game_initialise(self):
         super().game_initialise()
@@ -124,20 +121,44 @@ class Application(demonstration.Application):
                 yield yield_
  
     def pulse_object_scale(self):
-        """Pulse the scale of a game object for ever. Run as a thread."""
-        objectName = self.arguments.pulsar
+        """Pulse the scale of three game objects for ever. Run as a thread."""
+        objectName = "pulsar"
         #
         # Get the underlying dimensions of the Blender mesh, from the data
         # layer. It's a mathutils.Vector instance.
         dimensions = tuple(self.bpy.data.objects[objectName].dimensions)
+        
+        restInterface = RestInterface()
+        restInterface.verbose = self.arguments.verbose
+        
+        displace = (
+            (self.arguments.minScale + self.arguments.changeScale)
+            * dimensions[1])
+        
         #
-        # Get a reference to the game object.
-        object_ = Wrapper(self.gameScene.objects[objectName])
+        # Insert game objects.
+        for index in range(3):
+            object_ = GameObject(self.game_add_object(objectName))
+            restInterface.rest_put(object_, index)
+        #
+        # Move game objects.
+        #
+        # First moves up the y axis.
+        value = restInterface.rest_get((0, 'worldPosition', 1))
+        restInterface.rest_put(value + displace, (0, 'worldPosition', 1))
+        #
+        # Second moves down the y axis.
+        value = restInterface.rest_get((1, 'worldPosition', 1))
+        restInterface.rest_put(value - displace, (1, 'worldPosition', 1))
+        #
+        # Third moves in the x and z axes.
+        value = restInterface.rest_get((2, 'worldPosition'))
+        value[0] += displace
+        value[2] += self.arguments.minScale * 2
+        # There is no rest_put because the value returned by the rest_get is a
+        # reference, because it's an object maybe.
         
-        objin = RestInterface()
-        objin.verbose = self.arguments.verbose
-        objin.rest_put(object_)
-        
+        nativeObject = restInterface.rest_get(2)
         get_scales = self._get_scales()
         while True:
             self.verbosely(__name__ , 'pulse_object_scale', "locking ...")
@@ -149,23 +170,14 @@ class Application(demonstration.Application):
                     get_scales.close()
                     return
                 scales = next(get_scales)
-                # worldScale = dimensions.copy()
                 worldScale = list(dimensions)
-                # for index in range(3):
-                    # objin.rest_patch(
-                    #     worldScale[index] * scales[(cycle+index)%3]
-                    #     , ('worldScale', index))
-                    #
-                    #
-                    # object_.worldScale = worldScale
-                    #
-                    # objin.rest_patch(
-                    #     worldScale[index] * scales[index]
-                    #     , ('worldScale', index))
                 for index, value in enumerate(scales):
                     worldScale[index] *= value
+                    restInterface.rest_put(worldScale[index]
+                                           , (1, 'worldScale', index))
 
-                objin.rest_put(worldScale, 'worldScale')
+                restInterface.rest_put(worldScale, (0, 'worldScale'))
+                nativeObject.worldScale = worldScale
             finally:
                 self.verbosely(__name__, 'pulse_object_scale', "releasing.")
                 self.mainLock.release()
@@ -190,9 +202,6 @@ class Application(demonstration.Application):
         parser.add_argument(
             '--minScale', type=float, default=0.5,
             help="Minimum scale. Default: 0.5.")
-        parser.add_argument(
-            '--pulsar', default="Cube",
-            help="Name of the object to pulse.")
         parser.add_argument(
             '--sleep', type=float, help=
             "Sleep after each increment, for a floating point number of"

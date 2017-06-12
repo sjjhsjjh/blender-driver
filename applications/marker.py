@@ -86,18 +86,8 @@ class Application(pulsar.Application):
     
     def data_initialise(self):
         super().data_initialise()
-        self.bpyutils.delete_except(
-            [self.dataGateway, 'Lamp', self._bannerName]
-            + list(self.templates.keys()) )
+        self.bpyutils.delete_except(self.dontDeletes)
     
-    def add_object(self, objectName):
-        object_ = self.gameScene.addObject(objectName, self.gameGateway)
-        object_.worldPosition = self.bpy.data.objects[objectName].location
-        self.verbosely(__name__, 'add_object'
-                       , objectName
-                       , self.bpy.data.objects[objectName].dimensions)
-        return object_
-
     # Override.
     def game_initialise(self):
         #
@@ -106,7 +96,7 @@ class Application(pulsar.Application):
         # it doesn't delete it in its data_initialise, in turn because it
         # doesn't have a templates collection.
         self.arguments.pulsar = "pulsar"
-        self._objectPulsar = self.add_object(self.arguments.pulsar)
+        self._objectPulsar = self.game_add_object(self.arguments.pulsar)
         #
         # Do base class initialisation.
         super().game_initialise()
@@ -115,8 +105,8 @@ class Application(pulsar.Application):
         try:
             self.verbosely(__name__, 'game_initialise', "locked.")
             
-            self._objectPursuitMarker = self.add_object('marker')
-            self._objectLeadMarker = self.add_object('marker')
+            self._objectPursuitMarker = self.game_add_object('marker')
+            self._objectLeadMarker = self.game_add_object('marker')
             self._objectAsterisk = self.game_add_text('asterisk')
             self._objectPlus = self.game_add_text('plus')
             self._objectMinus = self.game_add_text('minus')

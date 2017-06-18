@@ -59,7 +59,7 @@ import time
 # Local imports.
 #
 # Blender Driver application with threads and locks.
-from . import demonstration
+from . import pulsar
 
 from path_store.blender_game_engine import GameObject
 
@@ -70,10 +70,9 @@ from path_store.rest import RestInterface
 print('"'.join(('Application module ', __name__, '.')))
 
 # ToDo:
-# -   Back fit _get_scales into pulsar.
 # -   Use the Python logging module.
 
-class Application(demonstration.Application):
+class Application(pulsar.Application):
     
     templates = {
         'pulsar': {'subtype':'Cube', 'physicsType':'NO_COLLISION'
@@ -84,42 +83,7 @@ class Application(demonstration.Application):
         super().data_initialise()
         self.bpyutils.delete_except(self.dontDeletes)
 
-    # Overriden.
-    def game_initialise(self):
-        super().game_initialise()
-        threading.Thread(
-            target=self.pulse_object_scale, name="pulse_object_scale" ).start()
-    
-    def _get_scales(self):
-        minScale = self.arguments.minScale
-        changeScale = self.arguments.changeScale
-        increments = self.arguments.increments
-        cycleDec = 0
-        scale = 0
-
-        yield_ = [None] * 3
-        while True:
-            # Set list and indexes
-            #
-            # What was decrementing will be unchanging.
-            yield_[cycleDec] = minScale
-            #
-            # Next dimension will be decrementing.
-            cycleDec = (cycleDec + 1) % 3
-            #
-            # Next next dimension will be incrementing.
-            cycleInc = (cycleDec + 1) % 3
-            
-            for scale in range(increments):
-                yield_[cycleDec] = (
-                    minScale
-                    + (changeScale * (increments - scale) / increments))
-                yield_[cycleInc] = (
-                    minScale
-                    + (changeScale * (scale + 1) / increments))
-            
-                yield yield_
- 
+    # Overridden.
     def pulse_object_scale(self):
         """Pulse the scale of three game objects for ever. Run as a thread."""
         objectName = "pulsar"
@@ -156,8 +120,15 @@ class Application(demonstration.Application):
         value[0] += displace
         value[2] += self.arguments.minScale * 2
         # There is no rest_put because the value returned by the rest_get is a
-        # reference, because it's an object maybe.
-        
+        # reference, because it's an object maybe. These accesses go via the
+        # HostedProperty _Holder __setitem__ accessor.
+
+        # The game objects are manipulated through different programming
+        # interfaces:
+        # -   Object 0 by rest_put of a worldScale array.
+        # -   Object 1 by rest_put of each element of the worldScale array.
+        # -   Object 2 by native setting of the worldScale property.
+
         nativeObject = restInterface.rest_get(2)
         get_scales = self._get_scales()
         while True:
@@ -184,26 +155,3 @@ class Application(demonstration.Application):
 
             if self.arguments.sleep is not None:
                 time.sleep(self.arguments.sleep)
-    
-    def game_keyboard(self, keyEvents):
-        self.verbosely(__name__, 'game_keyboard', "Terminating.")
-        self.game_terminate()
-        
-    def get_argument_parser(self):
-        """Method that returns an ArgumentParser. Overriden."""
-        parser = super().get_argument_parser()
-        parser.prog = ".".join((__name__, self.__class__.__name__))
-        parser.add_argument(
-            '--increments', type=int, default=40, help=
-            "Number of increments. Default: 40.")
-        parser.add_argument(
-            '--changeScale', type=float, default=2.0,
-            help="Change of scale. Default: 2.0.")
-        parser.add_argument(
-            '--minScale', type=float, default=0.5,
-            help="Minimum scale. Default: 0.5.")
-        parser.add_argument(
-            '--sleep', type=float, help=
-            "Sleep after each increment, for a floating point number of"
-            " seconds. Default is not to sleep.")
-        return parser

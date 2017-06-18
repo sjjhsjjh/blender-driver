@@ -73,6 +73,36 @@ class Application(demonstration.Application):
         threading.Thread(
             target=self.pulse_object_scale, name="pulse_object_scale" ).start()
  
+    def _get_scales(self):
+        minScale = self.arguments.minScale
+        changeScale = self.arguments.changeScale
+        increments = self.arguments.increments
+        cycleDec = 0
+        scale = 0
+
+        yield_ = [None] * 3
+        while True:
+            # Set list and indexes
+            #
+            # What was decrementing will be unchanging.
+            yield_[cycleDec] = minScale
+            #
+            # Next dimension will be decrementing.
+            cycleDec = (cycleDec + 1) % 3
+            #
+            # Next next dimension will be incrementing.
+            cycleInc = (cycleDec + 1) % 3
+            
+            for scale in range(increments):
+                yield_[cycleDec] = (
+                    minScale
+                    + (changeScale * (increments - scale) / increments))
+                yield_[cycleInc] = (
+                    minScale
+                    + (changeScale * (scale + 1) / increments))
+            
+                yield yield_
+ 
     def pulse_object_scale(self):
         """Pulse the scale of a game object for ever. Run as a thread."""
         minScale = self.arguments.minScale
@@ -86,37 +116,27 @@ class Application(demonstration.Application):
         #
         # Get a reference to the game object.
         object_ = self.gameScene.objects[objectName]
+        get_scales = self._get_scales()
         while True:
-            for cycle in range(3):
-                for scale in range(increments):
-                    self.verbosely(
-                        __name__ , 'pulse_object_scale', "locking ...")
-                    self.mainLock.acquire()
-                    try:
-                        self.verbosely(
-                            __name__, 'pulse_object_scale', "locked.")
+            self.verbosely(__name__ , 'pulse_object_scale', "locking ...")
+            self.mainLock.acquire()
+            try:
+                self.verbosely(__name__, 'pulse_object_scale', "locked.")
+                if self.terminating():
+                    self.verbosely(__name__, 'pulse_object_scale', "Stop.")
+                    get_scales.close()
+                    return
+                scales = next(get_scales)
+                worldScale = dimensions.copy()
+                for index, value in enumerate(scales):
+                    worldScale[index] *= value
+                object_.worldScale = worldScale
+            finally:
+                self.verbosely(__name__, 'pulse_object_scale', "releasing.")
+                self.mainLock.release()
 
-                        if self.terminating():
-                            self.verbosely(
-                                __name__, 'pulse_object_scale', "Stop.")
-                            return
-                        scales = (
-                            minScale
-                            + (changeScale * (scale + 1) / increments)
-                            , minScale
-                            + (changeScale * (increments - scale) / increments)
-                            , minScale)
-                        worldScale = dimensions.copy()
-                        for index in range(3):
-                            worldScale[index] *= scales[(cycle+index)%3]
-                        object_.worldScale = worldScale
-                    finally:
-                        self.verbosely(
-                            __name__, 'pulse_object_scale', "releasing.")
-                        self.mainLock.release()
-
-                    if self.arguments.sleep is not None:
-                        time.sleep(self.arguments.sleep)
+            if self.arguments.sleep is not None:
+                time.sleep(self.arguments.sleep)
     
     def game_keyboard(self, keyEvents):
         self.verbosely(__name__, 'game_keyboard', "Terminating.")

@@ -22,7 +22,7 @@ class HostedProperty(property):
     # Instances of this class get added to the class object, and the initialiser
     # is run in context of the class, not the instance. There needs to be some
     # way to initialise the property's host name and attribute name. This is a
-    # kludge at the moment: Setting the property to None actually create a new
+    # kludge at the moment: Setting the property to None actually creates a new
     # holder object and sets the host name and attribute name into it.
 
     class _Holder(object):
@@ -34,6 +34,10 @@ class HostedProperty(property):
         
         # The specifier parameter could, in all cases, be a slice or a simple
         # index.
+        #
+        # Actually, this class should be a subclass of attr.__class__ or should
+        # make use of the __getattr__ family. That way, a user could access the
+        # methods of the held object.
         
         def _get_host_attr(self):
             host = getattr(self._instance, self._hostName)
@@ -48,17 +52,30 @@ class HostedProperty(property):
             host, attr = self._get_host_attr()
             # print('_Holder setitem'
             #       , {'specifier':specifier, 'value':value, 'attr':attr})
+            
+            if hasattr(attr, '__setitem__'):
+                try:
+                    attr.__setitem__(specifier, value)
+                    return
+                except AttributeError:
+                    pass
+
             mutable = list(attr)
             mutable.__setitem__(specifier, value)
-            # ToDo: Optimisation goes here.
             setattr(host, self._attrName, attr.__class__(mutable))
         
         def __delitem__(self, specifier):
             host, attr = self._get_host_attr()
             # print('_Holder delitem', {'specifier':specifier, 'attr':attr})
+            if hasattr(attr, '__delitem__'):
+                try:
+                    attr.__delitem__(specifier)
+                    return
+                except TypeError:
+                    pass
+
             mutable = list(attr)
             mutable.__delitem__(specifier)
-            # ToDo: Optimisation goes here.
             setattr(host, self._attrName, attr.__class__(mutable))
         
         def __init__(self, instance, hostName, attrName):

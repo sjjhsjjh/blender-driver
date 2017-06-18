@@ -208,5 +208,15 @@ class TestHostedProperty(unittest.TestCase):
         self.assertIs(list_, underlaying)
         self.assertEqual([5,7,3,4], list_)
 
+    def test_list_holder_getitem(self):
+        listItem1 = [None]
+        list_ = [1,listItem1]
+        principal = Principal(tuple(), list_, tuple())
+        self.assertEqual(1, principal.hostedList[0])
+        self.assertIs(listItem1, principal.hostedList[1])
+
     def test_holder_method(self):
-        pass
+        principal = Principal([1,2], tuple(), tuple())
+        hosted = principal.hostedTuple
+        self.assertEqual(2, len(hosted))
+        self.assertEqual(1, hosted.count(2))

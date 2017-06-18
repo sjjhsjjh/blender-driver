@@ -34,14 +34,43 @@ class HostedProperty(property):
         
         # The specifier parameter could, in all cases, be a slice or a simple
         # index.
-        #
-        # Actually, this class should be a subclass of attr.__class__ or should
-        # make use of the __getattr__ family. That way, a user could access the
-        # methods of the held object.
+
         
         def _get_host_attr(self):
             host = getattr(self._instance, self._hostName)
             return host, getattr(host, self._attrName)
+        
+        # This seemed like an interesting idea but __getattribute__ isn't
+        # invoked for __ attributes, like __len__ for example.
+        #
+        # def __getattribute__(self, name):
+        #     if name in (
+        #         '_get_host_attr', '_instance', '_hostName', '_attrName'
+        #         ):
+        #         return object.__getattribute__(self, name)
+        #     host, attr = self._get_host_attr()
+        #     print('_Holder getattrbute', {'name':name, 'attr':attr})
+        #     return attr.__getattribute__(name)
+        #
+        # It would be interesting to see if this class should somehow be a
+        # subclass of attr.__class__.
+        #
+        # For now, __getattr__ has been implemented. That gives access to the
+        # methods of the hosted property. It might also be a good idea to
+        # implement the rest of that family in the same way:
+        # - __setattr__
+        # - __delattr__
+        # - __dir__
+        # See https://docs.python.org/3.5/reference/datamodel.html#object.__getattr__
+        
+        def __getattr__(self, name):
+            host, attr = self._get_host_attr()
+            # print('_Holder getattr', {'name':name, 'attr':attr})
+            return getattr(attr, name)
+
+        def __len__(self):
+            host, attr = self._get_host_attr()
+            return len(attr)
         
         def __getitem__(self, specifier):
             host, attr = self._get_host_attr()

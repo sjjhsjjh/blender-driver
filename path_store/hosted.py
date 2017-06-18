@@ -78,10 +78,17 @@ class HostedProperty(property):
                     , self._Holder(instance, self._hostName, self._attrName))
         else:
             host = getattr(instance, self._hostName)
-            # ToDo: Optimisation goes here.
-            setattr(host
-                    , self._attrName
-                    , getattr(host, self._attrName).__class__(value))
+            attr = getattr(host, self._attrName)
+            # Near here, we could have code like:
+            #
+            #     if attr is value:
+            #         return
+            #
+            # It doesn't seem like a good idea though. It seems better to let
+            # the host optimise its setter like that, if it wants to.
+            if attr.__class__ is not value.__class__:
+                value = attr.__class__(value)
+            setattr(host, self._attrName, value)
 
     def delete(self, instance):
         delattr(instance, self._propertyName)
@@ -90,6 +97,6 @@ class HostedProperty(property):
         """Default propertyName is "_" + attrName."""
         self._attrName = attrName
         self._propertyName = \
-            '_' + attrName if propertyName is None else propertyName
+            ''.join(('_', attrName)) if propertyName is None else propertyName
         self._hostName = hostName
         super().__init__(self.get, self.set, self.delete)

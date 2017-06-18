@@ -11,6 +11,13 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order, would go here.
 #
+# Blender library imports, in alphabetic order.
+#
+# Blender Game Engine KX_GameObject
+# Import isn't needed because this class gets an object that has been created
+# elsewhere.
+# https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
+
 # Local imports.
 #
 # RESTful interface.
@@ -18,6 +25,7 @@ if __name__ == '__main__':
 #
 # Custom property for access to immutable properties in KX_GameObject.
 from path_store.hosted import HostedProperty
+
 
 
 class GameObject(object):

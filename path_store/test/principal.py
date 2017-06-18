@@ -21,7 +21,6 @@ import unittest
 #
 # Modules under test.
 import pathstore
-from hosted import HostedProperty
 
 class SetCounter(object):
     """Class that provides a counter in its instance."""
@@ -35,22 +34,7 @@ class SetCounter(object):
     def __init__(self, countStart=0):
         self._setterCount = countStart
 
-class TupleHost(object):
-    hostedTuple = None
-    
-    def __init__(self, tupleValue):
-        try:
-            self.hostedTuple = tuple(tupleValue)
-        except TypeError:
-            self.hostedTuple = tuple()
-
 class Principal(SetCounter):
-    
-    hostedTuple = HostedProperty('hostedTuple', 'tupleHost')
-    
-    @property
-    def tupleHost(self):
-        return self._tupleHost
     
     @property
     def countedStr(self):
@@ -61,11 +45,9 @@ class Principal(SetCounter):
         self._countedStr = countedStr
         self.incrementSetCount()
     
-    def __init__(self, value=None, hostedTuple=None):
+    def __init__(self, value=None):
         self.testAttr = value
         self._countedStr = None
-        self.hostedTuple = None
-        self._tupleHost = TupleHost(hostedTuple)
         super().__init__()
 
 class SetCounterDict(dict, SetCounter):
@@ -168,24 +150,3 @@ class TestPrincipal(unittest.TestCase):
             point0, None, path, point_maker=pointMakerTracker.point_maker)
         self.assertEqual(pointMakerTracker.makerTrack, expected)
         self.assertEqual(point1, {'abc':{'de':{'fgh':{'ij':{'kl': None}}}}})
-
-    def test_tuple_holder(self):
-        tupleHost = TupleHost([None])
-        tuple_ = (None,)
-        self.assertEqual(tupleHost.hostedTuple, tuple_)
-        self.assertIsInstance(tupleHost.hostedTuple, tuple)
-        
-        principal = Principal(None, [1,2])
-        self.assertEqual([1,2], list(principal.hostedTuple[:]))
-
-        principal.hostedTuple[1] = 3
-        self.assertEqual([1,3], list(principal.hostedTuple[:]))
-        
-        principal.hostedTuple[2:2] = (4,)
-        self.assertEqual([1,3,4], list(principal.hostedTuple[:]))
-        
-        principal.hostedTuple[0:1] = (5, 6, 7)
-        self.assertEqual([5,6,7,3,4], list(principal.hostedTuple[:]))
-        
-        del principal.hostedTuple[1]
-        self.assertEqual([5,7,3,4], list(principal.hostedTuple[:]))

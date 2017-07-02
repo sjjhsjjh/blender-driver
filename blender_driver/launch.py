@@ -23,7 +23,8 @@ The command line to run this script is expected to be as follows.
 
 Specifying a .blend file is optional.
 
-Tip: Use the blenderdriver.py script to create and run the command line."""
+Tip: Use the blenderdriver.py script to create and run the command line.
+"""
 
 # Standard library imports, in alphabetic order.
 #
@@ -34,6 +35,13 @@ import argparse
 # Module for dynamic import.
 # https://docs.python.org/3.5/library/importlib.html
 import importlib
+#
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+from logging import DEBUG, INFO, WARNING, ERROR, log, \
+                    basicConfig as logConfig, getLogger, \
+                    getLevelName as getLoggingLevelName
 #
 # Module for file and directory paths.
 # https://docs.python.org/3.5/library/os.path.html
@@ -155,10 +163,20 @@ class Main(object):
         # Run the parser.
         self._argumentParser.prog = os.path.basename(self.argv0)
         self._arguments = self._argumentParser.parse_args(commandLine)
+        if self._arguments.verbose:
+            logConfig(
+                format='%(asctime)s.%(module)s.%(funcName)s.%(levelname)s'
+                ' %(message)s', datefmt='%H:%M:%S', level=DEBUG)
+        else:
+            logConfig(format='%(levelname)s %(message)s', level=INFO)
+        print("Logging level:"
+              , getLoggingLevelName(getLogger().getEffectiveLevel()))
+
         #
         # Dump the command line if verbose.
-        if self._arguments.verbose:
-            for index in range(len(self._commandLine)):
+        if getLogger().isEnabledFor(DEBUG):
+            arguments = ["Command line:"]
+            for index, argument in enumerate(self._commandLine):
                 if index == self._scriptIndex:
                     flag = '*'
                 elif index == optIndex:
@@ -169,9 +187,10 @@ class Main(object):
                     flag = '^'
                 else:
                     flag = ' '
-                print('{}{:>2} {}'.format(
+                arguments.append('{}{:>2} {}'.format(
                     flag, index, self._commandLine[index]))
-                
+            log(DEBUG, "\n".join(arguments))
+        
         if applicationIndex is None:
             self._arguments.applicationSwitches = []
         else:
@@ -189,9 +208,8 @@ class Main(object):
         # The .blend file could be in a sub-directory, in which case the
         # corresponding .py file will also be in a sub-directory, which must be
         # a Python package.
-        if self._arguments.verbose:
-            print(''.join(('scriptPath "', scriptPath,
-                           '", blendPath "', blendPath, '"')))
+        log(DEBUG, "{}".format({
+            'scriptPath': scriptPath, 'blendPath': blendPath}))
         commonPath = os.path.commonpath((scriptPath, blendPath))
         #
         # ToDo: Something if there isn't a commonpath.
@@ -211,11 +229,9 @@ class Main(object):
             #
             # Add it to the module name.
             moduleName = '.'.join((directory, moduleName))
-        if self._arguments.verbose:
-            print(''.join((
-                'commonPath "', commonPath,
-                '". Remaining modulePath "', modulePath,
-                '". moduleName "', moduleName, '"')))
+        log(DEBUG, "{}".format({
+            'commonPath': commonPath, 'modulePath': modulePath
+            , 'moduleName': moduleName}))
         return moduleName
     
     def _import_application_module(self):
@@ -237,9 +253,7 @@ class Main(object):
         # ToDo: This assumes that the application module is in a sub-directory
         # that is already on sys.path and therefore can be imported. Fix that.
 
-        if self._arguments.verbose:
-            print(os.path.basename(self.argv0),
-                  ''.join(('Importing application module "', moduleName, '".')))
+        log(DEBUG, 'Importing application module "{}"'.format(moduleName))
         self._applicationModule = importlib.import_module(moduleName)
     
     def _import_modules(self):
@@ -254,9 +268,7 @@ class Main(object):
         # instead of the self.argv0 property.
         parentDir = os.path.join(os.path.dirname(self.argv0), os.path.pardir)
         sys.path.append(os.path.abspath(parentDir))
-        if self._arguments.verbose:
-            print(os.path.basename(self.argv0),
-                  ''.join(('Added to module path "', sys.path[-1],'".')))
+        log(DEBUG, 'Added to module path "{}"'.format(sys.path[-1]))
         #
         # Import module for bpy utility functions, dynamically.
         self._bpyutils = importlib.import_module("blender_driver.bpyutils")
@@ -291,9 +303,7 @@ class Main(object):
         applicationClass = getattr(self._applicationModule,
                                    self._arguments.applicationClass)
         self._bpyutils.load_driver(applicationClass, self._arguments )
-        if self._arguments.verbose:
-            print(os.path.basename(self.argv0),
-                  'Blender Driver launch script finished.')
+        log(DEBUG, "Blender Driver launch script finished.")
         
     def __init__(self, commandLine):
         """Constructor."""

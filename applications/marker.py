@@ -29,6 +29,11 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+from logging import DEBUG, INFO, WARNING, ERROR, log
+#
 # Module for degrees to radians conversion.
 # https://docs.python.org/3.5/library/math.html#math.radians
 from math import radians
@@ -96,14 +101,14 @@ class Application(pulsar.Application):
         # it doesn't delete it in its data_initialise, in turn because it
         # doesn't have a templates collection.
         self.arguments.pulsar = "pulsar"
-        self._objectPulsar = self.game_add_object(self.arguments.pulsar)
         #
         # Do base class initialisation.
         super().game_initialise()
-        self.verbosely(__name__, 'game_initialise', "locking...")
+        self._objectPulsar = self.gameScene.objects[self.arguments.pulsar]
+        log(DEBUG, "locking...")
         self.mainLock.acquire()
         try:
-            self.verbosely(__name__, 'game_initialise', "locked.")
+            log(DEBUG, "locked.")
             
             self._objectPursuitMarker = self.game_add_object('marker')
             self._objectLeadMarker = self.game_add_object('marker')
@@ -119,7 +124,7 @@ class Application(pulsar.Application):
             self.advance_corner()
             self._movedPerf = 0.0
         finally:
-            self.verbosely(__name__, 'game_initialise', "releasing.")
+            log(DEBUG, "releasing.")
             self.mainLock.release()
             
     def advance_corner(self):

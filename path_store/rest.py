@@ -16,6 +16,11 @@ if __name__ == '__main__':
 # https://docs.python.org/3.5/library/enum.html
 from enum import Enum
 #
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+from logging import DEBUG, INFO, WARNING, ERROR, log
+#
 # Local imports.
 #
 # Path Store module.
@@ -45,14 +50,6 @@ class RestInterface(object):
     def principal(self):
         return self._principal
 
-    def verbosely(self, origin__name__, *args):
-        """Print, if verbose. Always pass __name__ as the first argument."""
-        if not self.verbose:
-            return False
-        # Komodo Edit flags the next line as an error but it's fine.
-        print(origin__name__, *args)
-        return True
-
     def point_maker(self, path, index, point):
         """Default point_maker, which can be overridden so that a subclass can
         have custom points in the path store.
@@ -60,16 +57,14 @@ class RestInterface(object):
         return pathstore.default_point_maker(path, index, point)
     
     def rest_patch(self, value, path=None):
-        self.verbosely(__name__, 'rest_patch', value, path)
+        log(DEBUG, '({}, {})'.format(value, path))
         self._principal = pathstore.merge(
-            self._principal, value, path
-            , point_maker=self.point_maker, logger=self.verbosely)
+            self._principal, value, path, point_maker=self.point_maker)
 
     def rest_put(self, value, path=None):
-        self.verbosely(__name__, 'rest_put', value, path)
+        log(DEBUG, '({}, {})'.format(value, path))
         self._principal = pathstore.replace(
-            self._principal, value, path
-            , point_maker=self.point_maker, logger=self.verbosely)
+            self._principal, value, path, point_maker=self.point_maker)
 
     def rest_get(self, path=None):
         return pathstore.get(self.principal, path)

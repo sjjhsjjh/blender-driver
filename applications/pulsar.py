@@ -29,6 +29,11 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+from logging import DEBUG, INFO, WARNING, ERROR, log
+#
 # This module uses the Thread class.
 # https://docs.python.org/3.4/library/threading.html#thread-objects
 import threading
@@ -115,15 +120,17 @@ class Application(demonstration.Application):
         dimensions = self.bpy.data.objects[objectName].dimensions
         #
         # Get a reference to the game object.
+        if objectName not in self.gameScene.objects:
+            self.game_add_object(objectName)
         object_ = self.gameScene.objects[objectName]
         get_scales = self._get_scales()
         while True:
-            self.verbosely(__name__ , 'pulse_object_scale', "locking ...")
+            log(DEBUG, "locking ...")
             self.mainLock.acquire()
             try:
-                self.verbosely(__name__, 'pulse_object_scale', "locked.")
+                log(DEBUG, "locked.")
                 if self.terminating():
-                    self.verbosely(__name__, 'pulse_object_scale', "Stop.")
+                    log(DEBUG, "Stop.")
                     get_scales.close()
                     return
                 scales = next(get_scales)
@@ -132,14 +139,14 @@ class Application(demonstration.Application):
                     worldScale[index] *= value
                 object_.worldScale = worldScale
             finally:
-                self.verbosely(__name__, 'pulse_object_scale', "releasing.")
+                log(DEBUG, "releasing.")
                 self.mainLock.release()
 
             if self.arguments.sleep is not None:
                 time.sleep(self.arguments.sleep)
     
     def game_keyboard(self, keyEvents):
-        self.verbosely(__name__, 'game_keyboard', "Terminating.")
+        log(DEBUG, "Terminating.")
         self.game_terminate()
         
     def get_argument_parser(self):

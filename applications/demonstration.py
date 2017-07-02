@@ -19,6 +19,12 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+import logging
+from logging import DEBUG, INFO, WARNING, ERROR, log
+#
 # Third party modules, in alphabetic order.
 #
 # Module for degrees to radians conversion.
@@ -63,7 +69,6 @@ class Application(blender_driver.application.thread.Application):
     _bannerName = 'banner'
     _bannerObject = None
     
-    
     @property
     def bannerObject(self):
         return self._bannerObject
@@ -72,13 +77,6 @@ class Application(blender_driver.application.thread.Application):
     def dontDeletes(self):
         return self._dontDeletes
     
-    def verbosely(self, origin__name__, *args):
-        """Print, if verbose. Always pass __name__ as the first argument."""
-        if not self.arguments.verbose:
-            return False
-        print(origin__name__, *args)
-        return True
-
     # Overriden.
     def data_initialise(self):
         #
@@ -104,9 +102,9 @@ class Application(blender_driver.application.thread.Application):
         self.mainLock.acquire()
         try:
             self._bannerObject = self.game_add_text(self._bannerName)
-            if self.verbosely(__name__, 'game_initialise', self.arguments):
-                print("Settings", self.settings)
-                print("Game scene objects", self.gameScene.objects)
+            log(DEBUG, "Arguments {}.".format(self.arguments))
+            log(DEBUG, "Settings {}.".format(self.settings))
+            log(DEBUG, "Game scene objects {}.".format(self.gameScene.objects))
             print(self._instructions)
         finally:
             self.mainLock.release()
@@ -114,9 +112,8 @@ class Application(blender_driver.application.thread.Application):
     def game_add_object(self, objectName):
         object_ = self.gameScene.addObject(objectName, self.gameGateway)
         object_.worldPosition = self.bpy.data.objects[objectName].location
-        self.verbosely(__name__, 'game_add_object'
-                       , objectName
-                       , self.bpy.data.objects[objectName].dimensions)
+        log(DEBUG, "{} {}.".format(
+            objectName, self.bpy.data.objects[objectName].dimensions))
         return object_
 
     def game_add_text(self, objectName, text=None):
@@ -129,15 +126,6 @@ class Application(blender_driver.application.thread.Application):
             # the data context.
             object_.text = text
         return object_
-       
-    def get_argument_parser(self):
-        """Method that returns an ArgumentParser. Overriden."""
-        parser = super().get_argument_parser()
-        parser.prog = ".".join((__name__, self.__class__.__name__))
-        parser.add_argument(
-            '--verbose', action='store_true', help=
-            'Verbose logging of lock acquisition and release.')
-        return parser
 
     def tick_skipped(self):
-        print(self.applicationName, 'tick_skipped', self.skippedTicks)
+        log(WARNING, "Skipped ticks: {:d}".format(self.skippedTicks))

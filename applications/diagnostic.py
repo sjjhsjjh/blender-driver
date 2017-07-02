@@ -27,6 +27,12 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+import logging
+from logging import DEBUG, INFO, WARNING, ERROR, log, getLogger
+#
 # Module for the version of Python.
 # https://docs.python.org/3.4/library/sys.html#sys.version
 from sys import version as pythonVersion
@@ -62,23 +68,22 @@ class Application(blender_driver.application.thread.Application):
     def game_initialise(self):
         super().game_initialise()
         self._counter = 0
+        if not getLogger().isEnabledFor(DEBUG):
+            log(WARNING, "Diagnostic application should be run verbose.")
 
         if self.arguments.mainLock:
-            print(time.strftime("%H:%M:%S"),
-                  "game_initialise acquiring main lock ...")
+            log(DEBUG, "acquiring main lock ...")
             self.mainLock.acquire()
-            print(time.strftime("%H:%M:%S"), 
-                  "game_initialise acquired main lock.")
-        print(self._name('initialise'), self._counter)
-        print(self.arguments)
-        print("Game scene objects", self.gameScene.objects)
+            log(DEBUG, "acquired main lock.")
+        log(DEBUG, "counter:{}.".format(self._counter))
+        log(DEBUG, "Arguments: {}.".format(self.arguments))
+        log(DEBUG, "Game scene objects {}.".format(self.gameScene.objects))
         if self.arguments.removeTickController:
             print("Tick controller has been removed. Terminate BGE by"
                   " pressing Escape.")
 
         if self.arguments.mainLock:
-            print(time.strftime("%H:%M:%S"),
-                  "game_initialise releasing main lock.")
+            log(DEBUG, "releasing main lock.")
             self.mainLock.release()
         
         if self.arguments.thread:
@@ -93,15 +98,16 @@ class Application(blender_driver.application.thread.Application):
     # Override.
     def game_tick(self):
         self._counter += 1
-        print(time.strftime("%H:%M:%S"), self._name('tick'), self._counter,
-              self.arguments.sleepTick, threading.active_count())
+        log(DEBUG, "{}".format({
+            'counter': self._counter,
+            'sleepTick': self.arguments.sleepTick,
+            'Threads': threading.active_count()}))
 
         if self.arguments.ticks > 0 and self._counter > self.arguments.ticks:
-            print("".join((
-                "Terminating after ticks. Counted:", str(self._counter),
-                " Maximum:", str(self.arguments.ticks),
-                " Threads:", str(threading.active_count())
-                )))
+            log(INFO, "Terminating after ticks. {}".format({
+                'counter': self._counter,
+                'Maximum': self.arguments.ticks,
+                'Threads': threading.active_count()}))
             self.game_terminate()
             return
         
@@ -121,6 +127,7 @@ class Application(blender_driver.application.thread.Application):
 
     # Override.
     def tick_skipped(self):
+        # log(WARNING, 
         print(time.strftime("%H:%M:%S"), self._counter, "tick skipped. Total",
               self.skippedTicks)
 

@@ -17,6 +17,11 @@ if __name__ == '__main__':
 # Module for enum type.
 # https://docs.python.org/3.5/library/enum.html
 from enum import Enum
+#
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+from logging import DEBUG, INFO, WARNING, ERROR, log
 
 def str_quote(str_, quote='"'):
     """Utility to add quotes to strings, but just stringify non-strings."""
@@ -165,29 +170,19 @@ def make_point(specifier, point=None):
 def default_point_maker(path, index, point=None):
     return make_point(path[index], point)
 
-def default_logger_pass(origin__name__, *args):
-    return False
-
-def default_logger_print(origin__name__, *args):
-    # Komodo Edit flags the next line as an error but it's fine.
-    print(origin__name__, *args)
-    return True
-
 def replace(parent
             , value
             , path=None
             , point_maker=default_point_maker
-            , logger=default_logger_pass
             ):
     """Descend from the parent along the path and replace whatever is there with
     a new value.
     """
-    logger(__name__, 'replace()', parent, path, value)
+    log(DEBUG, "{} {} {}.".format(parent, path, value))
     return _insert(parent
                    , tuple(pathify(path))
                    , value
                    , point_maker
-                   , logger
                    , enumerate(pathify(path))
                    , True)
 
@@ -195,27 +190,25 @@ def merge(parent
           , value
           , path=None
           , point_maker=default_point_maker
-          , logger=default_logger_pass
           ):
     """Descend from the parent along the path and merge a specified value into
     whatever is there.
     """
-    logger(__name__, 'merge()', parent, path, value)
+    log(DEBUG, "{} {} {}.".format(parent, path, value))
     return _insert(parent
                    , tuple(pathify(path))
                    , value
                    , point_maker
-                   , logger
                    , enumerate(pathify(path))
                    , False)
 
-def _insert(parent, path, value, point_maker, logger, enumerator, setReplace):
+def _insert(parent, path, value, point_maker, enumerator, setReplace):
     try:
         index, leg = next(enumerator)
     except StopIteration:
         if setReplace:
             parent = None
-        return _merge(parent, value, point_maker, path, logger)
+        return _merge(parent, value, point_maker, path)
 
     wasTuple = isinstance(parent, tuple)
 
@@ -228,13 +221,13 @@ def _insert(parent, path, value, point_maker, logger, enumerator, setReplace):
         # Sorry, hack to force descent into a string to fail if setting.
         point = None
     
-    logger(__name__, "{:2d} {}\n  {}\n  {}\n  {} {}".format(
+    log(DEBUG, "{:2d} {}\n  {}\n  {}\n  {} {}".format(
         index, str_quote(leg)
         , parent, str_quote(point), str(numeric), str(type)))
 
     if type is None or point is None:
         parent = point_maker(path, index, parent)
-        logger(__name__, 'made point', parent)
+        log(DEBUG, "made point {}.".format(parent))
         point, numeric, type = descend(parent, leg)
 
     if type is None:
@@ -244,27 +237,27 @@ def _insert(parent, path, value, point_maker, logger, enumerator, setReplace):
             , " leg:", str_quote(leg), ".")))
 
     value = _insert(
-        point, path, value, point_maker, logger, enumerator, setReplace)
+        point, path, value, point_maker, enumerator, setReplace)
     
     didSet, parent = _set(parent, leg, value, type)
 
     if not didSet:
-        logger(__name__, "setter optimised:", type)
+        log(DEBUG, "setter optimised: {}.".format(type))
 
     if wasTuple and isinstance(parent, list):
         parent = tuple(parent)
     
     return parent
 
-def _merge(parent, value, point_maker, pointMakerPath, logger):
-    logger(__name__, '_merge()', parent, value, pointMakerPath)
+def _merge(parent, value, point_maker, pointMakerPath):
+    log(DEBUG, "{} {} {}.".format(parent, value, pointMakerPath))
     if value is None:
-        logger(__name__, '_merge None.')
+        log(DEBUG, "None.")
         return parent
     try:
         legIterator = iterify(value)
     except TypeError:
-        logger(__name__, '_merge replacing.')
+        log(DEBUG, "replacing.")
         return value
 
     path = list(pathify(pointMakerPath))
@@ -274,15 +267,15 @@ def _merge(parent, value, point_maker, pointMakerPath, logger):
         yield index, item
     
     for legKey, legValue in legIterator:
-        logger(__name__, '_merge iteration', str_quote(legKey), legValue)
+        log(DEBUG, "iteration {} {}".format(str_quote(legKey), legValue))
         if legValue is None:
             continue
         path.append(legKey)
-        parent = _insert(parent, path, legValue, point_maker, logger
+        parent = _insert(parent, path, legValue, point_maker
                          , enumerate_one(pathLen, legKey), False)
         path.pop()
 
-    logger(__name__, '_merge return', parent)
+    log(DEBUG, "return {}.".format(parent))
     return parent
 
 def _set(parent, key, value, type):

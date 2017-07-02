@@ -14,6 +14,10 @@ if __name__ == '__main__':
 #
 # Module for JavaScript Object Notation (JSON) strings.
 import json
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+from logging import DEBUG, INFO, WARNING, ERROR, log
 #
 # Blender library imports, in alphabetic order.
 #
@@ -46,9 +50,9 @@ This is the end of the chain from:
 
 The driver application class is instantiated in two different stages: Data and \
 Game. The Data stage is here. The Game class is when the Blender Game Engine \
-starts."""
-    if arguments.verbose:
-        print('load_driver begin.', arguments, __package__)
+starts.
+    """
+    log(DEBUG, 'begin {} "{}".'.format(arguments, __package__))
     #
     # Add and configure the driver gateway object, on which everything else will
     # depend. It is a Blender Empty.
@@ -82,8 +86,7 @@ starts."""
     controllers = get_controllers(
             driver, controllersPackage, arguments.controllersModule,
             ('initialise', 'tick', 'keyboard'))
-    if arguments.verbose:
-        print('load_driver', 'controllers', vars(controllers))
+    log(DEBUG, 'controllers {}.'.format(vars(controllers)))
     configure_gateway(driverGateway, controllers)
     #
     # Put a collection of configuration settings into one or more game
@@ -95,11 +98,9 @@ starts."""
     # Start the Blender Game Engine, if that was specified.
     # Could also have an option to export as a blender game here.
     if arguments.start:
-        if arguments.verbose:
-            print('load_driver starting BGE.')
+        log(DEBUG, 'starting BGE.')
         bpy.ops.view3d.game_start()
-    if arguments.verbose:
-        print('load_driver end.')
+    log(DEBUG, 'end.')
 
 def set_up_object(name, params={}):
     """Set up an object in the data layer. Returns a reference to the object."""

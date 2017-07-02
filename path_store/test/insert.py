@@ -106,9 +106,7 @@ class TestInsert(unittest.TestCase):
         self.assertEqual(point1, ["ma", "blob", "mi"])
 
         point0 = ("ba",)
-        point1 = pathstore.merge(point0, value, path
-                                 # , logger=pathstore.default_logger_print
-                                 )
+        point1 = pathstore.merge(point0, value, path)
         self.assertIsNot(point0, point1)
         self.assertEqual(point1, ("ba", "blob"))
        

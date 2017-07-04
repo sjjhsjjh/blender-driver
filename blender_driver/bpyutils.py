@@ -52,7 +52,7 @@ The driver application class is instantiated in two different stages: Data and \
 Game. The Data stage is here. The Game class is when the Blender Game Engine \
 starts.
     """
-    log(DEBUG, 'begin {} "{}".'.format(arguments, __package__))
+    log(DEBUG, 'begin {} "{}".', arguments, __package__)
     #
     # Add and configure the driver gateway object, on which everything else will
     # depend. It is a Blender Empty.
@@ -86,7 +86,7 @@ starts.
     controllers = get_controllers(
             driver, controllersPackage, arguments.controllersModule,
             ('initialise', 'tick', 'keyboard'))
-    log(DEBUG, 'controllers {}.'.format(vars(controllers)))
+    log(DEBUG, 'controllers {}.', vars(controllers))
     configure_gateway(driverGateway, controllers)
     #
     # Put a collection of configuration settings into one or more game

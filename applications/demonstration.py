@@ -102,10 +102,8 @@ class Application(blender_driver.application.thread.Application):
         self.mainLock.acquire()
         try:
             self._bannerObject = self.game_add_text(self._bannerName)
-            log(DEBUG, (
-                "Game scene objects {}\nArguments: {}\nSettings: {}"
-                ).format(
-                self.gameScene.objects, vars(self.arguments), self.settings))
+            log(DEBUG, "Game scene objects {}\nArguments: {}\nSettings: {}"
+                , self.gameScene.objects, vars(self.arguments), self.settings)
             print(self._instructions)
         finally:
             self.mainLock.release()
@@ -113,8 +111,8 @@ class Application(blender_driver.application.thread.Application):
     def game_add_object(self, objectName):
         object_ = self.gameScene.addObject(objectName, self.gameGateway)
         object_.worldPosition = self.bpy.data.objects[objectName].location
-        log(DEBUG, "{} {}.".format(
-            objectName, self.bpy.data.objects[objectName].dimensions))
+        log(DEBUG, "{} {}."
+            , objectName, self.bpy.data.objects[objectName].dimensions)
         return object_
 
     def game_add_text(self, objectName, text=None):
@@ -129,4 +127,4 @@ class Application(blender_driver.application.thread.Application):
         return object_
 
     def tick_skipped(self):
-        log(WARNING, "Skipped ticks: {:d}".format(self.skippedTicks))
+        log(WARNING, "Skipped ticks: {:d}", self.skippedTicks)

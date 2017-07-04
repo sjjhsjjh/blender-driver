@@ -30,6 +30,18 @@ def filter_not_warning(record):
     # print('filter_not_warning', record.levelno)
     return 0 if record.levelno == logging.WARNING else 1
 
+class LogRecord(logging.LogRecord):
+    """LogRecord subclass that uses format instead of percent."""
+    
+    def getMessage(self):
+        if isinstance(self.msg, str):
+            return self.msg.format(*self.args)
+        try:
+            _ = self.args[0]
+            raise TypeError("Log message with args but msg isn't string.")
+        except IndexError:
+            return str(self.msg)
+
 def initialise_logging(verbose):
     # ToDo: Change this so that it doesn't use the logging root. Maybe instead
     # create a Logger that doesn't propagate?
@@ -37,19 +49,29 @@ def initialise_logging(verbose):
     # Get rid of the default logging handlers.
     logging.config.dictConfig({'version': 1, 'root': {'handlers':[]}})
     logger = logging.root
+    #
+    # Convenience variables for all the formats.
     terseMessageformat = '%(levelname)s %(message)s'
     verboseMessageformat = (
         '%(asctime)s.%(module)s.%(funcName)s.%(levelname)s %(message)s')
     dateFormat = '%H:%M:%S'
+    #
+    # Set a logging factory to use the LogRecord subclass above instead of the
+    # default.
+    def factory(*args, **kwargs):
+        return LogRecord(*args, **kwargs)
+    logging.setLogRecordFactory(factory)
+    #
+    # In verbose mode, everything gets logged verbosely, which is simple.
+    # Otherwise, warnings get logged verbosely and everything else gets logged
+    # briefly.
     if verbose:
-        # Everything gets logged verbosely.
         defaultHandler = logging.StreamHandler()
         defaultHandler.setFormatter(logging.Formatter(verboseMessageformat
                                                       , dateFormat))
         logger.addHandler(defaultHandler)
         logger.setLevel(logging.DEBUG)
     else:
-        # Only warnings get logged verbosely.
         defaultHandler = logging.StreamHandler()
         defaultHandler.addFilter(filter_not_warning)
         defaultHandler.setFormatter(logging.Formatter(terseMessageformat
@@ -61,5 +83,6 @@ def initialise_logging(verbose):
         logger.addHandler(defaultHandler)
         logger.addHandler(warningHandler)
         logger.setLevel(logging.INFO)
+
     return "Logging level: {}.".format(
         logging.getLevelName(logger.getEffectiveLevel()))

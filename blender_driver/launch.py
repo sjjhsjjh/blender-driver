@@ -200,8 +200,7 @@ class Main(object):
         # The .blend file could be in a sub-directory, in which case the
         # corresponding .py file will also be in a sub-directory, which must be
         # a Python package.
-        log(DEBUG, "{}".format({
-            'scriptPath': scriptPath, 'blendPath': blendPath}))
+        log(DEBUG, {'scriptPath': scriptPath, 'blendPath': blendPath})
         commonPath = os.path.commonpath((scriptPath, blendPath))
         #
         # ToDo: Something if there isn't a commonpath.
@@ -221,9 +220,8 @@ class Main(object):
             #
             # Add it to the module name.
             moduleName = '.'.join((directory, moduleName))
-        log(DEBUG, "{}".format({
-            'commonPath': commonPath, 'modulePath': modulePath
-            , 'moduleName': moduleName}))
+        log(DEBUG, {'commonPath': commonPath, 'modulePath': modulePath
+                    , 'moduleName': moduleName})
         return moduleName
     
     def _import_application_module(self):
@@ -245,7 +243,7 @@ class Main(object):
         # ToDo: This assumes that the application module is in a sub-directory
         # that is already on sys.path and therefore can be imported. Fix that.
 
-        log(DEBUG, 'Importing application module "{}"'.format(moduleName))
+        log(DEBUG, 'Importing application module "{}"', moduleName)
         self._applicationModule = importlib.import_module(moduleName)
 
     def _prepare_import(self):

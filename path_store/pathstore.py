@@ -178,7 +178,7 @@ def replace(parent
     """Descend from the parent along the path and replace whatever is there with
     a new value.
     """
-    log(DEBUG, "{} {} {}.".format(parent, path, value))
+    log(DEBUG, "{} {} {}.", parent, path, value)
     return _insert(parent
                    , tuple(pathify(path))
                    , value
@@ -194,7 +194,7 @@ def merge(parent
     """Descend from the parent along the path and merge a specified value into
     whatever is there.
     """
-    log(DEBUG, "{} {} {}.".format(parent, path, value))
+    log(DEBUG, "{} {} {}.", parent, path, value)
     return _insert(parent
                    , tuple(pathify(path))
                    , value
@@ -221,13 +221,12 @@ def _insert(parent, path, value, point_maker, enumerator, setReplace):
         # Sorry, hack to force descent into a string to fail if setting.
         point = None
     
-    log(DEBUG, "{:2d} {}\n  {}\n  {}\n  {} {}".format(
-        index, str_quote(leg)
-        , parent, str_quote(point), str(numeric), str(type)))
+    log(DEBUG, "{:2d} {}\n  {}\n  {}\n  {} {}", index, str_quote(leg), parent
+        , str_quote(point), str(numeric), str(type))
 
     if type is None or point is None:
         parent = point_maker(path, index, parent)
-        log(DEBUG, "made point {}.".format(parent))
+        log(DEBUG, "made point {}.", parent)
         point, numeric, type = descend(parent, leg)
 
     if type is None:
@@ -242,7 +241,7 @@ def _insert(parent, path, value, point_maker, enumerator, setReplace):
     didSet, parent = _set(parent, leg, value, type)
 
     if not didSet:
-        log(DEBUG, "setter optimised: {}.".format(type))
+        log(DEBUG, "setter optimised: {}.", type)
 
     if wasTuple and isinstance(parent, list):
         parent = tuple(parent)
@@ -250,7 +249,7 @@ def _insert(parent, path, value, point_maker, enumerator, setReplace):
     return parent
 
 def _merge(parent, value, point_maker, pointMakerPath):
-    log(DEBUG, "{} {} {}.".format(parent, value, pointMakerPath))
+    log(DEBUG, "{} {} {}.", parent, value, pointMakerPath)
     if value is None:
         log(DEBUG, "None.")
         return parent
@@ -267,7 +266,7 @@ def _merge(parent, value, point_maker, pointMakerPath):
         yield index, item
     
     for legKey, legValue in legIterator:
-        log(DEBUG, "iteration {} {}".format(str_quote(legKey), legValue))
+        log(DEBUG, "iteration {} {}", str_quote(legKey), legValue)
         if legValue is None:
             continue
         path.append(legKey)
@@ -275,7 +274,7 @@ def _merge(parent, value, point_maker, pointMakerPath):
                          , enumerate_one(pathLen, legKey), False)
         path.pop()
 
-    log(DEBUG, "return {}.".format(parent))
+    log(DEBUG, "return {}.", parent)
     return parent
 
 def _set(parent, key, value, type):

@@ -85,8 +85,8 @@ def initialise(controller):
             # Don't raise here; that would replace the original exception from
             # the initialise with the exception from the terminate.
             log(ERROR
-                , ("Failed to game_terminate after game_initialise failed. {}"
-                   ).format(exception))
+                , "Failed to game_terminate after game_initialise failed. {}"
+                , exception)
         raise
 
 def initialise_application(object_):
@@ -103,7 +103,7 @@ def initialise_application(object_):
     settings = json.loads(settingsJSON)
     print(initialise_logging(settings['arguments']['verbose']))
     try:
-        log(DEBUG, "loaded settings from game property {}".format(settings))
+        log(DEBUG, "loaded settings from game property {}", settings)
         #
         # Import the module.
         module = importlib.import_module(settings['module'])
@@ -111,9 +111,8 @@ def initialise_application(object_):
         # Pick the class object out of the module.
         driverClass = getattr(module, settings['class'])
     except KeyError:
-        log(ERROR, (
-            "KeyError in controllers.initialise_application subroutine."
-            "\nJSON: {}\n dictionary: {}").format(settingsJSON, settings))
+        log(ERROR, "KeyError in controllers.initialise_application subroutine."
+            "\nJSON: {}\n dictionary: {}", settingsJSON, settings)
         raise
     #
     # Create and return the driver application instance. The constructor gets:

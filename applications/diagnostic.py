@@ -33,11 +33,11 @@ if __name__ == '__main__':
 from logging import DEBUG, INFO, WARNING, ERROR, log, getLogger
 #
 # Module for the version of Python.
-# https://docs.python.org/3.4/library/sys.html#sys.version
+# https://docs.python.org/3.5/library/sys.html#sys.version
 from sys import version as pythonVersion
 #
 # This module prints diagnostic information about threads.
-# https://docs.python.org/3.4/library/threading.html#thread-objects
+# https://docs.python.org/3.5/library/threading.html#thread-objects
 import threading
 #
 # Module for logging current time and sleep.
@@ -72,13 +72,12 @@ class Application(blender_driver.application.thread.Application):
             log(DEBUG, "acquiring main lock ...")
             self.mainLock.acquire()
             log(DEBUG, "acquired main lock.")
-        log(DEBUG, (
-            "counter:{}.\nPython: {}\nArguments: {}\nGame scene objects: {}"
-            ).format(self._counter
-                     , " ".join(
-                       _.rstrip() for _ in pythonVersion.splitlines())
-                     , vars(self.arguments)
-                     , self.gameScene.objects))
+        log(DEBUG
+            , "counter:{}.\nPython: {}\nArguments: {}\nGame scene objects: {}"
+            , self._counter
+            , " ".join(_.rstrip() for _ in pythonVersion.splitlines())
+            , vars(self.arguments)
+            , self.gameScene.objects)
         if self.arguments.removeTickController:
             print("Tick controller has been removed. Terminate BGE by"
                   " pressing Escape.")
@@ -99,13 +98,13 @@ class Application(blender_driver.application.thread.Application):
     # Override.
     def game_tick(self):
         self._counter += 1
-        log(DEBUG, "counter:{}. Threads:{}. sleepTick:{}".format(
-            self._counter, threading.active_count(), self.arguments.sleepTick))
+        log(DEBUG, {'counter': self._counter,
+                    'Threads': threading.active_count(),
+                    'sleepTick': self.arguments.sleepTick})
 
         if self.arguments.ticks > 0 and self._counter > self.arguments.ticks:
-            log(INFO, ("Terminating after ticks:{}. Maximum:{}. Threads:{}."
-                       ).format(
-                self._counter, self.arguments.ticks, threading.active_count()))
+            log(INFO, "Terminating after ticks:{}. Maximum:{}. Threads:{}."
+                , self._counter, self.arguments.ticks, threading.active_count())
             self.game_terminate()
             return
         
@@ -125,8 +124,8 @@ class Application(blender_driver.application.thread.Application):
 
     # Override.
     def tick_skipped(self):
-        log(WARNING, "Tick skipped:{}. Total:{}.".format(
-            self._counter, self.skippedTicks))
+        log(WARNING, "Tick skipped:{}. Total:{}."
+            , self._counter, self.skippedTicks)
 
     # Override.
     def game_terminate(self):
@@ -144,13 +143,13 @@ class Application(blender_driver.application.thread.Application):
     
     def _dummy_action(self, duration, name=None):
         if self.arguments.mainLock:
-            log(DEBUG, '{} acquiring main lock at start ...'.format(name))
+            log(DEBUG, '{} acquiring main lock at start ...', name)
             self.mainLock.acquire()
 
-        log(DEBUG, '{} start of dummy.'.format(name))
+        log(DEBUG, '{} start of dummy.', name)
             
         if duration is None:
-            log(DEBUG, '{} no sleep.'.format(name))
+            log(DEBUG, '{} no sleep.', name)
         else:
             if int(duration) == duration:
                 duration = int(duration)
@@ -160,30 +159,27 @@ class Application(blender_driver.application.thread.Application):
                 # or just runs out, the lock is in the acquired state.
                 for sleep in range(duration):
                     if self.terminating():
-                        log(DEBUG, '{} stopping.'.format(name))
+                        log(DEBUG, '{} stopping.', name)
                         break
                     if self.arguments.mainLock:
-                        log(DEBUG,
-                            '{} releasing main lock in loop.'.format(name))
+                        log(DEBUG, '{} releasing main lock in loop.', name)
                         self.mainLock.release()
-                        log(DEBUG, '{} acquiring main lock in loop.'.format(
-                            name))
+                        log(DEBUG, '{} acquiring main lock in loop.', name)
                         self.mainLock.acquire()
                         
-                    log(DEBUG, '{} about to sleep {} of {}.'.format(
-                        name, sleep+1, duration))
+                    log(DEBUG, '{} about to sleep {} of {}.'
+                        , name, sleep+1, duration)
                     time.sleep(1)
             else:
                 if self.terminating():
-                    log(DEBUG, '{} stopping instead of sleeping.'.format(
-                        name))
+                    log(DEBUG, '{} stopping instead of sleeping.', name)
                 else:
                     time.sleep(duration)
-                    log(DEBUG, '{} sleep {}.'.format(name, duration))
+                    log(DEBUG, '{} sleep {}.', name, duration)
                 
-        log(DEBUG, '{} end of dummy.'.format(name))
+        log(DEBUG, '{} end of dummy.', name)
         if self.arguments.mainLock:
-            log(DEBUG, '{} releasing main lock at end.'.format(name))
+            log(DEBUG, '{} releasing main lock at end.', name)
             self.mainLock.release()
     
     # Override.
@@ -196,12 +192,13 @@ class Application(blender_driver.application.thread.Application):
         #
         # Dump the keyboard event, for diagnostic purposes.
         keyString, ctrl, alt = self.key_events_to_string(keyEvents)
-        log(DEBUG, '{} "{}" ctrl:{} alt:{}'.format(
-            keyEvents, keyString, ctrl, alt))
+        log(DEBUG, '{} "{}" ctrl:{} alt:{}', keyEvents, keyString, ctrl, alt)
 
         if self.arguments.dumpOnKey:
-            log(DEBUG, 'Dump:\nSettings {}\nArguments {}\nThreads:{}'.format(
-                self.settings, self.arguments, threading.active_count()))
+            log(DEBUG, {
+                'settings': self.settings,
+                'arguments': self.arguments,
+                'Threads': threading.active_count()})
         if keyString == "q" and self.arguments.quitOnQ:
             self.game_terminate()
 

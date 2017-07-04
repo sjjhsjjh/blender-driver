@@ -166,13 +166,13 @@ class Application(base.Application):
         log(DEBUG, "Terminate lock acquired.")
 
     def game_terminate_threads(self):
-        log(DEBUG, "Number of threads: {}.".format(threading.active_count()))
+        log(DEBUG, "Number of threads: {}.", threading.active_count())
         for thread in threading.enumerate():
             if thread is threading.current_thread():
-                log(DEBUG, "Not joining current: {}.".format(thread))
+                log(DEBUG, "Not joining current: {}.", thread)
             elif thread is threading.main_thread():
-                log(DEBUG, "Not joining main: {}.".format(thread))
+                log(DEBUG, "Not joining main: {}.", thread)
             else:
-                log(DEBUG, "Joining: {} ...".format(thread))
+                log(DEBUG, "Joining: {} ...", thread)
                 thread.join()
                 log(DEBUG, "Joined.")

@@ -66,6 +66,7 @@ except ImportError as error:
     print(error)
 # Local imports.
 #
+
 # Blender Driver application with threads and locks.
 from . import demonstration
 #
@@ -163,8 +164,8 @@ class Application(demonstration.Application):
 
             self._cube = self.gameScene.addObject('cube', self.gameGateway)
             self._cubeDimensions = self.bpy.data.objects['cube'].dimensions
-            log(DEBUG, "Cube dimensions: {}. World scale: {}.".format(
-                self._cubeDimensions, self._cube.worldScale))
+            log(DEBUG, "Cube dimensions: {}. World scale: {}."
+                , self._cubeDimensions, self._cube.worldScale)
 
             self._cube2 = self.gameScene.addObject('cube', self.gameGateway)
 
@@ -223,9 +224,9 @@ class Application(demonstration.Application):
         if not self._textUtilities.initialised:
             self._textUtilities.game_initialise()
         keyString, ctrl, alt = self.key_events_to_string(keyEvents)
-        log(DEBUG, '{} "{}" ctrl:{} alt:{} {} {}'.format(
-            keyEvents, keyString, ctrl, alt
-            , self.bge.events.BACKSPACEKEY, self.bge.events.TABKEY))
+        log(DEBUG, '{} "{}" ctrl:{} alt:{} {} {}'
+            , keyEvents, keyString, ctrl, alt
+            , self.bge.events.BACKSPACEKEY, self.bge.events.TABKEY)
         if keyString == "q" and ctrl:
             self.game_terminate()
             return

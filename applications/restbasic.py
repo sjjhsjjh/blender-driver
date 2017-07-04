@@ -74,9 +74,6 @@ from path_store.rest import RestInterface
 # imports run OK.
 print('"'.join(('Application module ', __name__, '.')))
 
-# ToDo:
-# -   Use the Python logging module.
-
 class Application(pulsar.Application):
     
     templates = {

@@ -98,7 +98,6 @@ class Application(pulsar.Application):
         dimensions = tuple(self.bpy.data.objects[objectName].dimensions)
         
         restInterface = RestInterface()
-        restInterface.verbose = self.arguments.verbose
         
         displace = (
             (self.arguments.minScale + self.arguments.changeScale)

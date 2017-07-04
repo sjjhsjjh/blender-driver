@@ -39,9 +39,7 @@ import importlib
 # Module for levelled logging messages.
 # Tutorial is here: https://docs.python.org/3.5/howto/logging.html
 # Reference is here: https://docs.python.org/3.5/library/logging.html
-from logging import DEBUG, INFO, WARNING, ERROR, log, \
-                    basicConfig as logConfig, getLogger, \
-                    getLevelName as getLoggingLevelName
+from logging import DEBUG, INFO, WARNING, ERROR, log
 #
 # Module for file and directory paths.
 # https://docs.python.org/3.5/library/os.path.html
@@ -163,33 +161,27 @@ class Main(object):
         # Run the parser.
         self._argumentParser.prog = os.path.basename(self.argv0)
         self._arguments = self._argumentParser.parse_args(commandLine)
-        if self._arguments.verbose:
-            logConfig(
-                format='%(asctime)s.%(module)s.%(funcName)s.%(levelname)s'
-                ' %(message)s', datefmt='%H:%M:%S', level=DEBUG)
-        else:
-            logConfig(format='%(levelname)s %(message)s', level=INFO)
-        print("Logging level:"
-              , getLoggingLevelName(getLogger().getEffectiveLevel()))
-
         #
-        # Dump the command line if verbose.
-        if getLogger().isEnabledFor(DEBUG):
-            arguments = ["Command line:"]
-            for index, argument in enumerate(self._commandLine):
-                if index == self._scriptIndex:
-                    flag = '*'
-                elif index == optIndex:
-                    flag = '+'
-                elif index == self._blendIndex:
-                    flag = '-'
-                elif index == applicationIndex:
-                    flag = '^'
-                else:
-                    flag = ' '
-                arguments.append('{}{:>2} {}'.format(
-                    flag, index, self._commandLine[index]))
-            log(DEBUG, "\n".join(arguments))
+        # Set up logging.
+        loggingModule = importlib.import_module("blender_driver.loggingutils")
+        print(loggingModule.initialise_logging(self._arguments.verbose))
+        #
+        # Dump the command line.
+        arguments = ["Command line:"]
+        for index, argument in enumerate(self._commandLine):
+            if index == self._scriptIndex:
+                flag = '*'
+            elif index == optIndex:
+                flag = '+'
+            elif index == self._blendIndex:
+                flag = '-'
+            elif index == applicationIndex:
+                flag = '^'
+            else:
+                flag = ' '
+            arguments.append('{}{:>2} {}'.format(
+                flag, index, self._commandLine[index]))
+        log(DEBUG, "\n".join(arguments))
         
         if applicationIndex is None:
             self._arguments.applicationSwitches = []
@@ -255,20 +247,28 @@ class Main(object):
 
         log(DEBUG, 'Importing application module "{}"'.format(moduleName))
         self._applicationModule = importlib.import_module(moduleName)
+
+    def _prepare_import(self):
+        """Prepare to import modules, by adding the directory in which this
+        script is located to the places from where modules can be loaded. This
+        makes it possible to import the modules in the blender_driver package.
+        
+        Returns a message that can be logged.
+        
+        Doesn't print the message itself because the logging set-up module can
+        only be loaded after preparation, and logging levels can only be set
+        after parsing the command line.
+        """
+        parentDir = os.path.join(os.path.dirname(__file__), os.path.pardir)
+        sys.path.append(os.path.abspath(parentDir))
+        
+        return 'Added to module path "{}"'.format(sys.path[-1])
     
     def _import_modules(self):
         """Import the blender_driver module, and the application's driver
         module. Set a reference to the application module in an internal
-        property."""
-        #
-        # Add the parent directory of this script to the places from where
-        # modules can be loaded. This makes it possible to import the modules in
-        # the blender_driver package.
-        # It might be better to use the __file__ built-in on the next line,
-        # instead of the self.argv0 property.
-        parentDir = os.path.join(os.path.dirname(self.argv0), os.path.pardir)
-        sys.path.append(os.path.abspath(parentDir))
-        log(DEBUG, 'Added to module path "{}"'.format(sys.path[-1]))
+        property.
+        """
         #
         # Import module for bpy utility functions, dynamically.
         self._bpyutils = importlib.import_module("blender_driver.bpyutils")
@@ -279,9 +279,14 @@ class Main(object):
     def main(self):
         """Run it."""
         #
+        # The local logging utilities have to be imported dynamically, which can
+        # only be done after setting up the import path.
+        importMessage = self._prepare_import()
+        #
         # Parse and store the command line options.
         try:
             self._parse_command_line()
+            log(DEBUG, importMessage)
         except ValueError as error:
             #
             # This point is reached if there wasn't a --python switch on the

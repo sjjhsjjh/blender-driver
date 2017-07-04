@@ -70,7 +70,6 @@ class RestInterface(object):
         return pathstore.get(self.principal, path)
     
     def __init__(self):
-        self.verbose = False
         self._principal = None
 
 # Do:

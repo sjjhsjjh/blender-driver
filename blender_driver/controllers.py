@@ -22,12 +22,7 @@ import json
 # Module for levelled logging messages.
 # Tutorial is here: https://docs.python.org/3.5/howto/logging.html
 # Reference is here: https://docs.python.org/3.5/library/logging.html
-from logging import DEBUG, INFO, WARNING, ERROR, log, \
-                    StreamHandler as LoggingHandler, \
-                    Formatter, \
-                    getLevelName as getLoggingLevelName, \
-                    config as loggingConfig, root as loggingRoot
-
+from logging import DEBUG, INFO, WARNING, ERROR, log
 #
 # Third party modules that are imported statically, in alphabetic order.
 #
@@ -42,8 +37,13 @@ except ImportError as error:
     print( error )
     raise
 #
+# Local imports.
+#
 # Local module for getting game property values.
 from . import bpyutils
+#
+# Local module for setting up Python logging.
+from .loggingutils import initialise_logging
 
 class Context(object):
     """Dummy class for an explicit context in which to store the driver
@@ -84,9 +84,9 @@ def initialise(controller):
             terminate_engine()
             # Don't raise here; that would replace the original exception from
             # the initialise with the exception from the terminate.
-            
-            print("Failed to game_terminate after game_initialise failed.",
-                  exception)
+            log(ERROR
+                , ("Failed to game_terminate after game_initialise failed. {}"
+                   ).format(exception))
         raise
 
 def initialise_application(object_):
@@ -101,8 +101,8 @@ def initialise_application(object_):
     # Retrieve the settings and load them into a dictionary.
     settingsJSON = bpyutils.get_game_property(object_, 'settingsJSON')
     settings = json.loads(settingsJSON)
+    print(initialise_logging(settings['arguments']['verbose']))
     try:
-        initialise_logging(settings['arguments']['verbose'])
         log(DEBUG, "loaded settings from game property {}".format(settings))
         #
         # Import the module.
@@ -111,9 +111,9 @@ def initialise_application(object_):
         # Pick the class object out of the module.
         driverClass = getattr(module, settings['class'])
     except KeyError:
-        print("KeyError in controllers.initialise_application subroutine.")
-        print("JSON", settingsJSON)
-        print("dictionary", settings)
+        log(ERROR, (
+            "KeyError in controllers.initialise_application subroutine."
+            "\nJSON: {}\n dictionary: {}").format(settingsJSON, settings))
         raise
     #
     # Create and return the driver application instance. The constructor gets:
@@ -124,108 +124,6 @@ def initialise_application(object_):
     driver = driverClass(settings)
     driver.game_constructor(bge.logic.getCurrentScene(), object_)
     return driver
-
-# class BlenderDriverLogFormatter(Formatter):
-#     def format(self, record):
-#         
-#         result = Formatter.format(self, record)
-
-
-def filter_warning(record):
-    print('filter_warning', record.levelno)
-    return 1 if record.levelno == WARNING else 0
-
-def filter_not_warning(record):
-    print('filter_not_warning', record.levelno)
-    return 0 if record.levelno == WARNING else 1
-
-def initialise_logging(verbose):
-    # formatter = BlenderDriverLogFormatter()
-    print("logging root 0", loggingRoot.hasHandlers()
-          , loggingRoot.getEffectiveLevel())
-    terseMessageformat = 'terse %(levelname)s %(message)s'
-    verboseMessageformat = (
-        'blib %(asctime)s.%(module)s.%(funcName)s.%(levelname)s %(message)s')
-    dateFormat = '%H:%M:%S'
-    dictConfig = {
-        'version': 1,
-        'disable_existing_loggers': True,
-        'formatters': {
-            'standard': {
-                'format': terseMessageformat,
-                'dateFmt': None
-            },
-            'withDate': {
-                'format': verboseMessageformat,
-                'dateFmt': dateFormat
-            }
-        },
-        'handlers': {
-            'critical': {
-                'formatter': 'standard',
-                'level': 'CRITICAL',
-                'class': 'logging.StreamHandler',
-            },
-            'error': {
-                'formatter': 'standard',
-                'level': 'ERROR',
-                'class': 'logging.StreamHandler',
-            },
-            'warning': {
-                'formatter': 'withDate',
-                'level': 'WARNING',
-                'class': 'logging.StreamHandler',
-            },
-            'info': {
-                'formatter': 'standard',
-                'level': 'INFO',
-                'class': 'logging.StreamHandler',
-            }
-# 20
-# DEBUG	10
-# NOTSET
-# 
-        },
-        # 'loggers': {
-        #     '': {
-        #         # 'handlers': ['critical', 'error', 'warning', 'info'],
-        #         'propagate': 0
-        #     }
-        # },
-        'root': {
-            # 'handlers': ['warning', 'info']
-        }
-    }
-    # dictConfig['root']['handlers'] = dictConfig['handlers'].keys()
-    dictConfig['root']['handlers'] = []
-    
-    
-    
-    loggingConfig.dictConfig(dictConfig)
-    print("logging root 1", loggingRoot.hasHandlers(), loggingRoot.getEffectiveLevel())
-    defaultHandler = LoggingHandler()
-    defaultHandler.addFilter(filter_not_warning)
-    defaultHandler.setFormatter(Formatter(terseMessageformat, None))
-    warningHandler = LoggingHandler()
-    warningHandler.addFilter(filter_warning)
-    warningHandler.setFormatter(Formatter(verboseMessageformat, dateFormat))
-    
-    loggingRoot.addHandler(defaultHandler)
-    loggingRoot.addHandler(warningHandler)
-
-    if verbose:
-        loggingRoot.setLevel(DEBUG)
-        # logConfig(
-        #     format='%(asctime)s.%(module)s.%(funcName)s.%(levelname)s'
-        #     ' %(message)s', datefmt='%H:%M:%S', level=DEBUG)
-    else:
-        loggingRoot.setLevel(INFO)
-        # logConfig(format='%(levelname)s %(message)s', level=INFO)
-    print("logging root 2"
-          , loggingRoot.hasHandlers()
-          , loggingRoot.getEffectiveLevel())
-    print("Logging level:"
-          , getLoggingLevelName(loggingRoot.getEffectiveLevel()))
 
 def terminate_engine():
     """Terminate the Blender Game Engine."""

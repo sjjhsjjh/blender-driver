@@ -102,9 +102,10 @@ class Application(blender_driver.application.thread.Application):
         self.mainLock.acquire()
         try:
             self._bannerObject = self.game_add_text(self._bannerName)
-            log(DEBUG, "Arguments {}.".format(self.arguments))
-            log(DEBUG, "Settings {}.".format(self.settings))
-            log(DEBUG, "Game scene objects {}.".format(self.gameScene.objects))
+            log(DEBUG, (
+                "Game scene objects {}\nArguments: {}\nSettings: {}"
+                ).format(
+                self.gameScene.objects, vars(self.arguments), self.settings))
             print(self._instructions)
         finally:
             self.mainLock.release()

@@ -18,6 +18,11 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+from logging import DEBUG, INFO, WARNING, ERROR, log
+#
 # This module uses Thread and Lock classes.
 # https://docs.python.org/3.4/library/threading.html#thread-objects
 import threading
@@ -80,7 +85,8 @@ class Application(base.Application):
     # Override.
     def game_tick(self):
         """Method that is invoked on every tick in the Blender Game Engine.
-        Don't override; implement game_tick_run() instead."""
+        Don't override; implement game_tick_run() instead.
+        """
         #
         # If a previous _run_with_tick_lock raised an exception, raise it now,
         # on the main thread so that the whole thing terminates.
@@ -106,7 +112,7 @@ class Application(base.Application):
                 try:
                     self.mainLock.acquire()
                     if self.terminating():
-                        print("game_tick terminating.")
+                        log(INFO, "_run_with_tick_lock terminating.")
                         return
                     #
                     # Reference time for this tick.
@@ -148,33 +154,25 @@ class Application(base.Application):
         pass
 
     # Override.
-    def game_terminate(self, verbose=False):
-        self.game_terminate_lock(verbose)
-        self.game_terminate_threads(verbose)
-        if verbose:
-            print("Terminating game.")
+    def game_terminate(self):
+        self.game_terminate_lock()
+        self.game_terminate_threads()
+        log(DEBUG, "Terminating game.")
         super().game_terminate()
 
-    def game_terminate_lock(self, verbose=False):
-        if verbose:
-            print("Acquiring terminate lock...")
+    def game_terminate_lock(self):
+        log(DEBUG, "Acquiring terminate lock...")
         self._terminateLock.acquire()
-        if verbose:
-            print("Terminate lock acquired.")
+        log(DEBUG, "Terminate lock acquired.")
 
-    def game_terminate_threads(self, verbose=False):
-        if verbose:
-            print("Number of threads:", threading.active_count())
+    def game_terminate_threads(self):
+        log(DEBUG, "Number of threads: {}.".format(threading.active_count()))
         for thread in threading.enumerate():
             if thread is threading.current_thread():
-                if verbose:
-                    print("Not joining current:", thread)
+                log(DEBUG, "Not joining current: {}.".format(thread))
             elif thread is threading.main_thread():
-                if verbose:
-                    print("Not joining main:", thread)
+                log(DEBUG, "Not joining main: {}.".format(thread))
             else:
-                if verbose:
-                    print("Joining:", thread, "...")
+                log(DEBUG, "Joining: {} ...".format(thread))
                 thread.join()
-                if verbose:
-                    print("Joined.")
+                log(DEBUG, "Joined.")

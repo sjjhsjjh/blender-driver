@@ -17,6 +17,12 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+import logging
+from logging import DEBUG, INFO, WARNING, ERROR, log
+#
 # Module for degrees to radians conversion.
 # https://docs.python.org/3.5/library/math.html#math.radians
 from math import radians
@@ -157,8 +163,8 @@ class Application(demonstration.Application):
 
             self._cube = self.gameScene.addObject('cube', self.gameGateway)
             self._cubeDimensions = self.bpy.data.objects['cube'].dimensions
-            self.verbosely(__name__, 'game_initialise'
-                           , self._cubeDimensions, self._cube.worldScale)
+            log(DEBUG, "Cube dimensions: {}. World scale: {}.".format(
+                self._cubeDimensions, self._cube.worldScale))
 
             self._cube2 = self.gameScene.addObject('cube', self.gameGateway)
 
@@ -200,18 +206,16 @@ class Application(demonstration.Application):
         """Cycle a counter for ever. Run as a thread."""
         counterReset = 1000
         while True:
-            # self.verbosely(__name__, 'cycle_count_run', "locking ...")
             self.mainLock.acquire()
             try:
                 if self.terminating():
-                    self.verbosely(__name__, 'cycle_count_run', "Stop.")
+                    log(DEBUG, "Stop.")
                     return
                 self._objectCounter.text = str(self._objectCounterNumber)
                 self._objectCounterNumber = (
                     (self._objectCounterNumber + 1) % counterReset)
             finally:
                 self.mainLock.release()
-                # self.verbosely(__name__, 'cycle_count_run', "released.")
             if self.arguments.sleep is not None:
                 time.sleep(self.arguments.sleep)
 
@@ -219,10 +223,9 @@ class Application(demonstration.Application):
         if not self._textUtilities.initialised:
             self._textUtilities.game_initialise()
         keyString, ctrl, alt = self.key_events_to_string(keyEvents)
-        self.verbosely(__name__, 'game_keyboard'
-                       , str(keyEvents) , '"'.join(('', keyString, ''))
-                       , ctrl, alt
-                       , self.bge.events.BACKSPACEKEY, self.bge.events.TABKEY)
+        log(DEBUG, '{} "{}" ctrl:{} alt:{} {} {}'.format(
+            keyEvents, keyString, ctrl, alt
+            , self.bge.events.BACKSPACEKEY, self.bge.events.TABKEY))
         if keyString == "q" and ctrl:
             self.game_terminate()
             return

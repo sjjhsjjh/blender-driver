@@ -17,7 +17,7 @@ if __name__ == '__main__':
 # Import isn't needed because this class gets an object that has been created
 # elsewhere.
 # https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
-
+#
 # Local imports.
 #
 # RESTful interface.
@@ -25,8 +25,6 @@ if __name__ == '__main__':
 #
 # Custom property for access to immutable properties in KX_GameObject.
 from path_store.hosted import HostedProperty
-
-
 
 class GameObject(object):
     @property
@@ -48,6 +46,8 @@ for bgeProperty in GameObject.bgeProperties:
     setattr(GameObject, bgeProperty , HostedProperty(bgeProperty, 'bgeObject'))
 
 
+# -   BGE interface will be like: create a KXGameObject, create a wrapper around
+#     it, set the wrapper as principal.
 # 
 # 
 # class RestBGEObject(RestInterface):
@@ -58,3 +58,6 @@ for bgeProperty in GameObject.bgeProperties:
 #         # call super().restPOST(parameters) which will set each thing in the
 #         # parameters dictionary.
 #         pass
+# -   How to do applyImpulse? Maybe by POST to an "impulse" property, that gets
+#     pushed down to a setter, that executes the applyImpulse and discards its
+#     own value.

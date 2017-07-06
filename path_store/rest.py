@@ -76,8 +76,4 @@ class RestInterface(object):
 #
 # -   restGetCache that contains only data that has been accessed through the
 #     RestInterface. But have an API to load the cache maybe.
-# -   BGE interface will be like: create a KXGameObject, create a wrapper around
-#     it, set the wrapper as principal.
-# -   How to do applyImpulse? Maybe by POST to an "impulse" property, that gets
-#     pushed down to a setter, that executes the applyImpulse and discards its
-#     own value.
+# -   Animation

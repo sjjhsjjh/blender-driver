@@ -79,6 +79,9 @@ class Application(demonstration.Application):
             target=self.pulse_object_scale, name="pulse_object_scale" ).start()
  
     def _get_scales(self):
+        """Eternal generator for scale vectors. Uses the following properties as
+        parameters: minScale, changeScale, increments.
+        """
         minScale = self.arguments.minScale
         changeScale = self.arguments.changeScale
         increments = self.arguments.increments

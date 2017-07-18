@@ -70,7 +70,8 @@ import time
 from . import pulsar
 #
 # Wrapper for Blender game object that is easy to make RESTful.
-from path_store.blender_game_engine import GameObject
+# from path_store.blender_game_engine import GameObject
+from path_store.blender_game_engine import get_game_object_subclass
 #
 # RESTful interface base class.
 from path_store.rest import RestInterface
@@ -107,13 +108,14 @@ class Application(pulsar.Application):
         self._restInterface = RestInterface()
         self._objectName = "pulsar"
         super().game_initialise()
-        
 
     # Overridden.
     def pulse_object_scale(self):
         """Pulse the scale of three game objects for ever. Run as a thread."""
         self.mainLock.acquire()
         try:
+            self._GameObject = get_game_object_subclass(self.bge)
+
             objectName = self._objectName
             #
             # Get the underlying dimensions of the Blender mesh, from the data
@@ -129,7 +131,8 @@ class Application(pulsar.Application):
             #
             # Insert game objects.
             for index in range(3):
-                object_ = GameObject(self.game_add_object(objectName))
+                # object_ = GameObject(self.game_add_object(objectName))
+                object_ = self._GameObject(self.game_add_object(objectName))
                 restInterface.rest_put(object_, index)
             #
             # Move game objects.
@@ -160,39 +163,6 @@ class Application(pulsar.Application):
             get_scales = self._get_scales()
         finally:
             self.mainLock.release()
-        # while True:
-        #     log(DEBUG, "locking ...")
-        #     self.mainLock.acquire()
-        #     try:
-        #         log(DEBUG, "locked.")
-        #         if self.terminating():
-        #             log(DEBUG, "Stop.")
-        #             get_scales.close()
-        #             return
-        #         scales = next(get_scales)
-        #         worldScale = list(dimensions)
-        #         for index, value in enumerate(scales):
-        #             worldScale[index] *= value
-        #             # restInterface.rest_put(worldScale[index]
-        #             #                        , (1, 'worldScale', index))
-        # 
-        #         # restInterface.rest_put(worldScale, (0, 'worldScale'))
-        #         # nativeObject.worldScale = worldScale
-        #     finally:
-        #         log(DEBUG, "releasing.")
-        #         self.mainLock.release()
-        # 
-        #     if self.arguments.sleep is not None:
-        #         time.sleep(self.arguments.sleep)
-
-    def get_argument_parser(self):
-        """Method that returns an ArgumentParser. Overriden."""
-        parser = super().get_argument_parser()
-        parser.prog = ".".join((__name__, self.__class__.__name__))
-        parser.add_argument(
-            '--cycleTime', type=float, default=6.0,
-            help="Change of scale. Default: 2.0.")
-        return parser
 
     # Override.
     def game_tick_run(self):
@@ -226,3 +196,13 @@ class Application(pulsar.Application):
             # print(self.tickPerf, dimension, moduloTime, worldScale)
         finally:
             self.mainLock.release()
+
+    def get_argument_parser(self):
+        """Method that returns an ArgumentParser. Overriden."""
+        parser = super().get_argument_parser()
+        parser.prog = ".".join((__name__, self.__class__.__name__))
+        parser.add_argument(
+            '--cycleTime', type=float, default=6.0,
+            help="Length of cycle in seconds. Default: 6.0.")
+        return parser
+

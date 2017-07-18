@@ -13,10 +13,10 @@ if __name__ == '__main__':
 #
 # Blender library imports, in alphabetic order.
 #
-# Blender Game Engine KX_GameObject
-# Import isn't needed because this class gets an object that has been created
-# elsewhere.
+# Blender Game Engine bge.types.KX_GameObject
 # https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
+# Can't be imported here because this module gets imported in the bpy context
+# too, in which bge isn't available.
 #
 # Local imports.
 #
@@ -24,14 +24,15 @@ if __name__ == '__main__':
 # from rest import RestInterface
 #
 # Custom property for access to immutable properties in KX_GameObject.
-from path_store.hosted import HostedProperty
+from path_store.hosted import HostedProperty, InterceptProperty
 
-class GameObject(object):
+class DUFFGameObject(object):
     @property
     def bgeObject(self):
         return self._bgeObject
     
     bgeProperties = ('worldScale', 'worldPosition')
+    # bgeProperties = ('worldPosition')
     # worldScale = HostedProperty('worldScale', 'bgeObject')
     # worldPosition = HostedProperty('worldPosition', 'bgeObject')
     
@@ -42,9 +43,53 @@ class GameObject(object):
         for bgeProperty in self.bgeProperties:
             setattr(self, bgeProperty, None)
 
-for bgeProperty in GameObject.bgeProperties:
-    setattr(GameObject, bgeProperty , HostedProperty(bgeProperty, 'bgeObject'))
+for bgeProperty in DUFFGameObject.bgeProperties:
+    setattr(DUFFGameObject, bgeProperty , HostedProperty(bgeProperty, 'bgeObject'))
 
+def get_game_object_subclass(bge):
+    """Get a custom subclass of of KX_GameObject in which the Vector properties
+    are mutable at the item level. For example:
+    
+        gameObject.worldScale[2] = 2.5 # Where 2.5 is the desired Y scale.
+    """
+    
+    KX_GameObject = bge.types.KX_GameObject
+    
+    class GameObject(KX_GameObject):
+        @InterceptProperty()
+        def worldScale(self):
+            return super().worldScale
+        @worldScale.intercept_getter
+        def worldScale(self):
+            return self._worldScale
+        @worldScale.intercept_setter
+        def worldScale(self, value):
+            self._worldScale = value
+        @worldScale.destination_setter
+        def worldScale(self, value):
+            # It'd be nice to do this:
+            #
+            #     super(self).worldScale = value
+            #
+            # But see this issue: http://bugs.python.org/issue14965
+            # So instead, we have the following.
+            KX_GameObject.worldScale.__set__(self, value)
+    
+        @InterceptProperty()
+        def worldPosition(self):
+            return super().worldPosition
+        @worldPosition.intercept_getter
+        def worldPosition(self):
+            return self._worldPosition
+        @worldPosition.intercept_setter
+        def worldPosition(self, value):
+            self._worldPosition = value
+        @worldPosition.destination_setter
+        def worldPosition(self, value):
+            KX_GameObject.worldPosition.__set__(self, value)
+
+    return GameObject
+        
 
 # -   BGE interface will be like: create a KXGameObject, create a wrapper around
 #     it, set the wrapper as principal.

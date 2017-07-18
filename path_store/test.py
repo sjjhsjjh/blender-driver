@@ -25,6 +25,7 @@ from test.merge import TestMerge
 from test.restput import TestRestPut
 from test.pointmaker import TestPointMaker
 from test.hostedproperty import TestHostedProperty
+from test.interceptproperty import TestInterceptProperty
 #
 # Above should be done with .discover() but I couldn't get it to work.
 

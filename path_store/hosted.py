@@ -10,7 +10,11 @@ if __name__ == '__main__':
     print(__doc__)
     raise SystemExit(1)
 
-# Standard library imports, in alphabetic order, would go here.
+# Standard library imports, in alphabetic order.
+#
+# Module for enum type.
+# https://docs.python.org/3.5/library/enum.html
+from enum import Enum
 #
 # Local imports, would go here.
 
@@ -146,3 +150,172 @@ class HostedProperty(property):
             ''.join(('_', attrName)) if propertyName is None else propertyName
         self._hostName = hostName
         super().__init__(self.get, self.set, self.delete)
+
+class InterceptCast(Enum):
+    """Enumeration for types of casting in the intercept set."""
+    
+    NONE=1
+    """Never cast in the intercept set."""
+
+    IFDIFFERENTNOW=2
+    """Check the class of the destination property before every set."""
+    
+    IFDIFFERENTTHEN=3
+    """Check the class of the destination property first time it is set, then
+    assume it stays the same."""
+
+class InterceptProperty(property):
+    """Custom property subclass that intercepts access to a destination to:
+    
+    -   Cast values being set to the type of the destination.
+    -   Make the destination mutable at the item level.
+    
+    This subclass is used in the Blender Driver project to make Blender Game
+    Enginer (BGE) Vector properties mutable.
+    """
+    
+    class _PropertyInstance(object):
+        """Inner class of which an instance is set in order to implement
+        interception in the instance.
+        """
+        
+        # The following seemed like an interesting idea but __getattribute__
+        # isn't invoked for __ attributes, like __len__ for example.
+        #
+        # def __getattribute__(self, name):
+        #     if name in (
+        #         '_get_host_attr', '_instance', '_hostName', '_attrName'
+        #         ):
+        #         return object.__getattribute__(self, name)
+        #     host, attr = self._get_host_attr()
+        #     print('_Holder getattrbute', {'name':name, 'attr':attr})
+        #     return attr.__getattribute__(name)
+        #
+        # It would be interesting to see if this class should somehow be a
+        # subclass of attr.__class__.
+        #
+        # For now, __getattr__ and __len__ have been implemented. That gives
+        # access to the methods of the destination property. It might also be a
+        # good idea to implement the rest of that family in the same way:
+        # - __setattr__
+        # - __delattr__
+        # - __dir__
+        # See https://docs.python.org/3.5/reference/datamodel.html#object.__getattr__
+
+        def __getattr__(self, name):
+            return getattr(self._destination_getter(self._instance), name)
+        def __len__(self):
+            return self._destination_getter(self._instance).__len__()
+
+        def __getitem__(self, specifier):
+            return self._destination_getter(self._instance)[specifier]
+
+        def __setitem__(self, specifier, value):
+            attr = self._destination_getter(self._instance)
+            try:
+                attr.__setitem__(specifier, value)
+                return
+            except AttributeError:
+                # The Vector type in Blender Game Engine raises this error.
+                pass
+            
+            # If we get here then it wasn't possible to setitem in the
+            # destination. Handle it here instead.
+
+            mutable = list(attr)
+            mutable.__setitem__(specifier, value)
+            if attr.__class__ is str:
+                mutable = ''.join(str(_) for _ in mutable)
+            self._intercept_setter(self._instance, mutable)
+        
+        def __delitem__(self, specifier):
+            attr = self._destination_getter(self._instance)
+            try:
+                attr.__delitem__(specifier)
+                return
+            except AttributeError:
+                pass
+            except TypeError:
+                # The Vector type in Blender Game Engine raises this error.
+                pass
+
+            mutable = list(attr)
+            mutable.__delitem__(specifier)
+            if attr.__class__ is str:
+                mutable = ''.join(str(_) for _ in mutable)
+            self._intercept_setter(self._instance, mutable)
+
+        # ToDo: Decide whether to have bypass always, never, or sometimes.
+        # def bypass(self):
+        #     return self._destination_getter(self._instance)
+
+        def __init__(self, instance, destination_getter, intercept_setter):
+            self._instance = instance
+            self._destination_getter = destination_getter
+            self._intercept_setter = intercept_setter
+    
+    def get(self, instance):
+        try:
+            attr = self._intercept_getter(instance)
+        except AttributeError:
+            attr = self._create_property_instance(instance)
+        return attr
+    
+    def _create_property_instance(self, instance):
+        attr = self._PropertyInstance(
+            instance, self._destination_getter, self.set)
+        self._intercept_setter(instance, attr)
+        return attr
+
+    def set(self, instance, value):
+        # Near here, we could have code like:
+        #
+        #     if attr is value:
+        #         return
+        #
+        # It doesn't seem like a good idea though. It seems better to let the
+        # host optimise its setter like that, if it wants to.
+
+        if self._cast is not InterceptCast.NONE:
+            if (
+                self._cast is InterceptCast.IFDIFFERENTNOW
+                or self._destinationPropertyClass is None
+               ):
+                self._destinationPropertyClass = \
+                    self._destination_getter(instance).__class__
+    
+            if self._destinationPropertyClass is not value.__class__:
+                value = self._destinationPropertyClass(value)
+
+        self._destination_setter(instance, value)
+
+    def delete(self, instance):
+        self._intercept_deleter(instance)
+        # ToDo: Maybe delete the destination too?
+        
+    def destination_setter(self, destination_setter):
+        self._destination_setter = destination_setter
+        return self
+    def intercept_getter(self, intercept_getter):
+        self._intercept_getter = intercept_getter
+        return self
+    def intercept_setter(self, intercept_setter):
+        self._intercept_setter = intercept_setter
+        return self
+    def intercept_deleter(self, intercept_deleter):
+        self._intercept_deleter = intercept_deleter
+        return self
+    
+    def __call__(self, destination_getter):
+        """This will be called as a decorator."""
+        self._destination_getter = destination_getter
+        return self
+        
+    def __init__(self, cast=InterceptCast.NONE):
+        """Call to instantiate the property. The constructor isn't the
+        decorator.
+        """
+        self._destinationPropertyClass = None
+        self._cast = cast
+        super().__init__(self.get, self.set, self.delete)
+

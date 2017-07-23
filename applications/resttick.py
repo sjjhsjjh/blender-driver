@@ -70,7 +70,6 @@ import time
 from . import pulsar
 #
 # Wrapper for Blender game object that is easy to make RESTful.
-# from path_store.blender_game_engine import GameObject
 from path_store.blender_game_engine import get_game_object_subclass
 #
 # RESTful interface base class.
@@ -131,7 +130,6 @@ class Application(pulsar.Application):
             #
             # Insert game objects.
             for index in range(3):
-                # object_ = GameObject(self.game_add_object(objectName))
                 object_ = self._GameObject(self.game_add_object(objectName))
                 restInterface.rest_put(object_, index)
             #

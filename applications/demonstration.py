@@ -22,7 +22,6 @@ if __name__ == '__main__':
 # Module for levelled logging messages.
 # Tutorial is here: https://docs.python.org/3.5/howto/logging.html
 # Reference is here: https://docs.python.org/3.5/library/logging.html
-import logging
 from logging import DEBUG, INFO, WARNING, ERROR, log
 #
 # Third party modules, in alphabetic order.

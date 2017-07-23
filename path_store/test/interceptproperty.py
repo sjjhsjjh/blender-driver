@@ -876,6 +876,7 @@ class TestInterceptProperty(unittest.TestCase):
         self.assertEqual(2, len(intercept.destinationTupleItems))
         self.assertEqual(1, intercept.destinationTupleItems.count(2))
 
+# ToDo:
 # Test that the attribute changes, for example from list to tuple, if cast=NONE
 # Test ISDIFFERENTNOW vs ISDIFFERENTTHEN
 # Test two subclass instances.

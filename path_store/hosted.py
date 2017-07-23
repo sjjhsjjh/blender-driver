@@ -274,7 +274,7 @@ class InterceptProperty(property):
         #         return
         #
         # It doesn't seem like a good idea though. It seems better to let the
-        # host optimise its setter like that, if it wants to.
+        # destination optimise its setter like that, if it wants to.
 
         if self._cast is not InterceptCast.NONE:
             if (

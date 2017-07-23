@@ -24,33 +24,15 @@ if __name__ == '__main__':
 # from rest import RestInterface
 #
 # Custom property for access to immutable properties in KX_GameObject.
-from path_store.hosted import HostedProperty, InterceptProperty
-
-class DUFFGameObject(object):
-    @property
-    def bgeObject(self):
-        return self._bgeObject
-    
-    bgeProperties = ('worldScale', 'worldPosition')
-    # bgeProperties = ('worldPosition')
-    # worldScale = HostedProperty('worldScale', 'bgeObject')
-    # worldPosition = HostedProperty('worldPosition', 'bgeObject')
-    
-    def __init__(self, bgeObject):
-        self._bgeObject = bgeObject
-        # self.worldScale = None
-        # self.worldPosition = None
-        for bgeProperty in self.bgeProperties:
-            setattr(self, bgeProperty, None)
-
-for bgeProperty in DUFFGameObject.bgeProperties:
-    setattr(DUFFGameObject, bgeProperty , HostedProperty(bgeProperty, 'bgeObject'))
+from path_store.hosted import InterceptProperty
 
 def get_game_object_subclass(bge):
     """Get a custom subclass of of KX_GameObject in which the Vector properties
     are mutable at the item level. For example:
     
         gameObject.worldScale[2] = 2.5 # Where 2.5 is the desired Y scale.
+    
+    Pass as a parameter a reference to the bge module.
     """
     
     KX_GameObject = bge.types.KX_GameObject

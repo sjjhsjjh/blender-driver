@@ -66,7 +66,8 @@ import time
 # Blender Driver application with threads and locks.
 from . import pulsar
 
-from path_store.blender_game_engine import GameObject
+# Wrapper for Blender game object that is easy to make RESTful.
+from path_store.blender_game_engine import get_game_object_subclass
 
 from path_store.rest import RestInterface
 
@@ -88,50 +89,57 @@ class Application(pulsar.Application):
     # Overridden.
     def pulse_object_scale(self):
         """Pulse the scale of three game objects for ever. Run as a thread."""
-        objectName = "pulsar"
-        #
-        # Get the underlying dimensions of the Blender mesh, from the data
-        # layer. It's a mathutils.Vector instance.
-        dimensions = tuple(self.bpy.data.objects[objectName].dimensions)
+        self.mainLock.acquire()
+        try:
+            self._GameObject = get_game_object_subclass(self.bge)
+            
+            objectName = "pulsar"
+            #
+            # Get the underlying dimensions of the Blender mesh, from the data
+            # layer. It's a mathutils.Vector instance.
+            dimensions = tuple(self.bpy.data.objects[objectName].dimensions)
+            
+            restInterface = RestInterface()
+            
+            displace = (
+                (self.arguments.minScale + self.arguments.changeScale)
+                * dimensions[1])
         
-        restInterface = RestInterface()
-        
-        displace = (
-            (self.arguments.minScale + self.arguments.changeScale)
-            * dimensions[1])
-        
-        #
-        # Insert game objects.
-        for index in range(3):
-            object_ = GameObject(self.game_add_object(objectName))
-            restInterface.rest_put(object_, index)
-        #
-        # Move game objects.
-        #
-        # First moves up the y axis.
-        value = restInterface.rest_get((0, 'worldPosition', 1))
-        restInterface.rest_put(value + displace, (0, 'worldPosition', 1))
-        #
-        # Second moves down the y axis.
-        value = restInterface.rest_get((1, 'worldPosition', 1))
-        restInterface.rest_put(value - displace, (1, 'worldPosition', 1))
-        #
-        # Third moves in the x and z axes.
-        value = restInterface.rest_get((2, 'worldPosition'))
-        value[0] += displace
-        value[2] += self.arguments.minScale * 2
-        # There is no rest_put because the value returned by the rest_get is a
-        # reference, because it's an object maybe. These accesses go via the
-        # HostedProperty _Holder __setitem__ accessor.
-
-        # The game objects are manipulated through different programming
-        # interfaces:
-        # -   Object 0 by rest_put of a worldScale array.
-        # -   Object 1 by rest_put of each element of the worldScale array.
-        # -   Object 2 by native setting of the worldScale property.
-
-        nativeObject = restInterface.rest_get(2)
-        get_scales = self._get_scales()
+            #
+            # Insert game objects.
+            for index in range(3):
+                object_ = self._GameObject(self.game_add_object(objectName))
+                restInterface.rest_put(object_, index)
+            #
+            # Move game objects.
+            #
+            # First moves up the y axis.
+            value = restInterface.rest_get((0, 'worldPosition', 1))
+            restInterface.rest_put(value + displace, (0, 'worldPosition', 1))
+            #
+            # Second moves down the y axis.
+            value = restInterface.rest_get((1, 'worldPosition', 1))
+            restInterface.rest_put(value - displace, (1, 'worldPosition', 1))
+            #
+            # Third moves in the x and z axes.
+            value = restInterface.rest_get((2, 'worldPosition'))
+            value[0] += displace
+            value[2] += self.arguments.minScale * 2
+            # There is no rest_put because the value returned by the rest_get is a
+            # reference, because it's an object maybe. These accesses go via the
+            # HostedProperty _Holder __setitem__ accessor.
+    
+            # The game objects are manipulated through different programming
+            # interfaces:
+            # -   Object 0 by rest_put of a worldScale array.
+            # -   Object 1 by rest_put of each element of the worldScale array.
+            # -   Object 2 by native setting of the worldScale property.
+    
+            nativeObject = restInterface.rest_get(2)
+            get_scales = self._get_scales()
+        finally:
+            self.mainLock.release()
+            
         while True:
             log(DEBUG, "locking ...")
             self.mainLock.acquire()

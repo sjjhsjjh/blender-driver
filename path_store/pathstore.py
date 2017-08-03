@@ -170,44 +170,68 @@ def make_point(specifier, point=None):
 def default_point_maker(path, index, point=None):
     return make_point(path[index], point)
 
-def replace(parent
-            , value
-            , path=None
-            , point_maker=default_point_maker
-            ):
+def replace(parent, value, path=None, point_maker=default_point_maker):
     """Descend from the parent along the path and replace whatever is there with
     a new value.
     """
     log(DEBUG, "{} {} {}.", parent, path, value)
     return _insert(parent
                    , tuple(pathify(path))
-                   , value
+                   , lambda current: (None, value)
                    , point_maker
-                   , enumerate(pathify(path))
-                   , True)
+                   , enumerate(pathify(path)))
 
-def merge(parent
-          , value
-          , path=None
-          , point_maker=default_point_maker
-          ):
+def merge(parent, value, path=None, point_maker=default_point_maker):
     """Descend from the parent along the path and merge a specified value into
     whatever is there.
     """
     log(DEBUG, "{} {} {}.", parent, path, value)
+    
     return _insert(parent
                    , tuple(pathify(path))
-                   , value
+                   , lambda current: (current, value)
                    , point_maker
-                   , enumerate(pathify(path))
-                   , False)
+                   , enumerate(pathify(path)))
 
-def _insert(parent, path, value, point_maker, enumerator, setReplace):
+def edit(parent, editor, path=None, point_maker=default_point_maker):
+    """Descend from the parent along the path and call a function to modify
+    whatever is there. Pass the function in the `editor` parameter.
+    
+    The editor function should return a tuple of two values. It will be called
+    like:
+    
+        parent, newValue = editor(parent)
+    
+    The input `parent` will contain the value that is initially at the path.
+    Return the following in the output tuple.
+    
+    -   The new value to be assigned to that point on the path in the second
+        element.
+    -   To execute a replace type of assignment, return None in the first
+        element.
+    -   To execute a merge type of assignment, return the input `parent` in the
+        first element.
+    
+    """
+    log(DEBUG, "{} {} {}.", parent, path, editor)
+    
+    return _insert(parent
+                   , tuple(pathify(path))
+                   , editor
+                   , point_maker
+                   , enumerate(pathify(path)))
+
+def _insert(parent, path, value, point_maker, enumerator):
     try:
         index, leg = next(enumerator)
     except StopIteration:
-        if setReplace:
-            parent = None
+        if callable(value):
+            result = value(parent)
+            log(DEBUG, "callable {} {}.", parent, result)
+            parent = result[0]
+            value = result[1]
+        else:
+            log(DEBUG, "not callable {} {}.", parent, value)
         return _merge(parent, value, point_maker, path)
 
     wasTuple = isinstance(parent, tuple)
@@ -236,7 +260,7 @@ def _insert(parent, path, value, point_maker, enumerator, setReplace):
             , " leg:", str_quote(leg), ".")))
 
     value = _insert(
-        point, path, value, point_maker, enumerator, setReplace)
+        point, path, value, point_maker, enumerator)
     
     didSet, parent = _set(parent, leg, value, type)
 
@@ -271,7 +295,7 @@ def _merge(parent, value, point_maker, pointMakerPath):
             continue
         path.append(legKey)
         parent = _insert(parent, path, legValue, point_maker
-                         , enumerate_one(pathLen, legKey), False)
+                         , enumerate_one(pathLen, legKey))
         path.pop()
 
     log(DEBUG, "return {}.", parent)

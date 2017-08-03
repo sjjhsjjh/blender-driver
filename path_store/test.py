@@ -5,11 +5,28 @@
 
 # Standard library imports, in alphabetic order.
 #
+# Module for file and directory paths, which is only used to build an import
+# path.
+# https://docs.python.org/3.5/library/os.path.html
+import os.path
+#
+# Module for extending the search path.
+# https://docs.python.org/3.5/library/sys.html
+import sys
+#
 # Unit test module.
 # https://docs.python.org/3.5/library/unittest.html
 import unittest
 #
 # Local imports.
+#
+# But first, add the Blender Driver directory to sys.path so that the logging
+# utilities module can be imported.
+sys.path.append(os.path.abspath(os.path.join(
+    os.path.dirname(__file__), os.path.pardir)))
+#
+# Local module for setting up Python logging.
+from blender_driver.loggingutils import initialise_logging
 #
 # Unit test tests.
 from test.principal import TestPrincipal
@@ -26,8 +43,10 @@ from test.restput import TestRestPut
 from test.pointmaker import TestPointMaker
 from test.hostedproperty import TestHostedProperty
 from test.interceptproperty import TestInterceptProperty
+from test.edit import TestEdit
 #
 # Above should be done with .discover() but I couldn't get it to work.
 
 if __name__ == '__main__':
+    initialise_logging(False)
     unittest.main()

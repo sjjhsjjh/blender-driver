@@ -5,15 +5,7 @@
 
 This code illustrates:
 
--   Basic use of the Blender Game Engine (BGE) KX_GameObject interface, to
-    change the size of a game object.
--   Termination of BGE when any key is pressed.
--   Spawning a single thread at the start of BGE execution. The thread is
-    joined before terminating BGE.
--   Use of a thread lock to indicate termination is due.
-
-This application doesn't override the Blender Driver game_tick, which is then a
-pass in the base class.
+-   Use of the Animation base class and PathAnimation subclass.
 
 This module can only be used from within the Blender Game Engine."""
 # Exit if run other than as a module.
@@ -133,7 +125,7 @@ class Application(demonstration.Application):
                     deletions = True
             
             if deletions:
-                print("Animations:{}.".format(list(
+                log(INFO, "Animations:{}.".format(list(
                     None if _ is None else "Some" for _ in self._animations)))
 
         finally:

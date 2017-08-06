@@ -107,6 +107,16 @@ class Application(blender_driver.application.thread.Application):
         finally:
             self.mainLock.release()
 
+    # Overriden.
+    def game_keyboard(self, *args):
+        #
+        # Formally, run the base class method. Actually, it's a pass.
+        super().game_keyboard(*args)
+        #
+        # Default is to terminate on any key press.
+        log(DEBUG, "Terminating.")
+        self.game_terminate()
+        
     def game_add_object(self, objectName):
         object_ = self.gameScene.addObject(objectName, self.gameGateway)
         object_.worldPosition = self.bpy.data.objects[objectName].location
@@ -126,4 +136,4 @@ class Application(blender_driver.application.thread.Application):
         return object_
 
     def tick_skipped(self):
-        log(WARNING, "Skipped ticks: {:d}", self.skippedTicks)
+        log(WARNING, "Skipped ticks: {:d}.", self.skippedTicks)

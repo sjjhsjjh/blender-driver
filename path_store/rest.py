@@ -30,10 +30,7 @@ try:
 except ImportError:
     import pathstore
 
-# Import some classes from the Blender mathutils module, so that values of these
-# types can be detected by GET. They need to be converted into list()s so that
-# they can be JSON dumped.
-# from mathutils import Vector, Matrix, Quaternion
+from path_store.animation import Animation
 
 class RestMethod(Enum):
     DELETE = 1
@@ -72,33 +69,53 @@ class RestInterface(object):
     def __init__(self):
         self._principal = None
 
+class PathAnimation(Animation):
+
+    @property
+    def store(self):
+        return self._store
+    @store.setter
+    def store(self, store):
+        self._store = store
+    
+    @property
+    def path(self):
+        return self._path
+    @path.setter
+    def path(self, path):
+        self._path = path
+    
+    def start(self, startTime=None):
+        if startTime is not None:
+            self.startTime = startTime
+        
+        self.startValue = pathstore.get(self.store, self.path)
+
+    def set(self, nowTime=None):
+        if nowTime is not None:
+            self.nowTime = nowTime
+        
+        pathstore.replace(self.store, self.get_value(), self.path)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._store = None
+        self._path = None
+
+#     It could be handy to cache the parent of the animated point, in order to
+#     minimise the number of path descents.
+
+
+
+
 # Do:
 #
 # -   restGetCache that contains only data that has been accessed through the
 #     RestInterface. But have an API to load the cache maybe.
-# -   Animation, maybe as follows.
-#     -   New class, Animation, that has an instance method like:
-#         apply(value, referenceTime):
-#             
-#     -   pathstore.get to retrieve the value; then pathstore.replace to set the
-#         new value in. But, this is bad performance, because the replace has to
-#         repeat the descent of the get. How about a new pathstore API like:
-#
-#         def call_at(parent
-#                    , callable
-#                    , path=None
-#                    , point_maker=default_point_maker
-#                    ):
-#
-#        It would descend from parent along the path, then execute callable on
-#        whatever is there.
-#        Or it could pass the current value to the callable, and set whatever it
-#        returns back into the pathstore by calling _set(). It would somehow
-#        already have obtained the other _set parameter as part of the
-#        navigation.
-#
-#        Or, could a star operator be used to return a reference to the value?
-#        No.
-#
-#        Or return the current value and a setter?
-#        No, there doesn't seem to be a way to return a setter on the fly.
+
+# Import some classes from the Blender mathutils module, so that values of these
+# types can be detected by GET. They need to be converted into list()s so that
+# they can be JSON dumped.
+# from mathutils import Vector, Matrix, Quaternion
+
+

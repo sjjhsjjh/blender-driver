@@ -148,10 +148,6 @@ class Application(demonstration.Application):
             if self.arguments.sleep is not None:
                 time.sleep(self.arguments.sleep)
     
-    def game_keyboard(self, keyEvents):
-        log(DEBUG, "Terminating.")
-        self.game_terminate()
-        
     def get_argument_parser(self):
         """Method that returns an ArgumentParser. Overriden."""
         parser = super().get_argument_parser()

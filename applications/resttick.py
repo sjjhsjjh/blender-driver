@@ -66,7 +66,7 @@ import time
 #
 # Local imports.
 #
-# Blender Driver application with threads and locks.
+# Blender Driver application with a pulsating object.
 from . import pulsar
 #
 # Wrapper for Blender game object that is easy to make RESTful.

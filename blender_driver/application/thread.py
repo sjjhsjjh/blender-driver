@@ -81,6 +81,7 @@ class Application(base.Application):
         #
         # Reference time for when the game engine was started.
         self._gameInitialisePerf = time.perf_counter()
+        self._tickPerf = 0.0
 
     # Override.
     def game_tick(self):

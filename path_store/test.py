@@ -48,5 +48,7 @@ from test.edit import TestEdit
 # Above should be done with .discover() but I couldn't get it to work.
 
 if __name__ == '__main__':
-    initialise_logging(False)
+    # The next line isn't proper but I couldn't find another way to detect that
+    # tests are being run in verbose mode.
+    initialise_logging(('-v' in sys.argv) or ('--verbose' in sys.argv))
     unittest.main()

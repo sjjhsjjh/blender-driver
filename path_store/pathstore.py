@@ -137,6 +137,7 @@ def make_point(specifier, point=None):
     """Make or create a suitable point that can hold specifier.
     If a point is specified as input, the new point is based on it.
     """
+    log(DEBUG, "{} {}.", specifier, point)
     if isinstance(specifier, str):
         # The if on the next line might be unnecessary. It might be the case
         # that hasattr(None, specifier) is False for all specifier. For safety
@@ -168,6 +169,7 @@ def make_point(specifier, point=None):
             return list(extension)
 
 def default_point_maker(path, index, point=None):
+    log(DEBUG, "{} {} {}.", path, index, point)
     return make_point(path[index], point)
 
 def replace(parent, value, path=None, point_maker=default_point_maker):
@@ -180,6 +182,9 @@ def replace(parent, value, path=None, point_maker=default_point_maker):
                    , lambda current: (None, value)
                    , point_maker
                    , enumerate(pathify(path)))
+    # There is a possible problem with the lambda in the above. Because it
+    # returns None for the parent, it might discard whatever had been put in by
+    # a custom point maker.
 
 def merge(parent, value, path=None, point_maker=default_point_maker):
     """Descend from the parent along the path and merge a specified value into
@@ -245,12 +250,13 @@ def _insert(parent, path, value, point_maker, enumerator):
         # Sorry, hack to force descent into a string to fail if setting.
         point = None
     
-    log(DEBUG, "{:2d} {}\n  {}\n  {}\n  {} {}", index, str_quote(leg), parent
+    log(DEBUG, "{:d} {}\n  {}\n  {}\n  {} {}", index, str_quote(leg), parent
         , str_quote(point), str(numeric), str(type))
 
     if type is None or point is None:
+        log(DEBUG, "about to point_maker({}, {}, {}).", path, index, parent)
         parent = point_maker(path, index, parent)
-        log(DEBUG, "made point {}.", parent)
+        log(DEBUG, "made point {} {}.", parent, parent.__class__)
         point, numeric, type = descend(parent, leg)
 
     if type is None:

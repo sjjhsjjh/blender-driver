@@ -102,8 +102,28 @@ class PathAnimation(Animation):
         self._store = None
         self._path = None
 
-#     It could be handy to cache the parent of the animated point, in order to
-#     minimise the number of path descents.
+class AnimatedRestInterface(RestInterface):
+    
+    # Override
+    def point_maker(self, path, index, point):
+        log(DEBUG, "({}, {}, {}) AnimatedRestInterface", path, index, point)
+        #
+        # Next line has index == 2, which is one more than the level at which
+        # the animation object is to be created. The index == 1 level can get a
+        # None in order to build the array.
+        if path[0] == 'animations' and index == 2:
+            if not isinstance(point, PathAnimation):
+                point = PathAnimation()
+            point.store = self.principal
+            return point
+
+        return super().point_maker(path, index, point)
+    
+
+# It could be handy to cache the parent of the animated point, in order to
+# minimise the number of path descents. However, it might be the case that an
+# object in the path has been replaced in between iterations of the animation.
+# That would stymie caching.
 
 
 

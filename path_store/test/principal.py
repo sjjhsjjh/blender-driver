@@ -49,6 +49,10 @@ class Principal(SetCounter):
         self.testAttr = value
         self._countedStr = None
         super().__init__()
+        
+    def __repr__(self):
+        return "".join((
+            '<Principal ', pathstore.str_quote(self.countedStr), '>'))
 
 class SetCounterDict(dict, SetCounter):
     """Dictionary subclass that counts whenever an item is set."""
@@ -150,3 +154,12 @@ class TestPrincipal(unittest.TestCase):
             point0, None, path, point_maker=pointMakerTracker.point_maker)
         self.assertEqual(pointMakerTracker.makerTrack, expected)
         self.assertEqual(point1, {'abc':{'de':{'fgh':{'ij':{'kl': None}}}}})
+
+    def test_repr_and_str(self):
+        principal = Principal()
+        principal.countedStr = "one"
+        self.assertEqual(str(principal), '<Principal "one">')
+        
+        dict_ = {'qi': principal}
+        self.assertEqual("{}".format(dict_), "".join((
+            '{', "'qi'", ': <Principal "one">', '}')))

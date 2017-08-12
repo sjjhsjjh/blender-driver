@@ -16,6 +16,10 @@ if __name__ == '__main__':
 # https://docs.python.org/3.5/library/unittest.html
 import unittest
 #
+# Unit test module for mock subroutines.
+# https://docs.python.org/3.5/library/unittest.mock.html
+from unittest.mock import call, Mock
+#
 # Local imports.
 #
 # Utilities.
@@ -128,3 +132,89 @@ class TestPointMaker(unittest.TestCase):
             point0, None, path, point_maker=pointMaker.principal_point_maker)
         self.assertEqual(pointMaker.makerTrack, expected)
         self.assertEqual(point1, {'de':{'fgh':{'ij':{'kl': None}}}})
+
+    def test_principal_in_array(self):
+        arrinvalue = "scalar"
+        expected = {
+            'outvaluearr': [
+                { # *Test point
+                    'invalue': arrinvalue
+                }
+            ],
+            'outvaluedict': {
+                'invalue': "otherscalar"
+            }
+        }
+        #
+        # *Test point will be a dictionary without the point maker, but an
+        # object with the point maker.
+        #
+        
+        def make_structure(point_maker):
+            """Execute sequence of Path Store calls to build the structure."""
+            root = None
+            root = pathstore.merge(
+                root, arrinvalue, ('outvaluearr', 0, 'invalue'), point_maker)
+            root = pathstore.merge(
+                root, "otherscalar", ('outvaluedict', 'invalue'), point_maker)
+            return root
+
+        expectedCalls = [
+            call(('outvaluearr', 0, 'invalue'), 0, None),
+            call(('outvaluearr', 0, 'invalue'), 1, None),
+            call(('outvaluearr', 0, 'invalue'), 2, None),
+            #
+            # The last parameter on the next line is the `expected` structure,
+            # above. The parameter as passed would have been just the
+            # `outvaluearr` hierarchy, but by the time the value is checked, it
+            # has been modified, because pathstore.merge operates in place on
+            # the data structure. 
+            call(('outvaluedict', 'invalue'), 0, expected),
+            call(('outvaluedict', 'invalue'), 1, None)
+        ]
+
+
+        mock = Mock(side_effect=pathstore.default_point_maker)
+        point = make_structure(mock)
+        self.assertEqual(point, expected)
+        mock.assert_has_calls(expectedCalls)
+        
+        class PointPrincipal(Mock):
+            invalue = None
+            
+            def __repr__(self):
+                return str({'PointPrincipal':{'invalue': self.invalue}})
+            
+            def __eq__(self, other):
+                return (
+                    isinstance(other, PointPrincipal)
+                    and other.invalue == self.invalue)
+
+        pointStrings = []
+        def object_point_maker(path, index, point):
+            #
+            # Intention of the next line is to take an snapshot of the last
+            # parameter as it was at call time. The snapshot isn't formally
+            # useful for comparison, because the order of dictionary keys isn't
+            # guarranteed to be the same. 
+            pointStrings.append(str(point))
+            #
+            # Next line has index == 2, which is one more than the level at
+            # which the object is to be created. The index == 1 level can get a
+            # None in order to build the array.
+            if path[0] == 'outvaluearr' and index == 2:
+                return PointPrincipal()
+            else:
+                return pathstore.default_point_maker(path, index, point)
+
+        # Adjust the `expected` hierarchy to have an object in the expected
+        # location, instead of a dictionary.
+        expectedObject = PointPrincipal()
+        expectedObject.invalue = arrinvalue
+        expected['outvaluearr'][0] = expectedObject
+        #
+        # Execute the test.
+        mock = Mock(side_effect=object_point_maker)
+        point = make_structure(mock)
+        self.assertEqual(point, expected)
+        mock.assert_has_calls(expectedCalls)

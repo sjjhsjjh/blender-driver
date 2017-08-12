@@ -60,6 +60,7 @@ class Animation(object):
     @startTime.setter
     def startTime(self, startTime):
         self._startTime = startTime
+        self._complete = False
     
     @property
     def startValue(self):
@@ -67,6 +68,7 @@ class Animation(object):
     @startValue.setter
     def startValue(self, startValue):
         self._startValue = startValue
+        self._complete = False
     
     @property
     def nowTime(self):
@@ -88,20 +90,23 @@ class Animation(object):
     @targetValue.setter
     def targetValue(self, targetValue):
         self._targetValue = targetValue
+        self._complete = False
         
     @property
     def complete(self):
         """True if the animation has reached its target, or False otherwise."""
         return self._complete
         
+    # This is unused in the current programming interface, and hence commented
+    # out.
     # @property
     # def change(self):
     #     return (self.nowTime - self.startTime) * self._speed
     
-    # Next thing isn't a property because it has a side effect: the complete
-    # flag could be set.
+    # Next thing isn't a property because getting its value has a side effect:
+    # the complete flag could be set.
     def get_value(self):
-        """What should the animated value be, based on:
+        """Get the animated value be, based on:
         
         -   Start value.
         -   Start time.
@@ -144,4 +149,3 @@ class Animation(object):
         self._targetValue = None
 
         self._complete = False
-

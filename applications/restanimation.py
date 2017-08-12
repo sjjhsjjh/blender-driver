@@ -108,24 +108,9 @@ class Application(demonstration.Application):
     def game_tick_run(self):
         self.mainLock.acquire()
         try:
-            deletions = False
-            try:
-                animations = self._restInterface.rest_get('animations')
-            except KeyError:
-                animations = tuple()
-            for index, animation in enumerate(animations):
-                if animation is None:
-                    continue
-                animation.set(self.tickPerf)
-                if animation.complete:
-                    self._restInterface.rest_put(None, ('animations', index))
-                    deletions = True
-            
-            if deletions:
-                animations = self._restInterface.rest_get('animations')
-                log(INFO, "Animations:{}.".format(list(
-                    None if _ is None else "Some" for _ in animations)))
-
+            # Set the top-level nowTime shortcut, which sets it in all the
+            # current animations, which makes them animate in the scene.
+            self._restInterface.nowTime = self.tickPerf
         finally:
             self.mainLock.release()
 
@@ -143,63 +128,63 @@ class Application(demonstration.Application):
         if ctrl:
             objectNumber = 2
 
-        try:
-            if keyString == " ":
-                self.animate(objectNumber, None)
-            elif keyString == "+":
-                self.animate(objectNumber, 1)
-            elif keyString == "-":
-                self.animate(objectNumber, -1)
-            elif keyString == "0":
-                self.animate(objectNumber, 0)
-            else:
-                raise Exception("No command for keypress.")
-            return
-        except Exception as exception:
-            log(INFO, '{} {} "{}" ctrl:{} alt:{} {} {}'
-                , exception, keyEvents, keyString, ctrl, alt
-                , self.bge.events.BACKSPACEKEY, self.bge.events.TABKEY)
+        if keyString == " ":
+            self.animate(objectNumber, None)
+        elif keyString == "+":
+            self.animate(objectNumber, 1)
+        elif keyString == "-":
+            self.animate(objectNumber, -1)
+        elif keyString == "0":
+            self.animate(objectNumber, 0)
+        elif keyString == "":
+            pass
+        else:
+            log(INFO, 'No command for keypress. {} "{}" ctrl:{} alt:{}'
+                , keyEvents, keyString, ctrl, alt)
         
     def animate(self, objectNumber, direction):
         self.mainLock.acquire()
         try:
             #
-            # Convenience variables
+            # Convenience variable.
             restInterface = self._restInterface
             #
+            # Path to the object's Z value.
+            valuePath = ('root', objectNumber, 'worldPosition', 2)
+            #
+            # Assemble the animation in a dictionary, starting with these.
+            animation = {'path': valuePath, 'speed': self.arguments.speed}
+            #
+            # Get the current value.
+            value = restInterface.rest_get(valuePath)
+            #
+            # Set the speed and target value, based on the current value and the
+            # direction parameter.
+            if direction is None:
+                target = self.arguments.target
+                if value > 0:
+                    target *= -1
+                animation['targetValue'] = value + target
+            elif direction == 0:
+                animation['targetValue'] = 0.0
+            else:
+                animation['targetValue'] = None
+                if direction < 0:
+                    animation['speed'] *= -1
+            #
             # There is up to one animation per object.
-            animationPath = ('animations', objectNumber)
+            animationPath = ['animations', objectNumber]
             #
             # Insert the animation. The point maker will set the store
             # attribute.
-            restInterface.rest_patch(
-                {
-                    'path': ('root', objectNumber, 'worldPosition', 2),
-                    'speed': self.arguments.speed
-                }
-                , animationPath
-            )
+            log(INFO, 'Patching {} {}', animationPath, animation)
+            restInterface.rest_put(animation, animationPath)
             #
-            # Get a reference to the animation object that was just inserted.
-            animation = restInterface.rest_get(animationPath)
-            #
-            # Start the animation, which sets the start value as a side effect.
-            animation.start(self.tickPerf)
-            #
-            # Set the target value, based on the object's current Z value and
-            # the direction parameter.
-            if direction is None:
-                target = self.arguments.target
-                if animation.startValue > 0:
-                    target *= -1
-                animation.targetValue = animation.startValue + target
-            elif direction == 0:
-                animation.targetValue = 0.0
-            else:
-                animation.targetValue = None
-                if direction < 0:
-                    animation.speed *= -1
-
+            # Set the start time, which has the following side effects:
+            # -   Retrieves the start value.
+            # -   Clears the complete state.
+            animationPath.append('startTime')
+            restInterface.rest_put(self.tickPerf, animationPath)
         finally:
             self.mainLock.release()
         

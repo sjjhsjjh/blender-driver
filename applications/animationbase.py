@@ -113,9 +113,8 @@ class Application(demonstration.Application):
             for index, animation in enumerate(self._animations):
                 if animation is None:
                     continue
-                if isinstance(animation, PathAnimation):
-                    animation.set(self.tickPerf)
-                else:
+                animation.nowTime = self.tickPerf
+                if not isinstance(animation, PathAnimation):
                     animation.nowTime = self.tickPerf
                     value = animation.get_value()
                     log(DEBUG, "{} {}", self.tickPerf, value)
@@ -143,21 +142,19 @@ class Application(demonstration.Application):
         if ctrl:
             objectNumber = 2
 
-        try:
-            if keyString == " ":
-                self.animate(objectNumber, None)
-            elif keyString == "+":
-                self.animate(objectNumber, 1)
-            elif keyString == "-":
-                self.animate(objectNumber, -1)
-            elif keyString == "0":
-                self.animate(objectNumber, 0)
-            else:
-                raise Exception("No command for keypress.")
-            return
-        except Exception as exception:
-            log(INFO, '{} {} "{}" ctrl:{} alt:{} {} {}'
-                , exception, keyEvents, keyString, ctrl, alt
+        if keyString == " ":
+            self.animate(objectNumber, None)
+        elif keyString == "+":
+            self.animate(objectNumber, 1)
+        elif keyString == "-":
+            self.animate(objectNumber, -1)
+        elif keyString == "0":
+            self.animate(objectNumber, 0)
+        elif keyString == "":
+            pass
+        else:
+            log(INFO, 'No command for keypress. {} "{}" ctrl:{} alt:{} {} {}'
+                , keyEvents, keyString, ctrl, alt
                 , self.bge.events.BACKSPACEKEY, self.bge.events.TABKEY)
         
     def animate(self, objectNumber, direction=None):
@@ -174,7 +171,7 @@ class Application(demonstration.Application):
                 animation = PathAnimation()
                 animation.store = self._restInterface.principal
                 animation.path = (objectNumber, 'worldPosition', 2)
-                animation.start(self.tickPerf)
+                animation.startTime = self.tickPerf
                 
             animation.speed = self.arguments.speed
 

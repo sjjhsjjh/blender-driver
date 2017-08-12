@@ -297,8 +297,9 @@ def _merge(parent, value, point_maker, pointMakerPath):
     
     for legKey, legValue in legIterator:
         log(DEBUG, "iteration {} {}", str_quote(legKey), legValue)
-        if legValue is None:
-            continue
+        # Not sure about this so it's commented out. It seems that it could skip
+        # the point maker if a value happens to be None. if legValue is None:
+        #     continue
         path.append(legKey)
         parent = _insert(parent, path, legValue, point_maker
                          , enumerate_one(pathLen, legKey))

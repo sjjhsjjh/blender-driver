@@ -56,6 +56,14 @@ from path_store.blender_game_engine import get_game_object_subclass
 # RESTful interface base class and Animation subclass for pathstore.
 from path_store.rest import AnimatedRestInterface
 
+
+# Import some classes from the Blender mathutils module.
+# They're super-effective!
+from mathutils import Vector, Matrix, Quaternion
+
+from math import radians
+
+
 # Diagnostic print to show when it's imported. Only printed if all its own
 # imports run OK.
 print('"'.join(('Application module ', __name__, '.')))
@@ -101,6 +109,18 @@ class Application(demonstration.Application):
                 displace = 3.0 * (float(index) - (float(objectCount) / 2.0))
                 self._restInterface.rest_put(value + displace, axisPath)
             
+            worldOrientation = self._restInterface.rest_get((
+                'root', 1, 'worldOrientation'))
+            quaternion = worldOrientation.to_quaternion()
+            print(worldOrientation, quaternion.axis, quaternion.angle)
+            rotation = Matrix.Rotation(radians(30), 4, 'Z')
+            quaternion.rotate(rotation)
+            print(worldOrientation, quaternion)
+            self._restInterface.rest_put(
+                quaternion, ('root', 1, 'worldOrientation'))
+            
+            
+            
         finally:
             self.mainLock.release()
 
@@ -114,7 +134,6 @@ class Application(demonstration.Application):
         finally:
             self.mainLock.release()
 
-    
     def game_keyboard(self, keyEvents):
         keyString, ctrl, alt = self.key_events_to_string(keyEvents)
         if keyString == "q" and ctrl:

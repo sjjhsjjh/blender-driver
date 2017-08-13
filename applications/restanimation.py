@@ -26,6 +26,10 @@ if __name__ == '__main__':
 # Reference is here: https://docs.python.org/3.5/library/logging.html
 from logging import DEBUG, INFO, WARNING, ERROR, log
 #
+# Module for degrees to radian conversion.
+# https://docs.python.org/3.5/library/math.html
+from math import degrees, radians
+#
 # Third party modules, in alphabetic order.
 #
 # Blender library imports, in alphabetic order.
@@ -44,6 +48,8 @@ from logging import DEBUG, INFO, WARNING, ERROR, log
 # from within the Blender Game Engine.
 # Import isn't needed because this class gets a Vector from the bpy layer.
 # http://www.blender.org/api/blender_python_api_current/mathutils.html
+# They're super-effective!
+from mathutils import Vector, Matrix, Quaternion
 #
 # Local imports.
 #
@@ -55,14 +61,6 @@ from path_store.blender_game_engine import get_game_object_subclass
 #
 # RESTful interface base class and Animation subclass for pathstore.
 from path_store.rest import AnimatedRestInterface
-
-
-# Import some classes from the Blender mathutils module.
-# They're super-effective!
-from mathutils import Vector, Matrix, Quaternion
-
-from math import radians
-
 
 # Diagnostic print to show when it's imported. Only printed if all its own
 # imports run OK.
@@ -109,17 +107,60 @@ class Application(demonstration.Application):
                 displace = 3.0 * (float(index) - (float(objectCount) / 2.0))
                 self._restInterface.rest_put(value + displace, axisPath)
             
-            worldOrientation = self._restInterface.rest_get((
-                'root', 1, 'worldOrientation'))
-            quaternion = worldOrientation.to_quaternion()
-            print(worldOrientation, quaternion.axis, quaternion.angle)
-            rotation = Matrix.Rotation(radians(30), 4, 'Z')
-            quaternion.rotate(rotation)
-            print(worldOrientation, quaternion)
-            self._restInterface.rest_put(
-                quaternion, ('root', 1, 'worldOrientation'))
+            # worldOrientation = self._restInterface.rest_get((
+            #     'root', 1, 'worldOrientation'))
+            # quaternion = worldOrientation.to_quaternion()
+            # print(worldOrientation, quaternion.axis, quaternion.angle)
+            # rotation = Matrix.Rotation(radians(30), 4, 'Z')
+            # quaternion.rotate(rotation)
+            # print(worldOrientation, quaternion)
+            # self._restInterface.rest_put(
+            #     quaternion, ('root', 1, 'worldOrientation'))
+            # 
+            # worldOrientation = self._restInterface.rest_get((
+            #     'root', 1, 'worldOrientation'))
+            # quaternion = worldOrientation.to_quaternion()
+            # print('After', worldOrientation, quaternion.axis, quaternion.angle)
             
+            # radians_ = self._restInterface.rest_get(('root', 1, 'rotation'))
+            # degrees_ = tuple(degrees(_) for _ in radians_)
+            # orientation = self._restInterface.rest_get(
+            #     ('root', 1, 'worldOrientation'))
+            # print(orientation, radians_, degrees_)
+            # 
+            # self._restInterface.rest_put(
+            #     (0, 0, radians(45)), ('root', 1, 'rotation'))
+            # radians_ = self._restInterface.rest_get(('root', 1, 'rotation', 2))
+            # print(radians_, degrees(radians_))
+
+            # self._restInterface.rest_put(
+            #     radians(60), ('root', 1, 'rotation', 2))
+            # radians_ = self._restInterface.rest_get(('root', 1, 'rotation', 2))
+            # print(radians_, degrees(radians_))
+            # radians_ = self._restInterface.rest_get(('root', 1, 'rotation'))
+            # degrees_ = tuple(degrees(_) for _ in radians_)
+            # orientation = self._restInterface.rest_get(
+            #     ('root', 1, 'worldOrientation'))
+            # print(orientation, radians_, degrees_)
             
+            valuePath = ('root', 1, 'rotation', 2)
+            animation = {
+                'path': valuePath,
+                'speed': radians(5),
+                'targetValue': radians(60)}
+            animationPath = ['animations', 1]
+            #
+            # Insert the animation. The point maker will set the store
+            # attribute.
+            log(INFO, 'Patching {} {}', animationPath, animation)
+            self._restInterface.rest_put(animation, animationPath)
+            #
+            # Set the start time, which has the following side effects:
+            # -   Retrieves the start value.
+            # -   Clears the complete state.
+            animationPath.append('startTime')
+            self._restInterface.rest_put(self.tickPerf, animationPath)
+
             
         finally:
             self.mainLock.release()

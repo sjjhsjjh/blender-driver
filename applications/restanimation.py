@@ -78,6 +78,8 @@ class Application(demonstration.Application):
         "Ctrl-Q to terminate; space, plus, minus, or 0 to move object 0;"
         , "plus Ctrl to move object 2. Object 1 doesn't move."))
 
+    objectCount = 3
+
     def data_initialise(self):
         super().data_initialise()
         self.bpyutils.delete_except(self.dontDeletes)
@@ -91,77 +93,19 @@ class Application(demonstration.Application):
         self.mainLock.acquire()
         try:
             self._GameObject = get_game_object_subclass(self.bge)
-
             objectName = self._objectName
-
             #
             # Insert game objects.
-            objectCount = 3
-            for index in range(objectCount):
+            for index in range(self.objectCount):
                 object_ = self._GameObject(self.game_add_object(objectName))
                 self._restInterface.rest_put(object_, ('root', index))
                 #
                 # Displace along the y axis.
                 axisPath = ('root', index, 'worldPosition', 1)
                 value = self._restInterface.rest_get(axisPath)
-                displace = 3.0 * (float(index) - (float(objectCount) / 2.0))
-                self._restInterface.rest_put(value + displace, axisPath)
-            
-            # worldOrientation = self._restInterface.rest_get((
-            #     'root', 1, 'worldOrientation'))
-            # quaternion = worldOrientation.to_quaternion()
-            # print(worldOrientation, quaternion.axis, quaternion.angle)
-            # rotation = Matrix.Rotation(radians(30), 4, 'Z')
-            # quaternion.rotate(rotation)
-            # print(worldOrientation, quaternion)
-            # self._restInterface.rest_put(
-            #     quaternion, ('root', 1, 'worldOrientation'))
-            # 
-            # worldOrientation = self._restInterface.rest_get((
-            #     'root', 1, 'worldOrientation'))
-            # quaternion = worldOrientation.to_quaternion()
-            # print('After', worldOrientation, quaternion.axis, quaternion.angle)
-            
-            # radians_ = self._restInterface.rest_get(('root', 1, 'rotation'))
-            # degrees_ = tuple(degrees(_) for _ in radians_)
-            # orientation = self._restInterface.rest_get(
-            #     ('root', 1, 'worldOrientation'))
-            # print(orientation, radians_, degrees_)
-            # 
-            # self._restInterface.rest_put(
-            #     (0, 0, radians(45)), ('root', 1, 'rotation'))
-            # radians_ = self._restInterface.rest_get(('root', 1, 'rotation', 2))
-            # print(radians_, degrees(radians_))
-
-            # self._restInterface.rest_put(
-            #     radians(60), ('root', 1, 'rotation', 2))
-            # radians_ = self._restInterface.rest_get(('root', 1, 'rotation', 2))
-            # print(radians_, degrees(radians_))
-            # radians_ = self._restInterface.rest_get(('root', 1, 'rotation'))
-            # degrees_ = tuple(degrees(_) for _ in radians_)
-            # orientation = self._restInterface.rest_get(
-            #     ('root', 1, 'worldOrientation'))
-            # print(orientation, radians_, degrees_)
-            
-            valuePath = ('root', 1, 'rotation', 2)
-            animation = {
-                'path': valuePath,
-                'speed': radians(5),
-                'targetValue': radians(60)}
-            animationPath = ['animations', 1]
-            #
-            # Insert the animation. The point maker will set the store
-            # attribute.
-            log(INFO, 'Patching {} {}', animationPath, animation)
-            self._restInterface.rest_put(animation, animationPath)
-            #
-            # Set the start time, which has the following side effects:
-            # -   Retrieves the start value.
-            # -   Clears the complete state.
-            animationPath.append('startTime')
-            self._restInterface.rest_put(self.tickPerf, animationPath)
-
-            
+                displace = (
+                    3.0 * (float(index) - (float(self.objectCount) / 2.0)))
+                self._restInterface.rest_put(value + displace, axisPath)            
         finally:
             self.mainLock.release()
 
@@ -189,20 +133,22 @@ class Application(demonstration.Application):
             objectNumber = 2
 
         if keyString == " ":
-            self.animate(objectNumber, None)
+            self.animate_linear(objectNumber, None)
         elif keyString == "+":
-            self.animate(objectNumber, 1)
+            self.animate_linear(objectNumber, 1)
         elif keyString == "-":
-            self.animate(objectNumber, -1)
+            self.animate_linear(objectNumber, -1)
         elif keyString == "0":
-            self.animate(objectNumber, 0)
+            self.animate_linear(objectNumber, 0)
+        elif keyString == ">":
+            self.animate_rotating(objectNumber, 1)
         elif keyString == "":
             pass
         else:
             log(INFO, 'No command for keypress. {} "{}" ctrl:{} alt:{}'
                 , keyEvents, keyString, ctrl, alt)
         
-    def animate(self, objectNumber, direction):
+    def animate_linear(self, objectNumber, direction):
         self.mainLock.acquire()
         try:
             #
@@ -245,6 +191,39 @@ class Application(demonstration.Application):
             # -   Clears the complete state.
             animationPath.append('startTime')
             restInterface.rest_put(self.tickPerf, animationPath)
+        finally:
+            self.mainLock.release()
+        
+    def animate_rotating(self, objectNumber, direction):
+        self.mainLock.acquire()
+        try:
+            #
+            # Convenience variable.
+            restInterface = self._restInterface
+            #
+            # Path to the object's X rotation.
+            valuePath = ('root', objectNumber, 'rotation', 0)
+            #
+            # Assemble the animation in a dictionary, starting with these.
+            animation = {
+                'path': valuePath,
+                'speed': radians(150),
+                'targetValue': radians(150)}
+            #
+            # There is up to one rotation animation per object.
+            animationPath = ['animations', objectNumber + self.objectCount]
+            #
+            # Insert the animation. The point maker will set the store
+            # attribute.
+            log(INFO, 'Patching {} {}', animationPath, animation)
+            self._restInterface.rest_put(animation, animationPath)
+            #
+            # Set the start time, which has the following side effects:
+            # -   Retrieves the start value.
+            # -   Clears the complete state.
+            animationPath.append('startTime')
+            self._restInterface.rest_put(self.tickPerf, animationPath)
+
         finally:
             self.mainLock.release()
         

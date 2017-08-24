@@ -11,7 +11,12 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
-# Module for arctan.
+# Module for levelled logging messages.
+# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
+# Reference is here: https://docs.python.org/3.5/library/logging.html
+from logging import DEBUG, INFO, WARNING, ERROR, log
+#
+# Module for mathematical operations needed to decompose a rotation matrix.
 # https://docs.python.org/3.5/library/math.html
 from math import atan2, pow, sqrt
 #
@@ -98,6 +103,13 @@ class Rotation(object):
     def _set_list(self):
         """Set the list property from the rotation of the game object."""
         orientation = self._gameObject.worldOrientation
+        if self._orientationCache == orientation:
+            log(DEBUG, 'Used orientationCache')
+            return
+        #
+        # Cache the orientation because the self._list setting looks like quite
+        # an expensive calculation.
+        self._orientationCache = orientation.copy()
         #
         # Formula for decomposition of a 3x3 rotation matrix into x, y, and z
         # rotations comes from this page: http://nghiaho.com/?page_id=846
@@ -108,8 +120,10 @@ class Rotation(object):
                          + pow(orientation[2][2], 2))),
             atan2(orientation[1][0], orientation[0][0])
         ]
-        # ToDo: Cache the list probably. It seems like it might be quite an
-        # expensive calculation.
+        
+        # quaternion = orientation.to_quaternion()
+        # print(self._list, quaternion.w, quaternion.x, quaternion.y, quaternion.z)
+        
     
     @property
     def x(self):
@@ -151,20 +165,23 @@ class Rotation(object):
         # Apply the rotation to the BGE object.
         #
         # Start by setting its rotation to none, i.e. identity matrix.
-        self._gameObject.worldOrientation.identity()
+        # self._gameObject.worldOrientation.identity()
+        worldOrientation = self._gameObject.worldOrientation.copy()
+        worldOrientation.identity()
         #
         # Apply the rotation in each dimension, in order.
         for dimension, value in enumerate(self._list):
-            if value is None:
-                continue
-            self._gameObject.worldOrientation.rotate(
-                Matrix.Rotation(value, 4, self.axes[dimension]))
+            worldOrientation.rotate(Quaternion(self.axes[dimension], value,))
+        self._gameObject.worldOrientation = worldOrientation
     
     def __init__(self, gameObject, initialiser=None):
         self._gameObject = gameObject
+        self._orientationCache = None
         if initialiser is None:
             self._set_list()
         else:
+            # Next statement invokes __setitem__ which will invoke _set_list
+            # anyway.
             self[:] = list(initialiser)
             self._apply()
 

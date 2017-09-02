@@ -76,6 +76,7 @@ class Application(demonstration.Application):
     # Override.
     _instructions = "\n".join((
         "Ctrl-Q to terminate; space, plus, minus, or 0 to move object 0;"
+        , "< or > to rotate it;"
         , "plus Ctrl to move object 2. Object 1 doesn't move."))
 
     objectCount = 3
@@ -140,8 +141,11 @@ class Application(demonstration.Application):
             self.animate_linear(objectNumber, -1)
         elif keyString == "0":
             self.animate_linear(objectNumber, 0)
+            self.animate_angular(objectNumber, 0)
         elif keyString == ">":
             self.animate_angular(objectNumber, 1)
+        elif keyString == "<":
+            self.animate_angular(objectNumber, -1)
         elif keyString == "":
             pass
         else:
@@ -160,7 +164,7 @@ class Application(demonstration.Application):
             #
             # Assemble the animation in a dictionary, starting with these.
             animation = {
-                'animationType': "LINEAR",
+                'modulo': 0,
                 'path': valuePath,
                 'speed': self.arguments.speed
             }
@@ -210,10 +214,17 @@ class Application(demonstration.Application):
             #
             # Assemble the animation in a dictionary, starting with these.
             animation = {
-                'animationType': "ANGULAR",
+                'modulo': radians(360),
                 'path': valuePath,
-                'speed': radians(150),
-                'targetValue': radians(150)}
+                'speed': radians(-150 if direction <= 0 else 150)}
+            if direction == 0:
+                animation['targetValue'] = 0.0
+            else:
+                #
+                # Get the current value, which will be in radians.
+                # value = restInterface.rest_get(valuePath)
+                # animation['targetValue'] = value + radians(150 * direction)
+                animation['targetValue'] = None
             #
             # There is up to one rotation animation per object.
             animationPath = ['animations', objectNumber + self.objectCount]

@@ -164,8 +164,8 @@ class Rotation(object):
     def _apply(self):
         # Apply the rotation to the BGE object.
         #
-        # Start by setting its rotation to none, i.e. identity matrix.
-        # self._gameObject.worldOrientation.identity()
+        # Start with an identity matrix of the same size as the world
+        # orientation.
         worldOrientation = self._gameObject.worldOrientation.copy()
         worldOrientation.identity()
         #

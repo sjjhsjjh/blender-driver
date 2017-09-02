@@ -18,30 +18,11 @@ from enum import Enum
 #
 # Module for mathematical operations, used by angular animation.
 # https://docs.python.org/3.5/library/math.html
-from math import fmod, pi
+from math import fmod
 #
 # Local imports, would go here.
 
-class AnimationType(Enum):
-    LINEAR = 1
-    ANGULAR = 2
-
 class Animation(object):
-    @property
-    def animationType(self):
-        return self._animationType
-    @animationType.setter
-    def animationType(self, animationType):
-        """\
-        Set to an AnimationType or the name of one of them: "LINEAR" or
-        "ANGULAR".
-        """
-        if not isinstance(animationType, AnimationType):
-            # Assume it's a string and the name of a type.
-            animationType = AnimationType[animationType.upper()]
-        
-        self._animationType = animationType
-
     @property
     def startTime(self):
         return self._startTime
@@ -81,6 +62,21 @@ class Animation(object):
         self._complete = False
         
     @property
+    def modulo(self):
+        """\
+        Set this to implement angular animations, as follows.
+        
+        -   360 for an angular degrees property.
+        -   2.0 * pi or radians(360) for an angular radians property.
+        -   0 for a linear property.
+        """
+        return self._modulo
+    @modulo.setter
+    def modulo(self, modulo):
+        self._modulo = modulo
+        self._complete = False
+    
+    @property
     def complete(self):
         """True if the animation has reached its target, or False otherwise."""
         return self._complete
@@ -110,28 +106,40 @@ class Animation(object):
         increment = (self.nowTime - self.startTime) * self.speed
         start = self.startValue
         target = self.targetValue
+        modulo = self.modulo
+        if modulo == 0:
+            modulo = None
+        #
+        # Flag for whether this is a simple animation, i.e. it will reach its
+        # target by repeated application of the increment.
+        simple = (
+            (target is None)
+            or (target > start and increment > 0)
+            or (target < start and increment < 0))
         #
         # Negate the increment, if necessary.
-        if self.animationType is AnimationType.LINEAR and target is not None:
-            if (
-                (target > start and increment < 0)
-                or (target < start and increment > 0)
-            ):
-                increment *= -1
+        if (not simple) and (modulo is None):
+            increment *= -1
         #
         # Generate a candidate animated value.
         nowValue = start + increment
         #
         # Apply the target value, if any.
         if target is not None:
-            if self.animationType is AnimationType.ANGULAR:
-                mod = pi * 2.0
-                adjustedStart = fmod(start - target, mod)
+            if simple or (modulo is None):
+                if (
+                    (start <= target and nowValue >= target)
+                    or (start >= target and nowValue <= target)
+                ):
+                    nowValue = target
+                    self._complete = True
+            else:
+                adjustedStart = fmod(start - target, modulo)
                 if adjustedStart < 0.0:
-                    adjustedStart += mod
-                adjustedNow = fmod(nowValue - target, mod)
+                    adjustedStart += modulo
+                adjustedNow = fmod(nowValue - target, modulo)
                 if adjustedNow < 0.0:
-                    adjustedNow += mod
+                    adjustedNow += modulo
 
                 if (
                     (adjustedStart == 0.0)
@@ -140,22 +148,11 @@ class Animation(object):
                 ):
                     nowValue = target
                     self._complete = True
-            elif self.animationType is AnimationType.LINEAR:
-                if (
-                    (start <= target and nowValue >= target)
-                    or (start >= target and nowValue <= target)
-                ):
-                    nowValue = target
-                    self._complete = True
-            else:
-                raise AssertionError(
-                    "Unknown animation type:{}".format(self.animationType))
         return nowValue
 
     def __init__(self):
-        # Default to linear animation.
-        self._animationType = AnimationType.LINEAR
-
+        self._modulo = None
+        
         self._speed = None
         self._startValue = None
         self._startTime = None
@@ -163,20 +160,3 @@ class Animation(object):
         self._targetValue = None
 
         self._complete = False
-
-# class AnimationAngular(Animation):
-#     
-#     # Override.
-#     def get_value(self):
-#         #
-#         # Convenience variables.
-#         increment = (self.nowTime - self.startTime) * self.speed
-#         start = self.startValue
-#         target = self.targetValue
-#         #
-#         # Generate a candidate animated value.
-#         nowValue = start + increment
-#         #
-#         # Apply the target value, if any.
-#         if target is not None:
-#         return nowValue

@@ -141,7 +141,7 @@ class Application(demonstration.Application):
         elif keyString == "0":
             self.animate_linear(objectNumber, 0)
         elif keyString == ">":
-            self.animate_rotating(objectNumber, 1)
+            self.animate_angular(objectNumber, 1)
         elif keyString == "":
             pass
         else:
@@ -159,7 +159,11 @@ class Application(demonstration.Application):
             valuePath = ('root', objectNumber, 'worldPosition', 2)
             #
             # Assemble the animation in a dictionary, starting with these.
-            animation = {'path': valuePath, 'speed': self.arguments.speed}
+            animation = {
+                'animationType': "LINEAR",
+                'path': valuePath,
+                'speed': self.arguments.speed
+            }
             #
             # Get the current value.
             value = restInterface.rest_get(valuePath)
@@ -194,7 +198,7 @@ class Application(demonstration.Application):
         finally:
             self.mainLock.release()
         
-    def animate_rotating(self, objectNumber, direction):
+    def animate_angular(self, objectNumber, direction):
         self.mainLock.acquire()
         try:
             #
@@ -206,6 +210,7 @@ class Application(demonstration.Application):
             #
             # Assemble the animation in a dictionary, starting with these.
             animation = {
+                'animationType': "ANGULAR",
                 'path': valuePath,
                 'speed': radians(150),
                 'targetValue': radians(150)}

@@ -108,12 +108,15 @@ class PathAnimation(Animation):
     # animation. That would stymie caching.
 
 
+
+
+
 class AnimatedRestInterface(RestInterface):
     """RestInterface with the following items at the top level.
     
     -   'animations' is a collection of animations.
-    -   'nowTime' is a shorthand, the setting of which sets the nowTime in all
-        the animations in the collection.
+    -   'nowTime' is a shorthand property, the setting of which sets the nowTime
+        property in all the animations in the collection.
     -   'root' is the conventional item for the principal data.
     """
     
@@ -143,6 +146,9 @@ class AnimatedRestInterface(RestInterface):
         except KeyError:
             animations = tuple()
         completions = 0
+        # ToDo: Make it descend, perhaps by adding a walk method to pathstore.
+        # Walk would descend through dict, list, and tuple levels and emit their
+        # childs.
         for animation in animations:
             if animation is not None and not animation.complete:
                 # Setting nowTime has the side effect of applying the animation.

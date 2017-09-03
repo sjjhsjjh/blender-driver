@@ -57,7 +57,7 @@ from mathutils import Vector, Matrix, Quaternion
 from . import demonstration
 #
 # Wrapper for Blender game object that is easy to make RESTful.
-from path_store.blender_game_engine import get_game_object_subclass
+from path_store.blender_game_engine import get_game_object_subclass, Cursor
 #
 # RESTful interface base class and Animation subclass for pathstore.
 from path_store.rest import AnimatedRestInterface
@@ -69,8 +69,15 @@ print('"'.join(('Application module ', __name__, '.')))
 class Application(demonstration.Application):
     
     templates = {
-        'cube': {'subtype':'Cube', 'physicsType':'NO_COLLISION'
-                   , 'location': (0, 0, 0)}
+        'cube': {
+            'subtype':'Cube', 'physicsType':'RIGID_BODY',
+            'location': (0, 0, 0)},
+        'visualiser': {
+            'subtype':'Cube', 'physicsType':'NO_COLLISION',
+            'location': (0, 0, 0), 'scale': (0.1, 0.1, 0.1)},
+        'floor': {
+            'subtype':'Cube', 'physicsType':'STATIC',
+            'location': (0, 0, -4.0), 'scale': (10, 10, 0.1)}
     }
 
     # Override.
@@ -84,6 +91,10 @@ class Application(demonstration.Application):
     def data_initialise(self):
         super().data_initialise()
         self.bpyutils.delete_except(self.dontDeletes)
+
+
+    def _add_visualiser(self):
+        return self._GameObject(self.game_add_object('visualiser'))
 
     # Overriden.
     def game_initialise(self):
@@ -106,7 +117,19 @@ class Application(demonstration.Application):
                 value = self._restInterface.rest_get(axisPath)
                 displace = (
                     3.0 * (float(index) - (float(self.objectCount) / 2.0)))
-                self._restInterface.rest_put(value + displace, axisPath)            
+                self._restInterface.rest_put(value + displace, axisPath)
+                
+            self._floor = self._GameObject(self.game_add_object('floor'))
+                
+            cursor = Cursor()
+            cursor.add_visualiser = self._add_visualiser
+            cursor.restInterface = self._restInterface
+            cursor.subjectPath = ('root', 0)
+            cursor.offset = 3.0
+            cursor.length = 4.0
+            cursor.radius = 2.0
+            cursor.rotation = radians(-30)
+            cursor.visible = True
         finally:
             self.mainLock.release()
 
@@ -117,6 +140,17 @@ class Application(demonstration.Application):
             # Set the top-level nowTime shortcut, which sets it in all the
             # current animations, which makes them animate in the scene.
             self._restInterface.nowTime = self.tickPerf
+            
+            try:
+                animations = self._restInterface.rest_get('animations')
+            except KeyError:
+                animations = tuple()
+            for index, animation in enumerate(animations):
+                if animation is not None and animation.complete:
+                    object_ = self._restInterface.rest_get(animation.path[:-2])
+                    object_.restoreDynamics()
+                    self._restInterface.rest_put(None, ('animations', index))
+            
         finally:
             self.mainLock.release()
 
@@ -143,21 +177,88 @@ class Application(demonstration.Application):
             self.animate_linear(objectNumber, 0)
             self.animate_angular(objectNumber, 0)
         elif keyString == ">":
-            self.animate_angular(objectNumber, 1)
-        elif keyString == "<":
             self.animate_angular(objectNumber, -1)
+        elif keyString == "<":
+            self.animate_angular(objectNumber, 1)
+        elif keyString == "s":
+            self.animate_size(objectNumber, 1)
+        elif keyString == "S":
+            self.animate_size(objectNumber, 0)
         elif keyString == "":
             pass
         else:
             log(INFO, 'No command for keypress. {} "{}" ctrl:{} alt:{}'
                 , keyEvents, keyString, ctrl, alt)
         
+    def animate_size(self, objectNumber, direction):
+        self.mainLock.acquire()
+        try:
+            #
+            # Convenience variable.
+            restInterface = self._restInterface
+
+            objectPath = ('root', objectNumber)
+            object_ = restInterface.rest_get(objectPath)
+            object_.suspendDynamics()
+
+
+
+            #
+            # Path to the object's Z value.
+            valuePath = ('root', objectNumber, 'worldScale', 2)
+            #
+            # Assemble the animation in a dictionary, starting with these.
+            animation = {
+                'modulo': 0,
+                'path': valuePath,
+                'speed': 1.0
+            }
+            #
+            # Get the current value.
+            value = restInterface.rest_get(valuePath)
+            #
+            # Set the speed and target value, based on the current value and the
+            # direction parameter.
+            if direction is None:
+                target = self.arguments.target
+                if value > 0:
+                    target *= -1
+                animation['targetValue'] = value + target
+            elif direction == 0:
+                animation['targetValue'] = 1.0
+            else:
+                animation['targetValue'] = value + 1.0
+            #
+            # There is up to one size animation per object.
+            animationPath = ['animations',
+                             objectNumber + (self.objectCount * 2)]
+            #
+            # Insert the animation. The point maker will set the store
+            # attribute.
+            log(INFO, 'Patching {} {}', animationPath, animation)
+            restInterface.rest_put(animation, animationPath)
+            #
+            # Set the start time, which has the following side effects:
+            # -   Retrieves the start value.
+            # -   Clears the complete state.
+            animationPath.append('startTime')
+            restInterface.rest_put(self.tickPerf, animationPath)
+        finally:
+            self.mainLock.release()
+
     def animate_linear(self, objectNumber, direction):
         self.mainLock.acquire()
         try:
             #
             # Convenience variable.
             restInterface = self._restInterface
+
+            objectPath = ('root', objectNumber)
+            object_ = restInterface.rest_get(objectPath)
+            object_.suspendDynamics()
+
+
+
             #
             # Path to the object's Z value.
             valuePath = ('root', objectNumber, 'worldPosition', 2)
@@ -208,9 +309,14 @@ class Application(demonstration.Application):
             #
             # Convenience variable.
             restInterface = self._restInterface
+            
+            objectPath = ('root', objectNumber)
+            object_ = restInterface.rest_get(objectPath)
+            object_.suspendDynamics()
+            
             #
-            # Path to the object's X rotation.
-            valuePath = ('root', objectNumber, 'rotation', 0)
+            # Path to the object's Z rotation.
+            valuePath = ('root', objectNumber, 'rotation', 2)
             #
             # Assemble the animation in a dictionary, starting with these.
             animation = {
@@ -222,9 +328,9 @@ class Application(demonstration.Application):
             else:
                 #
                 # Get the current value, which will be in radians.
-                # value = restInterface.rest_get(valuePath)
-                # animation['targetValue'] = value + radians(150 * direction)
-                animation['targetValue'] = None
+                value = restInterface.rest_get(valuePath)
+                animation['targetValue'] = value + radians(150 * direction)
+                # animation['targetValue'] = None
             #
             # There is up to one rotation animation per object.
             animationPath = ['animations', objectNumber + self.objectCount]

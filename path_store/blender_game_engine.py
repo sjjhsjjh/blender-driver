@@ -52,6 +52,11 @@ def get_game_object_subclass(bge):
     KX_GameObject = bge.types.KX_GameObject
     
     class GameObject(KX_GameObject):
+        """\
+        Subclass with intercept properties for worldScale, worldPosition, and in
+        future other array properties whose elements are immutable in the base
+        class.
+        """
         @InterceptProperty()
         def worldScale(self):
             return super().worldScale
@@ -91,8 +96,20 @@ def get_game_object_subclass(bge):
         def rotation(self, rotation):
             self._rotation = Rotation(self, rotation)
         
+        def make_vector(self, startVector, endVector, calibre=0.1):
+            vector = endVector - startVector
+            if vector.magnitude == 0.0:
+                self.worldScale = (calibre, calibre, calibre)
+            else:
+                self.worldScale = (calibre, calibre, vector.magnitude/2.0)
+            self.worldPosition = startVector + vector/2.0
+            if vector.magnitude != 0.0:
+                self.alignAxisToVect(vector)
+
         def __init__(self, oldOwner):
             self._rotation = Rotation(self)
+
+
 
     return GameObject
         
@@ -120,10 +137,6 @@ class Rotation(object):
                          + pow(orientation[2][2], 2))),
             atan2(orientation[1][0], orientation[0][0])
         ]
-        
-        # quaternion = orientation.to_quaternion()
-        # print(self._list, quaternion.w, quaternion.x, quaternion.y, quaternion.z)
-        
     
     @property
     def x(self):
@@ -185,9 +198,148 @@ class Rotation(object):
             self[:] = list(initialiser)
             self._apply()
 
-# -   BGE interface will be like: create a KXGameObject, create a wrapper around
-#     it, set the wrapper as principal.
-# 
+class Cursor(object):
+    @property
+    def subjectPath(self):
+        return self._subjectPath
+    @subjectPath.setter
+    def subjectPath(self, subjectPath):
+        self._subjectPath = subjectPath
+        self._update()
+    
+    @property
+    def restInterface(self):
+        return self._restInterface
+    @restInterface.setter
+    def restInterface(self, restInterface):
+        self._restInterface = restInterface
+        self._update()
+        
+    @property
+    def add_visualiser(self):
+        return self._add_visualiser
+    @add_visualiser.setter
+    def add_visualiser(self, add_visualiser):
+        self._add_visualiser = add_visualiser
+        self._update()
+    
+    @property
+    def visible(self):
+        return self._visible
+    @visible.setter
+    def visible(self, visible):
+        self._visible = visible
+        self._update()
+
+    #
+    # Properties that define the cursor.
+    #
+    @property
+    def offset(self):
+        return self._offset
+    @offset.setter
+    def offset(self, offset):
+        self._offset = offset
+        self._update()
+    #
+    @property
+    def length(self):
+        return self._length
+    @length.setter
+    def length(self, length):
+        self._length = length
+        self._update()
+    #
+    @property
+    def radius(self):
+        return self._radius
+    @radius.setter
+    def radius(self, radius):
+        self._radius = radius
+        self._update()
+    #
+    @property
+    def rotation(self):
+        return self._rotation
+    @rotation.setter
+    def rotation(self, rotation):
+        self._rotation = rotation
+        self._update()
+
+    #
+    # Helper properties, read-only but updated by setting other properties.
+    #
+    @property
+    def origin(self):
+        return self._origin
+    @property
+    def end(self):
+        return self._end
+    @property
+    def point(self):
+        return self._point
+    
+
+    def _update(self):
+        if self._subjectPath is not None and self._restInterface is not None:
+            self._subject = self.restInterface.rest_get(self.subjectPath)
+        subject = self._subject
+
+        if subject is not None:
+            zAxis = Vector((0,0,1))
+            axisVector = subject.getAxisVect(zAxis)
+            
+            self._origin = subject.worldPosition.copy()
+            if self._offset is not None:
+                self._origin += self._offset * axisVector
+            self._end = self._origin.copy()
+            if self._length is not None:
+                self._end += self._length * axisVector
+            self._point = self._end.copy()
+            if self._radius is not None:
+                rotationVector = Vector((self._radius, 0, 0))
+                if self._rotation is not None:
+                    quaternion = Quaternion(zAxis, self._rotation)
+                    rotationVector.rotate(quaternion)
+                radiusVector = subject.getAxisVect(rotationVector)
+            
+                self._point += radiusVector
+
+        if self._visible and subject is not None:
+            if self._visualisers is None and self._add_visualiser is not None:
+                visualOrigin = self._add_visualiser()
+                visualOrigin.setParent(subject)
+                visualOrigin.make_vector(self._origin, self._end)
+                visualEnd = self._add_visualiser()
+                visualEnd.setParent(subject)
+                visualEnd.make_vector(self._end, self._point)
+                visualPoint = self._add_visualiser()
+                visualPoint.setParent(subject)
+                visualPoint.make_vector(self._point, self._origin)
+                self._visualisers = (visualOrigin, visualEnd, visualPoint)
+                
+
+        # ToDo: End the visualiser if not visible.
+            
+    def __init__(self):
+        self._subject = None
+        self._visualisers = None
+
+        self._subjectPath = None
+        self._restInterface = None
+        self._add_visualiser = None
+        self._visible = False
+
+        self._offset = None
+        self._length = None
+        self._radius = None
+        self._rotation = None
+
+        self._origin = None
+        self._end = None
+        self._point = None
+        
+
 # 
 # class RestBGEObject(RestInterface):
 #     

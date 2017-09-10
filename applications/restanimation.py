@@ -28,7 +28,7 @@ from logging import DEBUG, INFO, WARNING, ERROR, log
 #
 # Module for degrees to radian conversion.
 # https://docs.python.org/3.5/library/math.html
-from math import degrees, radians
+from math import radians
 #
 # Third party modules, in alphabetic order.
 #
@@ -44,20 +44,13 @@ from math import degrees, radians
 # elsewhere.
 # https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
 #
-# Blender Game Engine maths utilities, which can only be imported if running
-# from within the Blender Game Engine.
-# Import isn't needed because this class gets a Vector from the bpy layer.
-# http://www.blender.org/api/blender_python_api_current/mathutils.html
-# They're super-effective!
-from mathutils import Vector, Matrix, Quaternion
-#
 # Local imports.
 #
 # Blender Driver application with background banner.
 from . import demonstration
 #
 # Wrapper for Blender game object that is easy to make RESTful.
-from path_store.blender_game_engine import get_game_object_subclass, Cursor
+from path_store.blender_game_engine import get_game_object_subclass
 #
 # RESTful interface base class and Animation subclass for pathstore.
 from path_store.rest import AnimatedRestInterface
@@ -70,14 +63,8 @@ class Application(demonstration.Application):
     
     templates = {
         'cube': {
-            'subtype':'Cube', 'physicsType':'RIGID_BODY',
-            'location': (0, 0, 0)},
-        'visualiser': {
             'subtype':'Cube', 'physicsType':'NO_COLLISION',
-            'location': (0, 0, 0), 'scale': (0.1, 0.1, 0.1)},
-        'floor': {
-            'subtype':'Cube', 'physicsType':'STATIC',
-            'location': (0, 0, -4.0), 'scale': (10, 10, 0.1)}
+            'location': (0, 0, 0)}
     }
 
     # Override.
@@ -91,10 +78,6 @@ class Application(demonstration.Application):
     def data_initialise(self):
         super().data_initialise()
         self.bpyutils.delete_except(self.dontDeletes)
-
-
-    def _add_visualiser(self):
-        return self._GameObject(self.game_add_object('visualiser'))
 
     # Overriden.
     def game_initialise(self):
@@ -118,18 +101,7 @@ class Application(demonstration.Application):
                 displace = (
                     3.0 * (float(index) - (float(self.objectCount) / 2.0)))
                 self._restInterface.rest_put(value + displace, axisPath)
-                
-            self._floor = self._GameObject(self.game_add_object('floor'))
-                
-            cursor = Cursor()
-            cursor.add_visualiser = self._add_visualiser
-            cursor.restInterface = self._restInterface
-            cursor.subjectPath = ('root', 0)
-            cursor.offset = 3.0
-            cursor.length = 4.0
-            cursor.radius = 2.0
-            cursor.rotation = radians(-30)
-            cursor.visible = True
+
         finally:
             self.mainLock.release()
 
@@ -140,16 +112,6 @@ class Application(demonstration.Application):
             # Set the top-level nowTime shortcut, which sets it in all the
             # current animations, which makes them animate in the scene.
             self._restInterface.nowTime = self.tickPerf
-            
-            try:
-                animations = self._restInterface.rest_get('animations')
-            except KeyError:
-                animations = tuple()
-            for index, animation in enumerate(animations):
-                if animation is not None and animation.complete:
-                    object_ = self._restInterface.rest_get(animation.path[:-2])
-                    object_.restoreDynamics()
-                    self._restInterface.rest_put(None, ('animations', index))
             
         finally:
             self.mainLock.release()
@@ -196,15 +158,8 @@ class Application(demonstration.Application):
             #
             # Convenience variable.
             restInterface = self._restInterface
-
-            objectPath = ('root', objectNumber)
-            object_ = restInterface.rest_get(objectPath)
-            object_.suspendDynamics()
-
-
-
             #
-            # Path to the object's Z value.
+            # Path to the object's Z size.
             valuePath = ('root', objectNumber, 'worldScale', 2)
             #
             # Assemble the animation in a dictionary, starting with these.
@@ -219,15 +174,13 @@ class Application(demonstration.Application):
             #
             # Set the speed and target value, based on the current value and the
             # direction parameter.
-            if direction is None:
-                target = self.arguments.target
-                if value > 0:
-                    target *= -1
-                animation['targetValue'] = value + target
-            elif direction == 0:
+            if direction == 0:
                 animation['targetValue'] = 1.0
             else:
-                animation['targetValue'] = value + 1.0
+                if value > 1.0 or direction > 0:
+                    animation['targetValue'] = value + (1.0 * direction)
+                else:
+                    animation['targetValue'] = value / 2.0
             #
             # There is up to one size animation per object.
             animationPath = ['animations',
@@ -252,13 +205,6 @@ class Application(demonstration.Application):
             #
             # Convenience variable.
             restInterface = self._restInterface
-
-            objectPath = ('root', objectNumber)
-            object_ = restInterface.rest_get(objectPath)
-            object_.suspendDynamics()
-
-
-
             #
             # Path to the object's Z value.
             valuePath = ('root', objectNumber, 'worldPosition', 2)
@@ -309,27 +255,27 @@ class Application(demonstration.Application):
             #
             # Convenience variable.
             restInterface = self._restInterface
-            
-            objectPath = ('root', objectNumber)
-            object_ = restInterface.rest_get(objectPath)
-            object_.suspendDynamics()
-            
             #
             # Path to the object's Z rotation.
-            valuePath = ('root', objectNumber, 'rotation', 2)
+            valuePath = ('root', objectNumber, 'rotation', 1)
             #
             # Assemble the animation in a dictionary, starting with these.
             animation = {
                 'modulo': radians(360),
                 'path': valuePath,
-                'speed': radians(-150 if direction <= 0 else 150)}
+                'speed': radians(45)}
+            #
+            # Get the current value, which will be in radians.
+            value = restInterface.rest_get(valuePath)
+            log(INFO, 'Value:{} Values:{}'.format(
+                value, restInterface.rest_get(valuePath[:-1])))
             if direction == 0:
                 animation['targetValue'] = 0.0
+                if value > 0.0:
+                    animation['speed'] *= -1
             else:
-                #
-                # Get the current value, which will be in radians.
-                value = restInterface.rest_get(valuePath)
-                animation['targetValue'] = value + radians(150 * direction)
+                animation['targetValue'] = value + radians(45 * direction)
+                animation['speed'] *= direction
                 # animation['targetValue'] = None
             #
             # There is up to one rotation animation per object.

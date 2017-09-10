@@ -159,6 +159,12 @@ class AnimatedRestInterface(RestInterface):
             log(INFO, "Animations:{}.".format(list(
                 None if _ is None else "Complete" if _.complete else "Incomplete" for _ in animations)))
 
+        gameObjects = self.rest_get('root')
+        for gameObject in gameObjects:
+            gameObject.update()
+
+
+
 # Do:
 #
 # -   restGetCache that contains only data that has been accessed through the

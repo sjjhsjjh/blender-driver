@@ -90,11 +90,24 @@ def get_game_object_subclass(bge):
             KX_GameObject.worldPosition.__set__(self, value)
 
         @property
+        def tether(self):
+            return self._tether
+        @tether.setter
+        def tether(self, tether):
+            self._tether = tether
+            self.update()
+            
+        def update(self):
+            if self.tether is not None:
+                self.tether.worldPosition = self.worldPosition.copy()
+                self.tether.worldOrientation = self.worldOrientation.copy()
+
+        @property
         def rotation(self):
             return self._rotation
         @rotation.setter
         def rotation(self, rotation):
-            self._rotation = Rotation(self, rotation)
+            self._rotation[:] = tuple(rotation)
         
         def make_vector(self, startVector, endVector, calibre=0.1):
             vector = endVector - startVector
@@ -108,35 +121,65 @@ def get_game_object_subclass(bge):
 
         def __init__(self, oldOwner):
             self._rotation = Rotation(self)
-
-
+            self._tether = None
 
     return GameObject
         
 class Rotation(object):
+    """Class to represent the x,y,z rotation of a Blender game object."""
+
+    # Each instance of this class has three lists:
+    #
+    # -   _listGameObject, which is created with maths from the rotation matrix
+    #     of the game object.
+    # -   _listSet, which only has elements that have been set externally.
+    # -   _list, which is a cache in which each element is the _listSet value,
+    #     if it has been set, or the _listGameObject value otherwise.
+    #
+    # The game object and cache lists are maintained by the getters and setters
+    # of the class.
+    #
+    # The set list is needed to support users that control some axes of
+    # rotation, and require consistent results, such as returning a value just
+    # set.
+    #
+    # For example, suppose a user makes repeated increments to the X rotation.
+    # The game object list will echo the increments to a point, but could switch
+    # direction, of the X rotation, at the point that it passes 90 degrees. At
+    # the switch, the Y and Z rotations will change, even if they haven't been
+    # set.
     
     axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
     
-    def _set_list(self):
+    def _set_list_game_object(self, cache):
         """Set the list property from the rotation of the game object."""
         orientation = self._gameObject.worldOrientation
         if self._orientationCache == orientation:
             log(DEBUG, 'Used orientationCache')
             return
         #
-        # Cache the orientation because the self._list setting looks like quite
-        # an expensive calculation.
+        # Cache the orientation because the list setting looks like quite an
+        # expensive calculation.
         self._orientationCache = orientation.copy()
         #
         # Formula for decomposition of a 3x3 rotation matrix into x, y, and z
         # rotations comes from this page: http://nghiaho.com/?page_id=846
-        self._list = [
+        self._listGameObject = (
             atan2(orientation[2][1], orientation[2][2]),
             atan2(orientation[2][0] * -1.0
                   , sqrt(pow(orientation[2][1], 2)
                          + pow(orientation[2][2], 2))),
             atan2(orientation[1][0], orientation[0][0])
-        ]
+        )
+        #
+        # Apply it to the cache.
+        if cache:
+            self._update_list()
+
+    def _update_list(self):
+        for index, setValue in enumerate(self._listSet):
+            self._list[index] = (
+                self._listGameObject[index] if setValue is None else setValue)
     
     @property
     def x(self):
@@ -163,12 +206,12 @@ class Rotation(object):
         return self._list.__len__()
 
     def __getitem__(self, specifier):
-        self._set_list()
+        self._set_list_game_object(True)
         return self._list.__getitem__(specifier)
     
     def __setitem__(self, specifier, value):
-        self._set_list()
-        self._list.__setitem__(specifier, value)
+        self._listSet.__setitem__(specifier, value)
+        self._update_list()
         self._apply()
         
     def __repr__(self):
@@ -183,20 +226,23 @@ class Rotation(object):
         worldOrientation.identity()
         #
         # Apply the rotation in each dimension, in order.
-        for dimension, value in enumerate(self._list):
-            worldOrientation.rotate(Quaternion(self.axes[dimension], value,))
-        self._gameObject.worldOrientation = worldOrientation
+        any = False
+        for dimension, value in enumerate(self._listSet):
+            if value is not None:
+                worldOrientation.rotate(Quaternion(self.axes[dimension], value))
+                any = True
+
+        if any:
+            self._gameObject.worldOrientation = worldOrientation
     
-    def __init__(self, gameObject, initialiser=None):
+    def __init__(self, gameObject):
         self._gameObject = gameObject
         self._orientationCache = None
-        if initialiser is None:
-            self._set_list()
-        else:
-            # Next statement invokes __setitem__ which will invoke _set_list
-            # anyway.
-            self[:] = list(initialiser)
-            self._apply()
+        
+        self._set_list_game_object(False)
+        self._listSet = [None] * len(self._listGameObject)
+        self._list = self._listSet[:]
+        self._update_list()
 
 class Cursor(object):
     @property
@@ -308,15 +354,15 @@ class Cursor(object):
         if self._visible and subject is not None:
             if self._visualisers is None and self._add_visualiser is not None:
                 visualOrigin = self._add_visualiser()
-                visualOrigin.setParent(subject)
                 visualOrigin.make_vector(self._origin, self._end)
                 visualEnd = self._add_visualiser()
-                visualEnd.setParent(subject)
                 visualEnd.make_vector(self._end, self._point)
                 visualPoint = self._add_visualiser()
-                visualPoint.setParent(subject)
                 visualPoint.make_vector(self._point, self._origin)
+
                 self._visualisers = (visualOrigin, visualEnd, visualPoint)
+                for visualiser in self._visualisers:
+                    visualiser.setParent(subject.tether)
                 
 
         # ToDo: End the visualiser if not visible.

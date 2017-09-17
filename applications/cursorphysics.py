@@ -89,68 +89,135 @@ class Application(restanimation.Application):
         , "< or > to rotate it;"
         , "plus Ctrl to move object 2. Object 1 doesn't move. TBD"))
 
+    # Override.
+    _objectRootPath = ('root','objects')
+
     def _add_visualiser(self):
         return self._GameObject(self.game_add_object('visualiser'))
 
     # Overriden.
     def game_initialise(self):
+        # Base class initialise will have instantiated the restInterface and
+        # added the game objects.
         super().game_initialise()
-
-
-
         
-        self._objectName = "cube"
-
-
-
         self.mainLock.acquire()
         try:
             #
-            # Add tether to game objects.
-            for index in range(self.objectCount):
-
-
+            # Add tethers and cursors to game objects.
+            #
+            # Working paths.
+            path = list(self._objectRootPath)
+            cursorPath = ['root', 'cursors']
+            #
+            # Loop for each object, by number.
+            for index in range(self._objectCount):
+                #
+                # Every object will have a cursor, so every object needs a
+                # tether. Tethers don't need to be accessible to the path store.
+                path.append(index)
+                object_ = self._restInterface.rest_get(path)
                 empty = self.game_add_object('empty')
                 object_.tether = empty
-
+                #
+                # Add the cursor to this object, and insert it into the path
+                # store.
+                #
+                # Set the cursor working path and create a new Cursor object.
+                cursorPath.append(index)
                 cursor = Cursor()
+                #
+                # Give the cursor the means to add visualiser objects.
                 cursor.add_visualiser = self._add_visualiser
+                #
+                # Cursor needs a restInterface to get an object from the path.
                 cursor.restInterface = self._restInterface
-                cursor.subjectPath = ('root', index)
-                cursor.offset = 3.0
-                cursor.length = 4.0
-                cursor.radius = 2.0
-                cursor.rotation = radians(90)
-                cursor.visible = True
-                
-            self._floor = self._GameObject(self.game_add_object('floor'))
-
+                #
+                # Put the cursor in the path store.
+                self._restInterface.rest_put(cursor, cursorPath)
+                #
+                # Set all its parameters except visibility in a big patch. Then
+                # set visibility in a single put, so that it gets set last.
+                self._restInterface.rest_patch({
+                    'subjectPath': tuple(path),
+                    'offset': 3.0, 'length': 4.0, 'radius': 2.0,
+                    'rotation': radians(90)
+                }, cursorPath)
+                cursorPath.append('visible')
+                self._restInterface.rest_put(True, cursorPath)
+                #
+                # Revert the working paths.
+                del cursorPath[-2:]
+                del path[-1:]
+            #
+            # Add the floor object, which is handy to stop objects dropping out
+            # of sight due to gravity.
+            object_ = self._GameObject(self.game_add_object('floor'))
+            path[-1] = 'floor'
+            self._restInterface.rest_put(object_, path)
+            # Note that path now points to floor.
+            #
+            log(INFO, "Objects, cursors, floor: {}"
+                , self._restInterface.rest_get())
         finally:
             self.mainLock.release()
 
     # Override.
     def game_tick_run(self):
-        super().game_tick_run()
+        # Base class tick isn't run.
+        # super().game_tick_run()
         self.mainLock.acquire()
         try:
-
-
-
-            try:
+            # Same as in the base class but here we will do something with the
+            # completions.
+            completions = self._restInterface.set_now_times(self.tickPerf)
+            for specifier, completed in completions:
+                userData = completed.userData
+                log(DEBUG, 'Complete "{}" {}', specifier, userData)
+                #
+                # Check if there are still other animations going on for this
+                # object.
                 animations = self._restInterface.rest_get('animations')
-            except KeyError:
-                animations = tuple()
-            for index, animation in enumerate(animations):
-                if animation is not None and animation.complete:
-                    object_ = self._restInterface.rest_get(animation.path[:-2])
+                still = False
+                for _, animation in animations.items():
+                    if animation is None:
+                        continue
+                    otherData = animation.userData
+                    if (
+                        otherData['number'] == userData['number']
+                        and not animation.complete
+                    ):
+                        still = True
+                #
+                # If there are no other animations: restore physics to the
+                # object and reset its rotation overrides.
+                if not still:
+                    object_ = self._restInterface.rest_get(userData['path'])
+                    log(INFO, "Restoring {}.", userData['path'])
                     object_.restoreDynamics()
-                    self._restInterface.rest_put(None, ('animations', index))
-            
+                    object_.rotation[:] = (None, None, None)
+                #
+                # Discard the completed animation object, so that the above and
+                # other loops can run faster.
+                self._restInterface.rest_put(None, ('animations', specifier))
+            #
+            # Update all cursors, by updating all physics objects.
+            gameObjects = self._restInterface.rest_get(self._objectRootPath)
+            for gameObject in gameObjects:
+                gameObject.update()
         finally:
             self.mainLock.release()
 
     # No override for game_keyboard.
-        
-            # objectPath = ('root', objectNumber)
-            # object_ = restInterface.rest_get(objectPath)
-            # object_.suspendDynamics()
+    
+    # Override.
+    def _prepare_animation(self, animation):
+        objectPath = animation['userData']['path']
+        object_ = self._restInterface.rest_get(objectPath)
+        log(INFO, "Suspending {}.", objectPath)
+        object_.suspendDynamics(True)
+        # ToDo: Near here, copy all the rotation values into the setList in case
+        # one of them is being animated. Or maybe do that in the Rotation class.
+        #
+        # This could maybe be moved to the GameObject class and included in a
+        # setter for suspendPhysics.

@@ -62,13 +62,20 @@ class Animation(object):
         self._complete = False
         
     @property
+    def userData(self):
+        return self._userData
+    @userData.setter
+    def userData(self, userData):
+        self._userData = userData
+        
+    @property
     def modulo(self):
         """\
         Set this to implement angular animations, as follows.
         
         -   360 for an angular degrees property.
         -   2.0 * pi or radians(360) for an angular radians property.
-        -   0 for a linear property.
+        -   0 or None for a linear property.
         """
         return self._modulo
     @modulo.setter
@@ -152,6 +159,7 @@ class Animation(object):
 
     def __init__(self):
         self._modulo = None
+        self._userData = None
         
         self._speed = None
         self._startValue = None

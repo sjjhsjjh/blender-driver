@@ -34,8 +34,14 @@ class LogRecord(logging.LogRecord):
     """LogRecord subclass that uses format instead of percent."""
     
     def getMessage(self):
+        # print('getMessage "{}" {} {} {}'.format(
+        #     self.msg, isinstance(self.msg, str), self.args
+        #     , isinstance(self.args, dict)))
         if isinstance(self.msg, str):
-            return self.msg.format(*self.args)
+            if isinstance(self.args, dict):
+                return self.msg.format(self.args)
+            else:
+                return self.msg.format(*self.args)
         try:
             _ = self.args[0]
             raise TypeError("Log message with args but msg isn't string.")

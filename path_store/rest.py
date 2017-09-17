@@ -135,35 +135,33 @@ class AnimatedRestInterface(RestInterface):
 
         return super().point_maker(path, index, point)
     
-    @property
-    def nowTime(self):
-        return self._nowTime
-    @nowTime.setter
-    def nowTime(self, nowTime):
-        self._nowTime = nowTime
+    def set_now_times(self, nowTime):
         try:
             animations = self.rest_get('animations')
         except KeyError:
             animations = tuple()
-        completions = 0
+        completions = []
         # ToDo: Make it descend, perhaps by adding a walk method to pathstore.
         # Walk would descend through dict, list, and tuple levels and emit their
         # childs.
-        for animation in animations:
+        completionsLog = None
+        anyCompletions = False
+        for specifier, animation in pathstore.iterify(animations):
             if animation is not None and not animation.complete:
                 # Setting nowTime has the side effect of applying the animation.
                 animation.nowTime = nowTime
                 if animation.complete:
-                    completions += 1
-        if completions > 0:
-            log(INFO, "Animations:{}.".format(list(
-                None if _ is None else "Complete" if _.complete else "Incomplete" for _ in animations)))
-
-        gameObjects = self.rest_get('root')
-        for gameObject in gameObjects:
-            gameObject.update()
-
-
+                    anyCompletions = True
+                    completions.append((specifier, animation))
+            logValue = None if animation is None else (
+                "Complete" if animation.complete else "Incomplete")
+            completionsLog = pathstore.merge(
+                    completionsLog, logValue, specifier)
+        
+        if anyCompletions:
+            log(INFO, "Animations:{}.", completionsLog)
+        
+        return completions
 
 # Do:
 #

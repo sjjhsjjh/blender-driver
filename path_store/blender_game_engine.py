@@ -46,7 +46,8 @@ def get_game_object_subclass(bge):
     
         gameObject.worldScale[2] = 2.5 # Where 2.5 is the desired Y scale.
     
-    Pass as a parameter a reference to the bge module.
+    This is a function so that this file can be imported outside the context of
+    Blender Game Engine. Pass as a parameter a reference to the bge module.
     """
     
     KX_GameObject = bge.types.KX_GameObject
@@ -148,6 +149,17 @@ class Rotation(object):
     # direction, of the X rotation, at the point that it passes 90 degrees. At
     # the switch, the Y and Z rotations will change, even if they haven't been
     # set.
+    #
+    # ToDo: A better model could be as follows.
+    #
+    # -   Indicate relinquishment of control by deleting from the list, actually
+    #     the set list.
+    # -   In principle, if the game object list is longer than the set list, the
+    #     excess elements fill in the blanks. In practice, the set list will
+    #     either have zero elements or the same number of elements as the game
+    #     object list.
+    # -   When any element is set and the set list isn't long enough, copy the
+    #     game object list to the set list.
     
     axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
     
@@ -313,7 +325,8 @@ class Cursor(object):
         self._update()
 
     #
-    # Helper properties, read-only but updated by setting other properties.
+    # Helper properties, read-only from cache updated by setting other
+    # properties.
     #
     @property
     def origin(self):

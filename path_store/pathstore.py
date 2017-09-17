@@ -117,8 +117,9 @@ def get(parent, path=None):
     return parent
 
 def iterify(source):
-    """Generator function that returns either source.items(), for a dictionary,
-    or enumerate(source), for a list or tuple.
+    """\
+    Either source.items(), for a dictionary, or enumerate(source), for a list or
+    tuple.
     """
     try:
         # Dictionary.
@@ -174,7 +175,7 @@ def default_point_maker(path, index, point=None):
 
 def replace(parent, value, path=None, point_maker=default_point_maker):
     """Descend from the parent along the path and replace whatever is there with
-    a new value.
+    a new value. Returns parent as modified.
     """
     log(DEBUG, "{} {} {}.", parent, path, value)
     return _insert(parent
@@ -188,7 +189,7 @@ def replace(parent, value, path=None, point_maker=default_point_maker):
 
 def merge(parent, value, path=None, point_maker=default_point_maker):
     """Descend from the parent along the path and merge a specified value into
-    whatever is there.
+    whatever is there. Returns parent as modified.
     """
     log(DEBUG, "{} {} {}.", parent, path, value)
     
@@ -217,6 +218,7 @@ def edit(parent, editor, path=None, point_maker=default_point_maker):
     -   To execute a merge type of assignment, return the input `parent` in the
         first element.
     
+    Returns parent as modified.
     """
     log(DEBUG, "{} {} {}.", parent, path, editor)
     

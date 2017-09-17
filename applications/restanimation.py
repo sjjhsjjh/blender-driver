@@ -73,7 +73,8 @@ class Application(demonstration.Application):
         , "< or > to rotate it;"
         , "plus Ctrl to move object 2. Object 1 doesn't move."))
 
-    objectCount = 3
+    _objectCount = 3
+    _objectRootPath = ('root',)
 
     def data_initialise(self):
         super().data_initialise()
@@ -91,17 +92,23 @@ class Application(demonstration.Application):
             objectName = self._objectName
             #
             # Insert game objects.
-            for index in range(self.objectCount):
+            #
+            # Working path.
+            path = list(self._objectRootPath)
+            for index in range(self._objectCount):
                 object_ = self._GameObject(self.game_add_object(objectName))
-                self._restInterface.rest_put(object_, ('root', index))
+                path.append(index)
+                self._restInterface.rest_put(object_, path)
                 #
                 # Displace along the y axis.
-                axisPath = ('root', index, 'worldPosition', 1)
-                value = self._restInterface.rest_get(axisPath)
+                path.extend(('worldPosition', 1))
+                value = self._restInterface.rest_get(path)
                 displace = (
-                    3.0 * (float(index) - (float(self.objectCount) / 2.0)))
-                self._restInterface.rest_put(value + displace, axisPath)
-
+                    3.0 * (float(index) - (float(self._objectCount) / 2.0)))
+                self._restInterface.rest_put(value + displace, path)
+                #
+                # Revert working path.
+                del path[-3:]
         finally:
             self.mainLock.release()
 
@@ -111,8 +118,7 @@ class Application(demonstration.Application):
         try:
             # Set the top-level nowTime shortcut, which sets it in all the
             # current animations, which makes them animate in the scene.
-            self._restInterface.nowTime = self.tickPerf
-            
+            completions = self._restInterface.set_now_times(self.tickPerf)
         finally:
             self.mainLock.release()
 
@@ -128,7 +134,8 @@ class Application(demonstration.Application):
         objectNumber = 0
         if ctrl:
             objectNumber = 2
-
+        #
+        # Do the command, or log a message if the key isn't defined.
         if keyString == " ":
             self.animate_linear(objectNumber, None)
         elif keyString == "+":
@@ -138,6 +145,7 @@ class Application(demonstration.Application):
         elif keyString == "0":
             self.animate_linear(objectNumber, 0)
             self.animate_angular(objectNumber, 0)
+            self.animate_size(objectNumber, 0)
         elif keyString == ">":
             self.animate_angular(objectNumber, -1)
         elif keyString == "<":
@@ -145,12 +153,17 @@ class Application(demonstration.Application):
         elif keyString == "s":
             self.animate_size(objectNumber, 1)
         elif keyString == "S":
-            self.animate_size(objectNumber, 0)
+            self.animate_size(objectNumber, -1)
         elif keyString == "":
+            # Ignore a shift key on its own.
             pass
         else:
             log(INFO, 'No command for keypress. {} "{}" ctrl:{} alt:{}'
                 , keyEvents, keyString, ctrl, alt)
+    
+    def _prepare_animation(self, animation):
+        """Override this."""
+        pass
         
     def animate_size(self, objectNumber, direction):
         self.mainLock.acquire()
@@ -160,13 +173,18 @@ class Application(demonstration.Application):
             restInterface = self._restInterface
             #
             # Path to the object's Z size.
-            valuePath = ('root', objectNumber, 'worldScale', 2)
+            valuePath = list(self._objectRootPath) + [
+                objectNumber, 'worldScale', 2]
             #
             # Assemble the animation in a dictionary, starting with these.
             animation = {
                 'modulo': 0,
                 'path': valuePath,
-                'speed': 1.0
+                'speed': 1.0,
+                'userData': {
+                    'number': objectNumber,
+                    'path': self._objectRootPath + (objectNumber,)
+                }
             }
             #
             # Get the current value.
@@ -181,10 +199,12 @@ class Application(demonstration.Application):
                     animation['targetValue'] = value + (1.0 * direction)
                 else:
                     animation['targetValue'] = value / 2.0
+            log(INFO, 'Value:{} Values:{}',
+                value, tuple(restInterface.rest_get(valuePath[:-1])))
             #
             # There is up to one size animation per object.
-            animationPath = ['animations',
-                             objectNumber + (self.objectCount * 2)]
+            animationPath = ['animations', 'size_{:02d}'.format(objectNumber)]
+            self._prepare_animation(animation)
             #
             # Insert the animation. The point maker will set the store
             # attribute.
@@ -207,13 +227,18 @@ class Application(demonstration.Application):
             restInterface = self._restInterface
             #
             # Path to the object's Z value.
-            valuePath = ('root', objectNumber, 'worldPosition', 2)
+            valuePath = list(self._objectRootPath) + [
+                objectNumber, 'worldPosition', 2]
             #
             # Assemble the animation in a dictionary, starting with these.
             animation = {
                 'modulo': 0,
                 'path': valuePath,
-                'speed': self.arguments.speed
+                'speed': self.arguments.speed,
+                'userData': {
+                    'number': objectNumber,
+                    'path': self._objectRootPath + (objectNumber,)
+                }
             }
             #
             # Get the current value.
@@ -233,8 +258,10 @@ class Application(demonstration.Application):
                 if direction < 0:
                     animation['speed'] *= -1
             #
-            # There is up to one animation per object.
-            animationPath = ['animations', objectNumber]
+            # There is up to one altitude animation per object.
+            animationPath = ['animations',
+                             'position_{:02d}'.format(objectNumber)]
+            self._prepare_animation(animation)
             #
             # Insert the animation. The point maker will set the store
             # attribute.
@@ -257,18 +284,24 @@ class Application(demonstration.Application):
             restInterface = self._restInterface
             #
             # Path to the object's Z rotation.
-            valuePath = ('root', objectNumber, 'rotation', 1)
+            valuePath = list(self._objectRootPath) + [
+                objectNumber, 'rotation', 2]
             #
             # Assemble the animation in a dictionary, starting with these.
             animation = {
                 'modulo': radians(360),
                 'path': valuePath,
-                'speed': radians(45)}
+                'speed': radians(45),
+                'userData': {
+                    'number': objectNumber,
+                    'path': self._objectRootPath + (objectNumber,)
+                }
+            }
             #
             # Get the current value, which will be in radians.
             value = restInterface.rest_get(valuePath)
-            log(INFO, 'Value:{} Values:{}'.format(
-                value, restInterface.rest_get(valuePath[:-1])))
+            log(DEBUG, 'Value:{} Values:{}',
+                value, restInterface.rest_get(valuePath[:-1]))
             if direction == 0:
                 animation['targetValue'] = 0.0
                 if value > 0.0:
@@ -279,7 +312,9 @@ class Application(demonstration.Application):
                 # animation['targetValue'] = None
             #
             # There is up to one rotation animation per object.
-            animationPath = ['animations', objectNumber + self.objectCount]
+            animationPath = ['animations',
+                             'orientation_{:02d}'.format(objectNumber)]
+            self._prepare_animation(animation)
             #
             # Insert the animation. The point maker will set the store
             # attribute.

@@ -18,11 +18,16 @@ from logging import DEBUG, INFO, WARNING, ERROR, log
 #
 # Module for mathematical operations needed to decompose a rotation matrix.
 # https://docs.python.org/3.5/library/math.html
-from math import atan2, pow, sqrt
+from math import atan2, pow, sqrt, degrees, radians, atan
 #
 # Blender library imports, in alphabetic order.
 #
-# Blender Game Engine bge.types.KX_GameObject
+# Blender Game Engine KX_Camera
+# https://docs.blender.org/api/blender_python_api_current/bge.types.KX_Camera.html
+# Can't be imported here because this module gets imported in the bpy context
+# too, in which bge isn't available.
+#
+# Blender Game Engine KX_GameObject
 # https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
 # Can't be imported here because this module gets imported in the bpy context
 # too, in which bge isn't available.
@@ -398,6 +403,160 @@ class Cursor(object):
         self._end = None
         self._point = None
         
+def get_camera_subclass(bge):
+    KX_Camera = bge.types.KX_Camera
+    GameObject = get_game_object_subclass(bge)
+    
+    class Camera(GameObject, KX_Camera):
+        
+        # Hmm. Both Cursor and Camera have the following two properties. This
+        # class has a different update, and is a subclass of GameObject. Its
+        # subject is a Cursor, not a GameObject.
+        
+        @property
+        def restInterface(self):
+            return self._restInterface
+        @restInterface.setter
+        def restInterface(self, restInterface):
+            self._restInterface = restInterface
+            self._pointAtSubject()
+
+        @property
+        def subjectPath(self):
+            return self._subjectPath
+        @subjectPath.setter
+        def subjectPath(self, subjectPath):
+            self._subjectPath = subjectPath
+            self._pointAtSubject()
+        
+        def _pointAtSubject(self):
+            """
+            Calculate the rotation needed to make the camera point at its subject,
+            and then apply it. Returns a Boolean for whether any rotation was
+            needed.
+            """
+            if self._subjectPath is None or self.restInterface is None:
+                return False
+            subject = self.restInterface.rest_get(self.subjectPath)
+            #
+            # Get an offset vector in world coordinates from the camera to the
+            # target. The offset vector is normalised.
+            (dist, worldv, localv) = self.getVectTo(subject.point)
+            #
+            # Get the current camera rotation. It's used to check whether any
+            # rotation is needed to point at the object, which happens at the end of
+            # the method but it's nice to dump it here if in diagnostic mode.
+            rotation = self.rotation[:]
+            log(INFO
+                , "Camera 0 {} {} ({:.2f}, {:.2f}, {:.2f})"
+                " ({:.2f}, {:.2f}, {:.2f}) point{} position{}"
+                , degrees(atan2(1.0, 0)), degrees(atan2(-1.0, 0))
+                , *tuple(dist * _ for _ in worldv)
+                , *tuple(degrees(_) for _ in rotation)
+                , subject.point, self.worldPosition[:])
+            #
+            # Convenience variables for the offset in each dimension.
+            ox = 0.0 # worldv[0]
+            oy = worldv[1]
+            oz = worldv[2]
+            #
+            # Variables for the rotation in each dimension.
+            # In the calculation as it is now, Y will always be zero.
+            rotx = 0.0
+            roty = 0.0
+            rotz = 0.0
+            #
+            # Calculate the Z rotation, based on the X and Y offsets.
+            # There are two branches here, and in the X rotation calculation. The
+            # intention is to rotate the camera without flipping over, i.e. not like
+            # a flight simulator.
+            # Crib sheet: atan(zero) is zero.
+            # if ox < 0.0:
+            #     rotz = radians(-90.0) + atan2(oy, ox)
+            #     log(INFO, 'ox negative {:.2f} {:.2f} {:.2f} '
+            #         , oy/ox, degrees(rotz), 90.0 + degrees(atan(oy/ox)))
+            # elif ox > 0.0:
+            #     rotz = radians(-90.0) + atan2(oy, ox)
+            #     log(INFO, 'ox positive {:.2f} {:.2f}', oy/ox, degrees(rotz))
+
+
+            # if ox < 0.0 or  ox > 0.0:
+            rotz = radians(-90.0) + atan2(oy, ox)
+            log(INFO, 'ox {:.2f} {:.2f} {:.2f} {:.2f} '
+                , ox, oy/ox, degrees(rotz), 90.0 + degrees(atan(oy/ox)))
+            # else:
+            #     # If we get here then the X offset approximates to zero. It's a
+            #     # floating point number, not an integer. The atan calculations in
+            #     # either of the above branches would have attempted a divide by
+            #     # zero. The Z rotation will either be zero, if the Y offset is
+            #     # positive, or 180 degrees, if the Y offset is negative.
+            #     if oy < 0.0:
+            #         rotz = radians(180.0)
+            #     log(INFO, 'ox zero {:.2f}', degrees(rotz))
+
+
+
+
+            #
+            # Rotate the offset about the Z axis in such a way that the X offest
+            # will be zero. This is necessary to normalise the X axis rotation
+            # calculation. Think of the target as being on the surface of a sphere,
+            # and the camera at the centre of the sphere. The normalisation has the
+            # effect of moving the target along a line of latitude on the sphere.
+            normz = rotz
+            if ox > 0.0 or ox < 0.0:
+                normz = atan2(oy, ox) - radians(180.0)
+            worldv.rotate( Matrix.Rotation(radians(-90.0) - normz, 4, 'Z') )
+            log(INFO, 'normz {} {:.2f} {:.2f} {:.2f}'
+                , worldv, degrees(normz), degrees(atan(oy/ox))
+                , -90.0 - degrees(normz))
+            #
+            # Reset the convenience variables, from the normalised offset vector.
+            # X offset will always be zero in the adjusted vector.
+            oy = worldv[1]
+            oz = worldv[2]
+            #
+            # Calculate the X rotation, based on the normalised Z and Y offsets.
+            if oy < 0.0:
+                rotx = radians(90.0) - atan2(oz, oy)
+                log(INFO, 'oy negative {:.2f} {:.2f} {:.2f}'
+                    , oz/oy, degrees(atan2(oz, oy)), degrees(rotx))
+            elif oy > 0.0:
+                rotx = radians(90.0) + atan2(oz, oy)
+                log(INFO, 'oy positive {:.2f} {:.2f} {:.2f}'
+                    , oz/oy, degrees(atan2(oz, oy)), degrees(rotx))
+            else:
+                # If we get here then the camera is either directly above or below
+                # the target. If it's above, we look up. If it's below, we look down
+                # but that's the default.
+                # See also the comment above about the X offset approximating to
+                # zero.
+                if oz > 0.0:
+                    rotx = radians(180.0)
+                log(INFO, 'oy zero {:.2f}', degrees(rotx))
+            #
+            # Check if any rotation was needed to point the camera at the target.
+            return_ = \
+                  abs( rotation[0] - rotx ) > 0.001 or \
+                  abs( rotation[1] - roty ) > 0.001 or \
+                  abs( rotation[2] - rotz ) > 0.001
+            #
+            # Apply the rotation.
+            newRotation = (rotx, roty, rotz)
+            log(INFO, 'New rotation {} {} {}', return_, newRotation
+                , tuple(degrees(_) for _ in newRotation))
+            self.rotation = newRotation
+            #
+            # Return true if any rotation was needed.
+            return return_
+
+        def __init__(self, *args):
+            self._subjectPath = None
+            self._restInterface = None
+
+            super().__init__(*args)
+    
+    return Camera
 
 # 
 # class RestBGEObject(RestInterface):

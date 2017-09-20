@@ -128,14 +128,33 @@ class Application(demonstration.Application):
             log(DEBUG, "Terminating.")
             self.game_terminate()
             return
-        #
-        # If Ctrl is held down, animate object 2, otherwise animate object 0.
-        # Object 1 never moves.
-        objectNumber = 0
-        if ctrl:
-            objectNumber = 2
-        #
-        # Do the command, or log a message if the key isn't defined.
+
+        self.mainLock.acquire()
+        try:
+            #
+            # If Ctrl is held down, animate object 2, otherwise animate object 0.
+            # Object 1 never moves.
+            objectNumber = 0
+            if ctrl:
+                objectNumber = 2
+            #
+            # Do the command, or log a message if the key isn't defined.
+            # Ignore a shift key on its own.
+            if (
+                (not self._keyboard_command(keyString, objectNumber))
+                and keyString != ""
+            ):
+                log(INFO, 'No command for keypress. {} "{}" ctrl:{} alt:{}'
+                    , keyEvents, keyString, ctrl, alt)
+        finally:
+            self.mainLock.release()
+        
+    def _keyboard_command(self, keyString, objectNumber):
+        """Execute the keyboard command for the specified key string, and return
+        True, or return False.
+        
+        Can be overriden, and can be called from the subclass. The mainLock will
+        already have been acquired. """
         if keyString == " ":
             self.animate_linear(objectNumber, None)
         elif keyString == "+":
@@ -154,181 +173,166 @@ class Application(demonstration.Application):
             self.animate_size(objectNumber, 1)
         elif keyString == "S":
             self.animate_size(objectNumber, -1)
-        elif keyString == "":
-            # Ignore a shift key on its own.
-            pass
         else:
-            log(INFO, 'No command for keypress. {} "{}" ctrl:{} alt:{}'
-                , keyEvents, keyString, ctrl, alt)
+            return False
+        return True
+        
     
     def _prepare_animation(self, animation):
         """Override this."""
         pass
         
     def animate_size(self, objectNumber, direction):
-        self.mainLock.acquire()
-        try:
-            #
-            # Convenience variable.
-            restInterface = self._restInterface
-            #
-            # Path to the object's Z size.
-            valuePath = list(self._objectRootPath) + [
-                objectNumber, 'worldScale', 2]
-            #
-            # Assemble the animation in a dictionary, starting with these.
-            animation = {
-                'modulo': 0,
-                'path': valuePath,
-                'speed': 1.0,
-                'userData': {
-                    'number': objectNumber,
-                    'path': self._objectRootPath + (objectNumber,)
-                }
+        #
+        # Convenience variable.
+        restInterface = self._restInterface
+        #
+        # Path to the object's Z size.
+        valuePath = list(self._objectRootPath) + [
+            objectNumber, 'worldScale', 2]
+        #
+        # Assemble the animation in a dictionary, starting with these.
+        animation = {
+            'modulo': 0,
+            'path': valuePath,
+            'speed': 1.0,
+            'userData': {
+                'number': objectNumber,
+                'path': self._objectRootPath + (objectNumber,)
             }
-            #
-            # Get the current value.
-            value = restInterface.rest_get(valuePath)
-            #
-            # Set the speed and target value, based on the current value and the
-            # direction parameter.
-            if direction == 0:
-                animation['targetValue'] = 1.0
+        }
+        #
+        # Get the current value.
+        value = restInterface.rest_get(valuePath)
+        #
+        # Set the speed and target value, based on the current value and the
+        # direction parameter.
+        if direction == 0:
+            animation['targetValue'] = 1.0
+        else:
+            if value > 1.0 or direction > 0:
+                animation['targetValue'] = value + (1.0 * direction)
             else:
-                if value > 1.0 or direction > 0:
-                    animation['targetValue'] = value + (1.0 * direction)
-                else:
-                    animation['targetValue'] = value / 2.0
-            log(INFO, 'Value:{} Values:{}',
-                value, tuple(restInterface.rest_get(valuePath[:-1])))
-            #
-            # There is up to one size animation per object.
-            animationPath = ['animations', 'size_{:02d}'.format(objectNumber)]
-            self._prepare_animation(animation)
-            #
-            # Insert the animation. The point maker will set the store
-            # attribute.
-            log(INFO, 'Patching {} {}', animationPath, animation)
-            restInterface.rest_put(animation, animationPath)
-            #
-            # Set the start time, which has the following side effects:
-            # -   Retrieves the start value.
-            # -   Clears the complete state.
-            animationPath.append('startTime')
-            restInterface.rest_put(self.tickPerf, animationPath)
-        finally:
-            self.mainLock.release()
+                animation['targetValue'] = value / 2.0
+        log(INFO, 'Value:{} Values:{}',
+            value, tuple(restInterface.rest_get(valuePath[:-1])))
+        #
+        # There is up to one size animation per object.
+        animationPath = ['animations', 'size_{:02d}'.format(objectNumber)]
+        self._prepare_animation(animation)
+        #
+        # Insert the animation. The point maker will set the store
+        # attribute.
+        log(INFO, 'Patching {} {}', animationPath, animation)
+        restInterface.rest_put(animation, animationPath)
+        #
+        # Set the start time, which has the following side effects:
+        # -   Retrieves the start value.
+        # -   Clears the complete state.
+        animationPath.append('startTime')
+        restInterface.rest_put(self.tickPerf, animationPath)
 
     def animate_linear(self, objectNumber, direction):
-        self.mainLock.acquire()
-        try:
-            #
-            # Convenience variable.
-            restInterface = self._restInterface
-            #
-            # Path to the object's Z value.
-            valuePath = list(self._objectRootPath) + [
-                objectNumber, 'worldPosition', 2]
-            #
-            # Assemble the animation in a dictionary, starting with these.
-            animation = {
-                'modulo': 0,
-                'path': valuePath,
-                'speed': self.arguments.speed,
-                'userData': {
-                    'number': objectNumber,
-                    'path': self._objectRootPath + (objectNumber,)
-                }
+        #
+        # Convenience variable.
+        restInterface = self._restInterface
+        #
+        # Path to the object's Z value.
+        valuePath = list(self._objectRootPath) + [
+            objectNumber, 'worldPosition', 2]
+        #
+        # Assemble the animation in a dictionary, starting with these.
+        animation = {
+            'modulo': 0,
+            'path': valuePath,
+            'speed': self.arguments.speed,
+            'userData': {
+                'number': objectNumber,
+                'path': self._objectRootPath + (objectNumber,)
             }
-            #
-            # Get the current value.
-            value = restInterface.rest_get(valuePath)
-            #
-            # Set the speed and target value, based on the current value and the
-            # direction parameter.
-            if direction is None:
-                target = self.arguments.target
-                if value > 0:
-                    target *= -1
-                animation['targetValue'] = value + target
-            elif direction == 0:
-                animation['targetValue'] = 0.0
-            else:
-                animation['targetValue'] = None
-                if direction < 0:
-                    animation['speed'] *= -1
-            #
-            # There is up to one altitude animation per object.
-            animationPath = ['animations',
-                             'position_{:02d}'.format(objectNumber)]
-            self._prepare_animation(animation)
-            #
-            # Insert the animation. The point maker will set the store
-            # attribute.
-            log(INFO, 'Patching {} {}', animationPath, animation)
-            restInterface.rest_put(animation, animationPath)
-            #
-            # Set the start time, which has the following side effects:
-            # -   Retrieves the start value.
-            # -   Clears the complete state.
-            animationPath.append('startTime')
-            restInterface.rest_put(self.tickPerf, animationPath)
-        finally:
-            self.mainLock.release()
+        }
+        #
+        # Get the current value.
+        value = restInterface.rest_get(valuePath)
+        #
+        # Set the speed and target value, based on the current value and the
+        # direction parameter.
+        if direction is None:
+            target = self.arguments.target
+            if value > 0:
+                target *= -1
+            animation['targetValue'] = value + target
+        elif direction == 0:
+            animation['targetValue'] = 0.0
+        else:
+            animation['targetValue'] = None
+            if direction < 0:
+                animation['speed'] *= -1
+        #
+        # There is up to one altitude animation per object.
+        animationPath = ['animations',
+                         'position_{:02d}'.format(objectNumber)]
+        self._prepare_animation(animation)
+        #
+        # Insert the animation. The point maker will set the store
+        # attribute.
+        log(INFO, 'Patching {} {}', animationPath, animation)
+        restInterface.rest_put(animation, animationPath)
+        #
+        # Set the start time, which has the following side effects:
+        # -   Retrieves the start value.
+        # -   Clears the complete state.
+        animationPath.append('startTime')
+        restInterface.rest_put(self.tickPerf, animationPath)
         
     def animate_angular(self, objectNumber, direction):
-        self.mainLock.acquire()
-        try:
-            #
-            # Convenience variable.
-            restInterface = self._restInterface
-            #
-            # Path to the object's Z rotation.
-            valuePath = list(self._objectRootPath) + [
-                objectNumber, 'rotation', 2]
-            #
-            # Assemble the animation in a dictionary, starting with these.
-            animation = {
-                'modulo': radians(360),
-                'path': valuePath,
-                'speed': radians(45),
-                'userData': {
-                    'number': objectNumber,
-                    'path': self._objectRootPath + (objectNumber,)
-                }
+        #
+        # Convenience variable.
+        restInterface = self._restInterface
+        #
+        # Path to the object's Z rotation.
+        valuePath = list(self._objectRootPath) + [
+            objectNumber, 'rotation', 2]
+        #
+        # Assemble the animation in a dictionary, starting with these.
+        animation = {
+            'modulo': radians(360),
+            'path': valuePath,
+            'speed': radians(45),
+            'userData': {
+                'number': objectNumber,
+                'path': self._objectRootPath + (objectNumber,)
             }
-            #
-            # Get the current value, which will be in radians.
-            value = restInterface.rest_get(valuePath)
-            log(DEBUG, 'Value:{} Values:{}',
-                value, restInterface.rest_get(valuePath[:-1]))
-            if direction == 0:
-                animation['targetValue'] = 0.0
-                if value > 0.0:
-                    animation['speed'] *= -1
-            else:
-                animation['targetValue'] = value + radians(45 * direction)
-                animation['speed'] *= direction
-                # animation['targetValue'] = None
-            #
-            # There is up to one rotation animation per object.
-            animationPath = ['animations',
-                             'orientation_{:02d}'.format(objectNumber)]
-            self._prepare_animation(animation)
-            #
-            # Insert the animation. The point maker will set the store
-            # attribute.
-            log(INFO, 'Patching {} {}', animationPath, animation)
-            self._restInterface.rest_put(animation, animationPath)
-            #
-            # Set the start time, which has the following side effects:
-            # -   Retrieves the start value.
-            # -   Clears the complete state.
-            animationPath.append('startTime')
-            self._restInterface.rest_put(self.tickPerf, animationPath)
-
-        finally:
-            self.mainLock.release()
+        }
+        #
+        # Get the current value, which will be in radians.
+        value = restInterface.rest_get(valuePath)
+        log(DEBUG, 'Value:{} Values:{}',
+            value, restInterface.rest_get(valuePath[:-1]))
+        if direction == 0:
+            animation['targetValue'] = 0.0
+            if value > 0.0:
+                animation['speed'] *= -1
+        else:
+            animation['targetValue'] = value + radians(45 * direction)
+            animation['speed'] *= direction
+            # animation['targetValue'] = None
+        #
+        # There is up to one rotation animation per object.
+        animationPath = ['animations',
+                         'orientation_{:02d}'.format(objectNumber)]
+        self._prepare_animation(animation)
+        #
+        # Insert the animation. The point maker will set the store
+        # attribute.
+        log(INFO, 'Patching {} {}', animationPath, animation)
+        self._restInterface.rest_put(animation, animationPath)
+        #
+        # Set the start time, which has the following side effects:
+        # -   Retrieves the start value.
+        # -   Clears the complete state.
+        animationPath.append('startTime')
+        self._restInterface.rest_put(self.tickPerf, animationPath)
         
     def get_argument_parser(self):
         """Method that returns an ArgumentParser. Overriden."""

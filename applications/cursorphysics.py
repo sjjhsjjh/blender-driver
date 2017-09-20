@@ -57,7 +57,7 @@ from mathutils import Vector, Matrix, Quaternion
 from . import restanimation
 #
 # Wrapper for Blender game object that is easy to make RESTful.
-from path_store.blender_game_engine import get_game_object_subclass, Cursor
+from path_store.blender_game_engine import get_camera_subclass, Cursor
 #
 # RESTful interface base class and Animation subclass for pathstore.
 from path_store.rest import AnimatedRestInterface
@@ -91,14 +91,18 @@ class Application(restanimation.Application):
 
     # Override.
     _objectRootPath = ('root','objects')
+    
+    _cameraStartPosition = (12.0, -5.0, 7.0)
+    _cameraStartOrientation = (radians(90.0), 0.0, radians(45.0))
+    _cameraSpeed = 3.0
 
     def _add_visualiser(self):
         return self._GameObject(self.game_add_object('visualiser'))
 
     # Overriden.
     def game_initialise(self):
-        # Base class initialise will have instantiated the restInterface and
-        # added the game objects.
+        # Base class initialise will instantiate the restInterface and add the
+        # game objects.
         super().game_initialise()
         
         self.mainLock.acquire()
@@ -156,8 +160,22 @@ class Application(restanimation.Application):
             path[-1] = 'floor'
             self._restInterface.rest_put(object_, path)
             # Note that path now points to floor.
-            #
-            log(INFO, "Objects, cursors, floor: {}"
+            
+            self._Camera = get_camera_subclass(self.bge)
+            object_ = self._Camera(self.gameScene.active_camera)
+            object_.restInterface = self._restInterface
+            path[-1] = 'camera'
+            self._restInterface.rest_put(object_, path)
+            self._restInterface.rest_patch(
+                {
+                    'worldPosition': self._cameraStartPosition,
+                    'rotation': self._cameraStartOrientation
+                }, path)
+            path.append('subjectPath')
+            self._restInterface.rest_put(cursorPath + [0], path)
+            # Note that path now points to the camera subjectPath.
+            
+            log(INFO, "Objects, cursors, floor, camera: {}"
                 , self._restInterface.rest_get())
         finally:
             self.mainLock.release()
@@ -184,14 +202,15 @@ class Application(restanimation.Application):
                         continue
                     otherData = animation.userData
                     if (
-                        otherData['number'] == userData['number']
+                        otherData is not None and userData is not None
+                        and otherData['number'] == userData['number']
                         and not animation.complete
                     ):
                         still = True
                 #
                 # If there are no other animations: restore physics to the
                 # object and reset its rotation overrides.
-                if not still:
+                if not still and userData is not None:
                     object_ = self._restInterface.rest_get(userData['path'])
                     log(INFO, "Restoring {}.", userData['path'])
                     object_.restoreDynamics()
@@ -205,13 +224,90 @@ class Application(restanimation.Application):
             gameObjects = self._restInterface.rest_get(self._objectRootPath)
             for gameObject in gameObjects:
                 gameObject.update()
+            
+            
+            # Bodge the camera.
+            self._restInterface.rest_put(
+                ('root', 'cursors', 0), ('root', 'camera', 'subjectPath'))
+
         finally:
             self.mainLock.release()
 
-    # No override for game_keyboard.
+    # Override.
+    # No override for game_keyboard but there is for this.
+    def _keyboard_command(self, keyString, objectNumber):
+        #
+        # First, do whatever the base class does.
+        inSuper = super()._keyboard_command(keyString, objectNumber)
+        #
+        # Then do what this class does.
+        if keyString == "0":
+            for dimension, _ in enumerate(self._cameraStartPosition):
+                self.move_camera(dimension, 0)
+        if keyString == "a":
+            for dimension, _ in enumerate(self._cameraStartPosition):
+                animationPath = self._animation_path(dimension)
+                self._restInterface.rest_put(None, animationPath)
+            self._restInterface.rest_put(
+                ('root', 'cursors', 0), ('root', 'camera', 'subjectPath'))
+
+            
+            
+        elif keyString == "x":
+            self.move_camera(0, 1)
+        elif keyString == "X":
+            self.move_camera(0, -1)
+        elif keyString == "y":
+            self.move_camera(1, 1)
+        elif keyString == "Y":
+            self.move_camera(1, -1)
+        elif keyString == "z":
+            self.move_camera(2, 1)
+        elif keyString == "Z":
+            self.move_camera(2, -1)
+        else:
+            return inSuper
+        
+        return True
+    
+    def _animation_path(self, dimension):
+        return ['animations', 'camera_{:d}'.format(dimension)]
+    
+    def move_camera(self, dimension, direction):
+        #
+        # Convenience variable.
+        restInterface = self._restInterface
+        #
+        # Path to the camera's position in the specified dimension.
+        valuePath = self._objectRootPath[:-1] + (
+            'camera', 'worldPosition', dimension)
+        #
+        # Assemble the animation in a dictionary, starting with these.
+        animation = {'modulo': 0, 'path': valuePath}
+        if direction == 0:
+            animation['targetValue'] = self._cameraStartPosition[dimension]
+            animation['speed'] = self._cameraSpeed * 2.0
+        else:
+            animation['speed'] = self._cameraSpeed * float(direction)
+        #
+        # There is up to one camera movement per dimension.
+        animationPath = self._animation_path(dimension)
+        #
+        # Insert the animation. The point maker will set the store
+        # attribute.
+        log(INFO, 'Patching {} {}', animationPath, animation)
+        restInterface.rest_put(animation, animationPath)
+        #
+        # Set the start time, which has the following side effects:
+        # -   Retrieves the start value.
+        # -   Clears the complete state.
+        animationPath.append('startTime')
+        restInterface.rest_put(self.tickPerf, animationPath)
     
     # Override.
     def _prepare_animation(self, animation):
+        # Override the animation preparation to do things needed when there is
+        # Physics.
         objectPath = animation['userData']['path']
         object_ = self._restInterface.rest_get(objectPath)
         log(INFO, "Suspending {}.", objectPath)

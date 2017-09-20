@@ -21,6 +21,20 @@ import argparse
 # bge in the bpy context.
 # https://docs.python.org/3.5/library/importlib.html
 import importlib
+#
+# Blender library imports, in alphabetic order.
+#
+# Blender Game Engine all the classes:
+# http://www.blender.org/api/blender_python_api_current/bge.types.html
+#
+# Blender Game Engine logic functions:
+# https://www.blender.org/api/blender_python_api_current/bge.logic.html
+#
+# Blender Game Engine scene
+# https://docs.blender.org/api/blender_python_api_current/bge.types.KX_Scene.html
+# Can't be imported here because this module gets imported in the bpy context
+# too, in which bge isn't available. No need anyway, because the object is
+# passed in from elsewhere.
 
 class Application(object):
     templates = None
@@ -64,7 +78,8 @@ class Application(object):
         controllers for diagnostic purposes. This method is called in the data
         context. To remove a controller, set its property to None, as in:
         
-        controllers.tick = None"""
+        controllers.tick = None
+        """
         pass
     
     def data_initialise(self):
@@ -73,7 +88,8 @@ class Application(object):
 
     def data_constructor(self, scene, gateway):
         """Method that is invoked just after the constructor in the Blender data
-        context. Don't override."""
+        context. Don't override.
+        """
         #
         # Set up references to modules that might be needed in a subclass, but
         # not be importable there.
@@ -102,24 +118,14 @@ class Application(object):
     def bge(self):
         """Reference to the Blender Game Engine Python interface object.
         
-A subclass can use this instead of importing bge, in case that isn't possible in
-its execution context.
-        
-See also:
-        
--   https://www.blender.org/api/blender_python_api_current/bge.logic.html
--   http://www.blender.org/api/blender_python_api_current/bge.types.html
-"""
+        A subclass can use this instead of importing bge, in case that isn't
+        possible in its execution context.
+        """
         return self._bge
 
     @property
     def gameScene(self):
-        """Reference to the game Scene object.
-        
-See also:
-        
--   http://www.blender.org/api/blender_python_api_current/bge.types.html#bge.types.KX_Scene
-"""
+        """Reference to the game Scene object, a KX_Scene instance."""
         return self._gameScene
     
     @property
@@ -130,7 +136,8 @@ See also:
     @property
     def settings(self):
         """Dictionary of settings from everything prior, including the command
-        line."""
+        line.
+        """
         return self._settings
     
     @property
@@ -140,7 +147,8 @@ See also:
     
     def key_events_to_string(self, keyEvents):
         """Generate a string from a keyboard sensor event array. Handles
-        multiple keys, and left and right shift. Doesn't handle Caps Lock."""
+        multiple keys, and left and right shift. Doesn't handle Caps Lock.
+        """
         # For keyEvents.
         # https://docs.blender.org/api/blender_python_api_current/bge.types.SCA_KeyboardSensor.html
         #

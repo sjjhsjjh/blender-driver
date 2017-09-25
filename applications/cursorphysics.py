@@ -94,7 +94,7 @@ class Application(restanimation.Application):
     
     _cameraStartPosition = (12.0, -5.0, 7.0)
     _cameraStartOrientation = (radians(90.0), 0.0, radians(45.0))
-    _cameraSpeed = 3.0
+    _cameraSpeed = 9.0
 
     def _add_visualiser(self):
         return self._GameObject(self.game_add_object('visualiser'))

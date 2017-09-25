@@ -447,7 +447,7 @@ def get_camera_subclass(bge):
             # rotation is needed to point at the object, which happens at the end of
             # the method but it's nice to dump it here if in diagnostic mode.
             rotation = self.rotation[:]
-            log(INFO
+            log(DEBUG
                 , "Camera 0 {} {} ({:.2f}, {:.2f}, {:.2f})"
                 " ({:.2f}, {:.2f}, {:.2f}) point{} position{}"
                 , degrees(atan2(1.0, 0)), degrees(atan2(-1.0, 0))
@@ -456,7 +456,7 @@ def get_camera_subclass(bge):
                 , subject.point, self.worldPosition[:])
             #
             # Convenience variables for the offset in each dimension.
-            ox = 0.0 # worldv[0]
+            ox = worldv[0]
             oy = worldv[1]
             oz = worldv[2]
             #
@@ -467,49 +467,28 @@ def get_camera_subclass(bge):
             rotz = 0.0
             #
             # Calculate the Z rotation, based on the X and Y offsets.
-            # There are two branches here, and in the X rotation calculation. The
-            # intention is to rotate the camera without flipping over, i.e. not like
-            # a flight simulator.
-            # Crib sheet: atan(zero) is zero.
-            # if ox < 0.0:
-            #     rotz = radians(-90.0) + atan2(oy, ox)
-            #     log(INFO, 'ox negative {:.2f} {:.2f} {:.2f} '
-            #         , oy/ox, degrees(rotz), 90.0 + degrees(atan(oy/ox)))
-            # elif ox > 0.0:
-            #     rotz = radians(-90.0) + atan2(oy, ox)
-            #     log(INFO, 'ox positive {:.2f} {:.2f}', oy/ox, degrees(rotz))
-
-
-            # if ox < 0.0 or  ox > 0.0:
-            rotz = radians(-90.0) + atan2(oy, ox)
-            log(INFO, 'ox {:.2f} {:.2f} {:.2f} {:.2f} '
-                , ox, oy/ox, degrees(rotz), 90.0 + degrees(atan(oy/ox)))
-            # else:
-            #     # If we get here then the X offset approximates to zero. It's a
-            #     # floating point number, not an integer. The atan calculations in
-            #     # either of the above branches would have attempted a divide by
-            #     # zero. The Z rotation will either be zero, if the Y offset is
-            #     # positive, or 180 degrees, if the Y offset is negative.
-            #     if oy < 0.0:
-            #         rotz = radians(180.0)
-            #     log(INFO, 'ox zero {:.2f}', degrees(rotz))
-
-
-
-
+            #
+            # Using atan2 instead of atan is better in a couple of ways:
+            # -   Doesn't attempt to divide by zero if ox == 0.
+            # -   Sign of the output is based on the signs of the inputs.
+            #
+            # The intention is to rotate the camera without flipping over, i.e.
+            # not like a flight simulator.
+            # Crib sheet:
+            # -   atan(zero) is zero.
+            # -   atan(infinity) is 90 degrees.
+            rotz = atan2(oy, ox) - radians(90.0)
+            log(INFO, 'ox {:.2f} {:.2f} {:.2f}'
+                , ox, oy/ox if ox < 0.0 or ox > 0.0 else oy, degrees(rotz))
             #
             # Rotate the offset about the Z axis in such a way that the X offest
             # will be zero. This is necessary to normalise the X axis rotation
-            # calculation. Think of the target as being on the surface of a sphere,
-            # and the camera at the centre of the sphere. The normalisation has the
-            # effect of moving the target along a line of latitude on the sphere.
-            normz = rotz
-            if ox > 0.0 or ox < 0.0:
-                normz = atan2(oy, ox) - radians(180.0)
-            worldv.rotate( Matrix.Rotation(radians(-90.0) - normz, 4, 'Z') )
-            log(INFO, 'normz {} {:.2f} {:.2f} {:.2f}'
-                , worldv, degrees(normz), degrees(atan(oy/ox))
-                , -90.0 - degrees(normz))
+            # calculation. Think of the subject as being on the surface of a
+            # sphere, and the camera at the centre of the sphere. The
+            # normalisation has the effect of moving the target along a line of
+            # latitude on the sphere.
+            worldv.rotate(Matrix.Rotation(rotz * -1.0, 4, 'Z'))
+            log(DEBUG, 'normz {} {:.2f}', worldv, degrees(rotz * -1.0))
             #
             # Reset the convenience variables, from the normalised offset vector.
             # X offset will always be zero in the adjusted vector.
@@ -529,8 +508,6 @@ def get_camera_subclass(bge):
                 # If we get here then the camera is either directly above or below
                 # the target. If it's above, we look up. If it's below, we look down
                 # but that's the default.
-                # See also the comment above about the X offset approximating to
-                # zero.
                 if oz > 0.0:
                     rotx = radians(180.0)
                 log(INFO, 'oy zero {:.2f}', degrees(rotx))

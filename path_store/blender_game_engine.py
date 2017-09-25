@@ -496,21 +496,22 @@ def get_camera_subclass(bge):
             oz = worldv[2]
             #
             # Calculate the X rotation, based on the normalised Z and Y offsets.
+            #
+            # If the camera is either directly above or below the target, oy
+            # will be zero. In that case, we either look up or down, depending
+            # on oz. If oy is zero then atan(oz, oy) is either 90 degrees or -90
+            # degrees, depending on whether oz is positive or negative. So, no
+            # special case is needed.
             if oy < 0.0:
                 rotx = radians(90.0) - atan2(oz, oy)
-                log(INFO, 'oy negative {:.2f} {:.2f} {:.2f}'
-                    , oz/oy, degrees(atan2(oz, oy)), degrees(rotx))
-            elif oy > 0.0:
-                rotx = radians(90.0) + atan2(oz, oy)
-                log(INFO, 'oy positive {:.2f} {:.2f} {:.2f}'
-                    , oz/oy, degrees(atan2(oz, oy)), degrees(rotx))
+                log(INFO, 'oy negative {:.2f} {:.2f} {:.2f} {:.2f}'
+                    , oz, oy, degrees(atan2(oz, oy)), degrees(rotx))
             else:
-                # If we get here then the camera is either directly above or below
-                # the target. If it's above, we look up. If it's below, we look down
-                # but that's the default.
-                if oz > 0.0:
-                    rotx = radians(180.0)
-                log(INFO, 'oy zero {:.2f}', degrees(rotx))
+                rotx = radians(90.0) + atan2(oz, oy)
+                log(INFO, 'oy positive {:.2f} {:.2f} {:.2f} {:.2f}'
+                    , oz, oy, degrees(atan2(oz, oy)), degrees(rotx))
+
+
             #
             # Check if any rotation was needed to point the camera at the target.
             return_ = \

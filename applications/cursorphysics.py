@@ -153,6 +153,9 @@ class Application(restanimation.Application):
                 # Revert the working paths.
                 del cursorPath[-2:]
                 del path[-1:]
+                
+                if index == 0:
+                    self._cameraStartPosition = tuple(cursor.point.copy())
             #
             # Add the floor object, which is handy to stop objects dropping out
             # of sight due to gravity.

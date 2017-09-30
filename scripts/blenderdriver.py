@@ -139,8 +139,8 @@ class Main(object):
         self._screenGeometry = WindowGeometry.from_X_display()
         self._terminalGeometry, self._blenderGeometry = self.get_geometries()
         if self._arguments.verbose:
-            print 'Screen geometry:', vars(self._screenGeometry)
-            print 'Blender geometry:', vars(self._blenderGeometry)
+            print('Screen geometry:', vars(self._screenGeometry))
+            print('Blender geometry:', vars(self._blenderGeometry))
 
     def get_geometries(self):
         """Get sensible geometries for the terminal and blender.
@@ -251,8 +251,8 @@ class Main(object):
         for path in tuple(extras) + tuple(os.getenv("PATH", "").split(":")):
             candidate = os.path.join(path, program)
             if self._arguments.verbose:
-                print self.argv0 + " which(" + program + ') trying "' \
-                      + candidate + '"'
+                print('{} which({}) trying "{}"'.format(
+                    self.argv0, program, candidate))
             if os.path.isfile(candidate):
                 return candidate
         return None
@@ -305,11 +305,11 @@ class Main(object):
         blenderPath = self.which(blender, directories)
         if blenderPath is None:
             if self._arguments.verbose:
-                print ''.join((
+                print(''.join((
                     'Could not find Blender executable "', blender,
                     '" on path, nor in:\n\t"',
                     '"\n\t"'.join(directories),
-                    '"\nWill rely on path environment.'))
+                    '"\nWill rely on path environment.')))
             blenderPath = blender
         
         return blenderPath
@@ -354,8 +354,8 @@ class Main(object):
                     #
                     # Still running. Allow the code to go around the loop again.
                     if self._arguments.verbose:
-                        print error
-                        print "Trying again."
+                        print(error)
+                        print("Trying again.")
         #
         # Assemble the recorder command line.
         recorderCommand = [
@@ -366,8 +366,8 @@ class Main(object):
         # Start the recorder.
         try:
             if self._arguments.verbose:
-                print self.argv0, 'Starting recorder:\n\t', '\n\t'.join((
-                    '"'.join(("", _, "")) for _ in recorderCommand))
+                print(self.argv0, 'Starting recorder:\n\t', '\n\t'.join((
+                    '"'.join(("", _, "")) for _ in recorderCommand)))
                 recorder = subprocess.Popen(recorderCommand)
             else:
                 #
@@ -378,10 +378,10 @@ class Main(object):
                                             , stdout=subprocess.DEVNULL
                                             , stderr=subprocess.DEVNULL)
         except Exception as exception:
-            print ''.join(("Failed to start recorder."
+            print(''.join(("Failed to start recorder."
                            , ' Command line was:\n\t"'
                            , '"\n\t"'.join(recorderCommand), '"\n'
-                           , str(exception), "."))
+                           , str(exception), ".")))
             raise
         return recorder
     
@@ -395,12 +395,12 @@ class Main(object):
         try:
             popen = subprocess.Popen(command)
         except Exception as exception:
-            print ''.join(('Failed to start Blender. Command line was:\n\t"'
+            print(''.join(('Failed to start Blender. Command line was:\n\t"'
                            , '"\n\t"'.join(command), '"\n'
-                           , str(exception), "."))
+                           , str(exception), ".")))
             if self._arguments.blender is None:
-                print ("Try specifying an explicit path to the Blender"
-                       " executable, with the -B switch.")
+                print("Try specifying an explicit path to the Blender"
+                      " executable, with the -B switch.")
             return 1
         #
         # Start the screen recorder, if specified.
@@ -408,7 +408,7 @@ class Main(object):
             recorder = self._start_recorder(popen)
         except Exception as exception:
             popen.terminate()
-            print exception
+            print(exception)
             return 1
         #
         # Wait for Blender to finish, so that we can get a return code, and so
@@ -421,14 +421,14 @@ class Main(object):
         #
         # Stop the screen recorder, if any.
         if recorder is not None:
-            print "Stopping recorder and waiting for it to encode..."
+            print("Stopping recorder and waiting for it to encode...")
             recorder.terminate()
             recorder.wait()
             recorderMessage = "OK"
             if recorder.returncode != 0:
                 recorderMessage = "".join((
                     "Failed: ", str(recorder.returncode), "."))
-            print "Recorder finished.", recorderMessage
+            print("Recorder finished.", recorderMessage)
         #
         # Return the Blender return code.
         return return_
@@ -446,14 +446,14 @@ class Main(object):
             call = self._terminal_command()
         except EnvironmentError as error:
             # Could switch down to terminalCommand:None here instead.
-            print error
+            print(error)
             return 1
         #
         # Append the Blender command.
         try:
             call.extend( self._blender_command() )
         except EnvironmentError as error:
-            print error
+            print(error)
             return 2
         #
         # And execute.

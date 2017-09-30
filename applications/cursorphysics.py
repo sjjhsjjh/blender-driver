@@ -156,6 +156,7 @@ class Application(restanimation.Application):
                 
                 if index == 0:
                     self._cameraStartPosition = list(cursor.point.copy())
+                    self._cameraStartPosition[0] += 2.0
                     self._cameraStartPosition[2] += 2.0
             #
             # Add the floor object, which is handy to stop objects dropping out

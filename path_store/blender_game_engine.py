@@ -330,53 +330,71 @@ class Cursor(object):
         self._update()
 
     #
-    # Helper properties, read-only from cache updated by setting other
-    # properties.
+    # Helper properties, read-only and based on the subject plus an offset from
+    # cache. The offset is updated by setting other properties.
     #
     @property
     def origin(self):
-        return self._origin
+        return self._subject_position(self._originOffset)
     @property
     def end(self):
-        return self._end
+        return self._subject_position(self._endOffset)
     @property
     def point(self):
-        return self._point
-    
+        return self._subject_position(self._pointOffset)
+
+    def _subject_position(self, offset):
+        subject = self._get_subject()
+        if subject is None:
+            return None
+        return_ = subject.worldPosition.copy()
+        if offset is not None:
+            return_ += offset
+        return return_
+        
+    def _get_subject(self):
+        if (self._subject is None
+            and self._subjectPath is not None
+            and self._restInterface is not None
+            ):
+            self._subject = self.restInterface.rest_get(self.subjectPath)
+            
+        return self._subject
 
     def _update(self):
-        if self._subjectPath is not None and self._restInterface is not None:
-            self._subject = self.restInterface.rest_get(self.subjectPath)
-        subject = self._subject
+        subject = self._get_subject()
 
         if subject is not None:
             zAxis = Vector((0,0,1))
             axisVector = subject.getAxisVect(zAxis)
             
-            self._origin = subject.worldPosition.copy()
-            if self._offset is not None:
-                self._origin += self._offset * axisVector
-            self._end = self._origin.copy()
-            if self._length is not None:
-                self._end += self._length * axisVector
-            self._point = self._end.copy()
-            if self._radius is not None:
-                rotationVector = Vector((self._radius, 0, 0))
-                if self._rotation is not None:
-                    quaternion = Quaternion(zAxis, self._rotation)
-                    rotationVector.rotate(quaternion)
-                radiusVector = subject.getAxisVect(rotationVector)
-            
-                self._point += radiusVector
+            self._originOffset = (
+                None if self._offset is None else self._offset * axisVector)
+            if self._originOffset is None:
+                self._endOffset = None
+            else:
+                self._endOffset = self._originOffset.copy()
+                if self._length is not None:
+                    self._endOffset += self._length * axisVector
+            if self._endOffset is None:
+                self._pointOffset = None
+            else:
+                self._pointOffset = self._endOffset.copy()
+                if self._radius is not None:
+                    rotationVector = Vector((self._radius, 0, 0))
+                    if self._rotation is not None:
+                        quaternion = Quaternion(zAxis, self._rotation)
+                        rotationVector.rotate(quaternion)
+                    self._pointOffset += subject.getAxisVect(rotationVector)
 
         if self._visible and subject is not None:
             if self._visualisers is None and self._add_visualiser is not None:
                 visualOrigin = self._add_visualiser()
-                visualOrigin.make_vector(self._origin, self._end)
+                visualOrigin.make_vector(self.origin, self.end)
                 visualEnd = self._add_visualiser()
-                visualEnd.make_vector(self._end, self._point)
+                visualEnd.make_vector(self.end, self.point)
                 visualPoint = self._add_visualiser()
-                visualPoint.make_vector(self._point, self._origin)
+                visualPoint.make_vector(self.point, self.origin)
 
                 self._visualisers = (visualOrigin, visualEnd, visualPoint)
                 for visualiser in self._visualisers:
@@ -399,9 +417,9 @@ class Cursor(object):
         self._radius = None
         self._rotation = None
 
-        self._origin = None
-        self._end = None
-        self._point = None
+        self._originOffset = None
+        self._endOffset = None
+        self._pointOffset = None
         
 def get_camera_subclass(bge):
     KX_Camera = bge.types.KX_Camera
@@ -444,16 +462,18 @@ def get_camera_subclass(bge):
             (dist, worldv, localv) = self.getVectTo(subject.point)
             #
             # Get the current camera rotation. It's used to check whether any
-            # rotation is needed to point at the object, which happens at the end of
-            # the method but it's nice to dump it here if in diagnostic mode.
+            # rotation is needed to point at the object, which happens at the
+            # end of the method but it's nice to dump it here if in diagnostic
+            # mode.
             rotation = self.rotation[:]
-            log(DEBUG
-                , "Camera 0 {} {} ({:.2f}, {:.2f}, {:.2f})"
-                " ({:.2f}, {:.2f}, {:.2f}) point{} position{}"
-                , degrees(atan2(1.0, 0)), degrees(atan2(-1.0, 0))
-                , *tuple(dist * _ for _ in worldv)
-                , *tuple(degrees(_) for _ in rotation)
-                , subject.point, self.worldPosition[:])
+            # This is pretty expensive, even for a debug, so it's commented out.
+            # log(DEBUG
+            #     , "Camera 0 {} {} ({:.2f}, {:.2f}, {:.2f})"
+            #     " ({:.2f}, {:.2f}, {:.2f}) point{} position{}"
+            #     , degrees(atan2(1.0, 0)), degrees(atan2(-1.0, 0))
+            #     , *tuple(dist * _ for _ in worldv)
+            #     , *tuple(degrees(_) for _ in rotation)
+            #     , subject.point, self.worldPosition[:])
             #
             # Convenience variables for the offset in each dimension.
             ox = worldv[0]
@@ -463,7 +483,6 @@ def get_camera_subclass(bge):
             # Variables for the rotation in each dimension.
             # In the calculation as it is now, Y will always be zero.
             rotx = 0.0
-            roty = 0.0
             rotz = 0.0
             #
             # Calculate the Z rotation, based on the X and Y offsets.
@@ -478,7 +497,7 @@ def get_camera_subclass(bge):
             # -   atan(zero) is zero.
             # -   atan(infinity) is 90 degrees.
             rotz = atan2(oy, ox) - radians(90.0)
-            log(INFO, 'ox {:.2f} {:.2f} {:.2f}'
+            log(DEBUG, 'ox {:.2f} {:.2f} {:.2f}'
                 , ox, oy/ox if ox < 0.0 or ox > 0.0 else oy, degrees(rotz))
             #
             # Rotate the offset about the Z axis in such a way that the X offest
@@ -502,26 +521,27 @@ def get_camera_subclass(bge):
             # on oz. If oy is zero then atan(oz, oy) is either 90 degrees or -90
             # degrees, depending on whether oz is positive or negative. So, no
             # special case is needed.
+            #
+            # What the code does is to negate the atan portion if oy is
+            # negative. Could there be a calculation that generates a negative
+            # value, if oy is negative? I haven't found one.
             if oy < 0.0:
                 rotx = radians(90.0) - atan2(oz, oy)
-                log(INFO, 'oy negative {:.2f} {:.2f} {:.2f} {:.2f}'
+                log(DEBUG, 'oy negative {:.2f} {:.2f} {:.2f} {:.2f}'
                     , oz, oy, degrees(atan2(oz, oy)), degrees(rotx))
             else:
                 rotx = radians(90.0) + atan2(oz, oy)
-                log(INFO, 'oy positive {:.2f} {:.2f} {:.2f} {:.2f}'
+                log(DEBUG, 'oy positive {:.2f} {:.2f} {:.2f} {:.2f}'
                     , oz, oy, degrees(atan2(oz, oy)), degrees(rotx))
-
-
             #
             # Check if any rotation was needed to point the camera at the target.
             return_ = \
                   abs( rotation[0] - rotx ) > 0.001 or \
-                  abs( rotation[1] - roty ) > 0.001 or \
                   abs( rotation[2] - rotz ) > 0.001
             #
             # Apply the rotation.
-            newRotation = (rotx, roty, rotz)
-            log(INFO, 'New rotation {} {} {}', return_, newRotation
+            newRotation = (rotx, 0.0, rotz)
+            log(DEBUG, 'New rotation {} {} {}', return_, newRotation
                 , tuple(degrees(_) for _ in newRotation))
             self.rotation = newRotation
             #

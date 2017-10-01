@@ -262,6 +262,12 @@ class Rotation(object):
         self._update_list()
 
 class Cursor(object):
+    #
+    # Handy constants
+    zAxis = Vector((0,0,1))
+    #
+    # Infrastructure properties and methods.
+    #
     @property
     def subjectPath(self):
         return self._subjectPath
@@ -269,7 +275,7 @@ class Cursor(object):
     def subjectPath(self, subjectPath):
         self._subjectPath = subjectPath
         self._update()
-    
+    #
     @property
     def restInterface(self):
         return self._restInterface
@@ -277,7 +283,7 @@ class Cursor(object):
     def restInterface(self, restInterface):
         self._restInterface = restInterface
         self._update()
-        
+    #
     @property
     def add_visualiser(self):
         return self._add_visualiser
@@ -285,7 +291,7 @@ class Cursor(object):
     def add_visualiser(self, add_visualiser):
         self._add_visualiser = add_visualiser
         self._update()
-    
+    #
     @property
     def visible(self):
         return self._visible
@@ -293,7 +299,6 @@ class Cursor(object):
     def visible(self, visible):
         self._visible = visible
         self._update()
-
     #
     # Properties that define the cursor.
     #
@@ -328,7 +333,6 @@ class Cursor(object):
     def rotation(self, rotation):
         self._rotation = rotation
         self._update()
-
     #
     # Helper properties, read-only and based on the subject plus an offset from
     # cache. The offset is updated by setting other properties.
@@ -344,7 +348,7 @@ class Cursor(object):
         return self._subject_position(self._pointOffset)
 
     def _subject_position(self, offset):
-        subject = self._get_subject()
+        subject = self._get_subject(True)
         if subject is None:
             return None
         return_ = subject.worldPosition.copy()
@@ -352,41 +356,42 @@ class Cursor(object):
             return_ += offset
         return return_
         
-    def _get_subject(self):
+    def _get_subject(self, compute):
         if (self._subject is None
             and self._subjectPath is not None
             and self._restInterface is not None
             ):
             self._subject = self.restInterface.rest_get(self.subjectPath)
+
+        if self._subject is not None:
+            axisVector = self._subject.getAxisVect(self.zAxis)
+            # log(INFO, '_get_subject {} {}', axisVector, self._axisVector)
+            if compute or self._axisVector != axisVector:
+                self._axisVector = axisVector
+                self._originOffset = (
+                    None if self._offset is None else self._offset * axisVector)
+                if self._originOffset is None:
+                    self._endOffset = None
+                else:
+                    self._endOffset = self._originOffset.copy()
+                    if self._length is not None:
+                        self._endOffset += self._length * axisVector
+                if self._endOffset is None:
+                    self._pointOffset = None
+                else:
+                    self._pointOffset = self._endOffset.copy()
+                    if self._radius is not None:
+                        rotationVector = Vector((self._radius, 0, 0))
+                        if self._rotation is not None:
+                            quaternion = Quaternion(self.zAxis, self._rotation)
+                            rotationVector.rotate(quaternion)
+                        self._pointOffset += self._subject.getAxisVect(
+                            rotationVector)
             
         return self._subject
 
     def _update(self):
-        subject = self._get_subject()
-
-        if subject is not None:
-            zAxis = Vector((0,0,1))
-            axisVector = subject.getAxisVect(zAxis)
-            
-            self._originOffset = (
-                None if self._offset is None else self._offset * axisVector)
-            if self._originOffset is None:
-                self._endOffset = None
-            else:
-                self._endOffset = self._originOffset.copy()
-                if self._length is not None:
-                    self._endOffset += self._length * axisVector
-            if self._endOffset is None:
-                self._pointOffset = None
-            else:
-                self._pointOffset = self._endOffset.copy()
-                if self._radius is not None:
-                    rotationVector = Vector((self._radius, 0, 0))
-                    if self._rotation is not None:
-                        quaternion = Quaternion(zAxis, self._rotation)
-                        rotationVector.rotate(quaternion)
-                    self._pointOffset += subject.getAxisVect(rotationVector)
-
+        subject = self._get_subject(True)
         if self._visible and subject is not None:
             if self._visualisers is None and self._add_visualiser is not None:
                 visualOrigin = self._add_visualiser()
@@ -402,10 +407,11 @@ class Cursor(object):
                 
 
         # ToDo: End the visualiser if not visible.
-            
+
     def __init__(self):
         self._subject = None
         self._visualisers = None
+        self._axisVector = None
 
         self._subjectPath = None
         self._restInterface = None
@@ -447,15 +453,24 @@ def get_camera_subclass(bge):
             self._subjectPath = subjectPath
             self._pointAtSubject()
         
+        def _get_subject(self):
+            if (self._subject is None
+                and self._subjectPath is not None
+                and self._restInterface is not None
+                ):
+                self._subject = self.restInterface.rest_get(self.subjectPath)
+            
+            return self._subject
+
         def _pointAtSubject(self):
+            """\
+            Calculate the rotation needed to make the camera point at its
+            subject, and then apply it. Returns a Boolean for whether any
+            rotation was needed.
             """
-            Calculate the rotation needed to make the camera point at its subject,
-            and then apply it. Returns a Boolean for whether any rotation was
-            needed.
-            """
-            if self._subjectPath is None or self.restInterface is None:
+            subject = self._get_subject()
+            if subject is None:
                 return False
-            subject = self.restInterface.rest_get(self.subjectPath)
             #
             # Get an offset vector in world coordinates from the camera to the
             # target. The offset vector is normalised.
@@ -548,9 +563,40 @@ def get_camera_subclass(bge):
             # Return true if any rotation was needed.
             return return_
 
+        @property
+        def orbitDistance(self):
+            """Distance from the camera to its subject, or None if there is no
+            subject."""
+            subject = self._get_subject()
+            if subject is None:
+                return None
+            (dist, worldv, localv) = self.getVectTo(subject.point)
+            return dist
+        @orbitDistance.setter
+        def orbitDistance(self, orbitDistance):
+            subject = self._get_subject()
+            if subject is None:
+                return
+            #
+            # Getter for the next line will give this code a copy of the Vector.
+            point = subject.point
+            (dist, worldv, localv) = self.getVectTo(point)
+            #
+            # Negative distance values are treated as zero. Maybe they should
+            # raise ValueError instead.
+            if orbitDistance > 0:
+                #
+                # worldv goes from the camera to the subject. Deduct it from the
+                # point in order to negate it, so moving from the point towards
+                # the camera current position.
+                point -= worldv * orbitDistance
+            self.worldPosition = point
+
         def __init__(self, *args):
             self._subjectPath = None
             self._restInterface = None
+            
+            self._subject = None
 
             super().__init__(*args)
     

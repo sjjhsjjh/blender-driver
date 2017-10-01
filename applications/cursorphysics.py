@@ -92,7 +92,7 @@ class Application(restanimation.Application):
     # Override.
     _objectRootPath = ('root','objects')
     
-    _cameraStartPosition = (12.0, -5.0, 7.0)
+    _cameraStartPosition = [0.0, 2.0, 0.0]
     _cameraStartOrientation = (radians(90.0), 0.0, radians(45.0))
     _cameraSpeed = 9.0
 
@@ -155,9 +155,8 @@ class Application(restanimation.Application):
                 del path[-1:]
                 
                 if index == 0:
-                    self._cameraStartPosition = list(cursor.point.copy())
-                    self._cameraStartPosition[0] += 2.0
-                    self._cameraStartPosition[2] += 2.0
+                    for index, value in enumerate(cursor.point):
+                        self._cameraStartPosition[index] += value
             #
             # Add the floor object, which is handy to stop objects dropping out
             # of sight due to gravity.
@@ -224,6 +223,7 @@ class Application(restanimation.Application):
                 # Discard the completed animation object, so that the above and
                 # other loops can run faster.
                 self._restInterface.rest_put(None, ('animations', specifier))
+
             #
             # Update all cursors, by updating all physics objects.
             gameObjects = self._restInterface.rest_get(self._objectRootPath)
@@ -250,14 +250,13 @@ class Application(restanimation.Application):
             for dimension, _ in enumerate(self._cameraStartPosition):
                 self.move_camera(dimension, 0)
         if keyString == "a":
-            for dimension, _ in enumerate(self._cameraStartPosition):
-                animationPath = self._animation_path(dimension)
-                self._restInterface.rest_put(None, animationPath)
+            self.stop_camera()
             self._restInterface.rest_put(
                 ('root', 'cursors', 0), ('root', 'camera', 'subjectPath'))
-
-            
-            
+        elif keyString == "o":
+            self.move_camera(3, 1)
+        elif keyString == "O":
+            self.move_camera(3, -1)
         elif keyString == "x":
             self.move_camera(0, 1)
         elif keyString == "X":
@@ -275,6 +274,11 @@ class Application(restanimation.Application):
         
         return True
     
+    def stop_camera(self, dimensions=range(4)):
+        for dimension in dimensions:
+            animationPath = self._animation_path(dimension)
+            self._restInterface.rest_put(None, animationPath)
+    
     def _animation_path(self, dimension):
         return ['animations', 'camera_{:d}'.format(dimension)]
     
@@ -284,8 +288,15 @@ class Application(restanimation.Application):
         restInterface = self._restInterface
         #
         # Path to the camera's position in the specified dimension.
-        valuePath = self._objectRootPath[:-1] + (
-            'camera', 'worldPosition', dimension)
+        valuePath = self._objectRootPath[:-1] 
+        if dimension < 3:
+            valuePath += ('camera', 'worldPosition', dimension)
+            self.stop_camera(range(3,4))
+        elif dimension == 3:
+            valuePath += ('camera', 'orbitDistance')
+            self.stop_camera(range(3))
+        else:
+            raise ValueError()
         #
         # Assemble the animation in a dictionary, starting with these.
         animation = {'modulo': 0, 'path': valuePath}
@@ -300,7 +311,7 @@ class Application(restanimation.Application):
         #
         # Insert the animation. The point maker will set the store
         # attribute.
-        log(INFO, 'Patching {} {}', animationPath, animation)
+        log(DEBUG, 'Patching {} {}', animationPath, animation)
         restInterface.rest_put(animation, animationPath)
         #
         # Set the start time, which has the following side effects:
@@ -308,6 +319,8 @@ class Application(restanimation.Application):
         # -   Clears the complete state.
         animationPath.append('startTime')
         restInterface.rest_put(self.tickPerf, animationPath)
+        log(INFO, "Animations {}"
+            , self._restInterface.rest_get(('animations',)))
     
     # Override.
     def _prepare_animation(self, animation):

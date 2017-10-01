@@ -98,6 +98,8 @@ class Application(restanimation.Application):
 
     def _add_visualiser(self):
         return self._GameObject(self.game_add_object('visualiser'))
+    def _add_empty(self):
+        return self._GameObject(self.game_add_object('empty'))
 
     # Overriden.
     def game_initialise(self):
@@ -121,8 +123,7 @@ class Application(restanimation.Application):
                 # tether. Tethers don't need to be accessible to the path store.
                 path.append(index)
                 object_ = self._restInterface.rest_get(path)
-                empty = self.game_add_object('empty')
-                object_.tether = empty
+                object_.tether = self._add_empty()
                 #
                 # Add the cursor to this object, and insert it into the path
                 # store.
@@ -131,8 +132,9 @@ class Application(restanimation.Application):
                 cursorPath.append(index)
                 cursor = Cursor()
                 #
-                # Give the cursor the means to add visualiser objects.
+                # Give the cursor the means to add necessary objects.
                 cursor.add_visualiser = self._add_visualiser
+                cursor.add_empty = self._add_empty
                 #
                 # Cursor needs a restInterface to get an object from the path.
                 cursor.restInterface = self._restInterface
@@ -249,7 +251,7 @@ class Application(restanimation.Application):
         if keyString == "0":
             for dimension, _ in enumerate(self._cameraStartPosition):
                 self.move_camera(dimension, 0)
-        if keyString == "a":
+        elif keyString == "a":
             self.stop_camera()
             self._restInterface.rest_put(
                 ('root', 'cursors', 0), ('root', 'camera', 'subjectPath'))

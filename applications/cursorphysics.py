@@ -92,9 +92,13 @@ class Application(restanimation.Application):
     # Override.
     _objectRootPath = ('root','objects')
     
+    # Default starting values for the camera, which don't get used actually.
     _cameraStartPosition = [0.0, 2.0, 0.0]
     _cameraStartOrientation = (radians(90.0), 0.0, radians(45.0))
-    _cameraSpeed = 9.0
+    #
+    # Camera speed.
+    _cameraLinear = 9.0
+    _cameraAngular = radians(_cameraLinear * 15.0)
 
     def _add_visualiser(self):
         return self._GameObject(self.game_add_object('visualiser'))
@@ -183,6 +187,7 @@ class Application(restanimation.Application):
             
             log(INFO, "Objects, cursors, floor, camera: {}"
                 , self._restInterface.rest_get())
+            
         finally:
             self.mainLock.release()
 
@@ -259,6 +264,10 @@ class Application(restanimation.Application):
             self.move_camera(3, 1)
         elif keyString == "O":
             self.move_camera(3, -1)
+        elif keyString == "p":
+            self.move_camera(4, 1)
+        elif keyString == "P":
+            self.move_camera(4, -1)
         elif keyString == "x":
             self.move_camera(0, 1)
         elif keyString == "X":
@@ -276,7 +285,10 @@ class Application(restanimation.Application):
         
         return True
     
-    def stop_camera(self, dimensions=range(4)):
+    def stop_camera(self, dimensions=range(5)):
+        valuePath = self._objectRootPath[:-1] + ('camera', 'orbitAngle')
+        log(INFO, "Camera orbitAngle: {:.2f}"
+            , degrees(self._restInterface.rest_get(valuePath)))
         for dimension in dimensions:
             animationPath = self._animation_path(dimension)
             self._restInterface.rest_put(None, animationPath)
@@ -290,23 +302,47 @@ class Application(restanimation.Application):
         restInterface = self._restInterface
         #
         # Path to the camera's position in the specified dimension.
-        valuePath = self._objectRootPath[:-1] 
+        valuePath = self._objectRootPath[:-1]
+        #
+        # Set the value path and stop any incompatible movement.
+        # X, Y, and Z (dimensions 0, 1, and 2) are incompatible with 3.
+        # X and Y are incompatible with 4.
         if dimension < 3:
             valuePath += ('camera', 'worldPosition', dimension)
-            self.stop_camera(range(3,4))
+            if dimension == 2:
+                self.stop_camera((3,))
+            else:
+                self.stop_camera(range(3,5))
         elif dimension == 3:
             valuePath += ('camera', 'orbitDistance')
             self.stop_camera(range(3))
+        elif dimension == 4:
+            valuePath += ('camera', 'orbitAngle')
+            self.stop_camera(range(2))
         else:
             raise ValueError()
         #
-        # Assemble the animation in a dictionary, starting with these.
-        animation = {'modulo': 0, 'path': valuePath}
+        # Assemble the animation in a dictionary, starting with this.
+        animation = {'path': valuePath}
+        #
+        # Set a target value, if needed.
         if direction == 0:
             animation['targetValue'] = self._cameraStartPosition[dimension]
-            animation['speed'] = self._cameraSpeed * 2.0
+        elif dimension == 3 and direction < 0:
+            # Make it zoom in, but only to a distance of 1.0, so that it never
+            # gets to be in the same place as the thing it's trying to point at.
+            animation['targetValue'] = 1.0
+        #
+        # Set a speed and modulo.
+        if dimension == 4:
+            animation['modulo'] = radians(360)
+            animation['speed'] = self._cameraAngular * float(direction)
         else:
-            animation['speed'] = self._cameraSpeed * float(direction)
+            animation['modulo'] = 0
+            if direction == 0:
+                animation['speed'] = self._cameraLinear * 2.0
+            else:
+                animation['speed'] = self._cameraLinear * float(direction)
         #
         # There is up to one camera movement per dimension.
         animationPath = self._animation_path(dimension)

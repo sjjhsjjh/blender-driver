@@ -585,22 +585,27 @@ def get_camera_subclass(bge):
             #
             # Apply the rotation.
             newRotation = (rotx, 0.0, rotz)
-            log(DEBUG, 'New rotation {} {} {}', return_, newRotation
-                , tuple(degrees(_) for _ in newRotation))
-            self.rotation = newRotation
+            # log(DEBUG, 'New rotation {} {} {}', return_, newRotation
+            #     , tuple(degrees(_) for _ in newRotation))
+            if return_:
+                self.rotation = newRotation
             #
             # Return true if any rotation was needed.
             return return_
 
         @property
         def orbitDistance(self):
-            """Distance from the camera to its subject, or None if there is no
-            subject."""
+            """\
+            Distance from the camera to its subject, or None if there is no
+            subject.
+            """
             subject = self._get_subject()
             if subject is None:
                 return None
-            (dist, worldv, localv) = self.getVectTo(subject.point)
-            return dist
+            #
+            # Extract the distance part of the getVectTo, which is the first
+            # value in the returned tuple.
+            return self.getVectTo(subject.point)[0]
         @orbitDistance.setter
         def orbitDistance(self, orbitDistance):
             subject = self._get_subject()
@@ -609,17 +614,58 @@ def get_camera_subclass(bge):
             #
             # Getter for the next line will give this code a copy of the Vector.
             point = subject.point
-            (dist, worldv, localv) = self.getVectTo(point)
+            #
+            # Extract the normalised vector offset part of the getVectTo, which
+            # is the second value in the returned tuple.
+            vector = self.getVectTo(point)[1]
             #
             # Negative distance values are treated as zero. Maybe they should
             # raise ValueError instead.
             if orbitDistance > 0:
                 #
-                # worldv goes from the camera to the subject. Deduct it from the
-                # point in order to negate it, so moving from the point towards
-                # the camera current position.
-                point -= worldv * orbitDistance
+                # Direction of vector is from the camera to the subject. Deduct
+                # it from the point in order to negate it, so moving from the
+                # point towards the camera current position.
+                point -= vector * orbitDistance
             self.worldPosition = point
+
+        @property
+        def orbitAngle(self):
+            """\
+            Current angle in radians of orbit of the camera around the subject,
+            supposing an orbit with a Z axis, or None if there is no subject.
+            """
+            subject = self._get_subject()
+            if subject is None:
+                return None
+            (distance, worldVector, _) = self.getVectTo(subject.point)
+            # Originally had a line like the following, but it caused a Blender
+            # crash.
+            # flatVector = (worldVector * distance).resized(2)
+            # It's probably less efficient anyway, because it allocates a new
+            # Vector object or two.
+            worldVector *= distance
+            worldVector.resize(2)
+            xZero = Vector((worldVector.magnitude, 0))
+            return xZero.angle_signed(worldVector, 0.0)
+        @orbitAngle.setter
+        def orbitAngle(self, orbitAngle):
+            subject = self._get_subject()
+            if subject is None:
+                return
+            #
+            # Getter for the next line will give this code a copy of the Vector.
+            point = subject.point
+            (distance, vector, _) = self.getVectTo(point)
+            vector *= distance
+            flatVector = vector.resized(2)
+            xZero = Vector((flatVector.magnitude, 0))
+            currentAngle = xZero.angle_signed(flatVector, 0)
+            changeAngle = orbitAngle - currentAngle
+            quaternion = Quaternion((0.0, 0.0, -1.0), changeAngle)
+            vector.rotate(quaternion)
+            self.worldPosition = point - vector
+            self._pointAtSubject()
 
         def __init__(self, *args):
             self._subjectPath = None

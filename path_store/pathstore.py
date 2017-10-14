@@ -116,6 +116,63 @@ def get(parent, path=None):
         parent = point
     return parent
 
+def walk(parent, editor, path=None):
+    """\
+    Descend from the parent along the path, then walk the structure and execute
+    editor on each item that can't be iterified. Returns a list of editor return
+    values.
+    
+    The editor callable is invoked as follows.
+
+        editor(point,path)
+
+    Where:
+    
+    -   `point` is the object on the walk.
+    -   `path` is the navigation path to reach it from the parent. The list gets
+        modified during execution, so copy it if needed.
+    
+    The editor callable can return a tuple `(append, result)`. If append is
+    True, result is appended to the result list returned by this function. If
+    editor has no return, or returns None, or returns False, or returns a tuple
+    whose first element is False, then nothing is appended.
+    
+    ToDo: Change it to take a context object for results. Also, change all the
+    unit tests.
+    """
+    log(DEBUG, "{} {} {}.", parent, editor, path)
+    parent = get(parent, path)
+    return_ = []
+
+    def walk1(point, path1):
+        try:
+            iterator = iterify(point)
+            log(DEBUG, "iterator {} {}.", point, path1)
+        except TypeError:
+            iterator = None
+
+        if iterator is None:
+            result = editor(point, path1)
+            append = False
+            if result is not None:
+                try:
+                    append = result[0]
+                except TypeError:
+                    append = result
+            if append:
+                return_.append(result[1])
+            log(DEBUG, "return {} {} {}.", point, path1, result)
+            return
+
+        for key, value in iterator:
+            path1.append(key)
+            walk1(value, path1)
+            del path1[-1]
+        
+    walk1(parent, list(pathify(path)))
+    
+    return return_
+
 def iterify(source):
     """\
     Either source.items(), for a dictionary, or enumerate(source), for a list or
@@ -135,8 +192,9 @@ def iterify(source):
     return enumerate(source)
 
 def make_point(specifier, point=None):
-    """Make or create a suitable point that can hold specifier.
-    If a point is specified as input, the new point is based on it.
+    """\
+    Make or create a suitable point that can hold specifier. If a point is
+    specified as input, the new point is based on it.
     """
     log(DEBUG, "{} {}.", specifier, point)
     if isinstance(specifier, str):
@@ -300,7 +358,8 @@ def _merge(parent, value, point_maker, pointMakerPath):
     for legKey, legValue in legIterator:
         log(DEBUG, "iteration {} {}", str_quote(legKey), legValue)
         # Not sure about this so it's commented out. It seems that it could skip
-        # the point maker if a value happens to be None. if legValue is None:
+        # the point maker if a value happens to be None.
+        # if legValue is None:
         #     continue
         path.append(legKey)
         parent = _insert(parent, path, legValue, point_maker

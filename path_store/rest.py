@@ -66,6 +66,9 @@ class RestInterface(object):
     def rest_get(self, path=None):
         return pathstore.get(self.principal, path)
     
+    def rest_walk(self, editor, path=None):
+        return pathstore.walk(self.principal, editor, path)
+    
     def __init__(self):
         self._principal = None
 
@@ -136,32 +139,36 @@ class AnimatedRestInterface(RestInterface):
         return super().point_maker(path, index, point)
     
     def set_now_times(self, nowTime):
+
+        class Context(object):
+            completionsLog = None
+            anyCompletions = False
+            completions = []
+            
+            def set_now(self, point, path):
+                if point is not None and not point.complete:
+                    # Setting nowTime has the side effect of applying the
+                    # animation, which could have the further side effect of
+                    # completing the animation.
+                    point.nowTime = nowTime
+                    if point.complete:
+                        self.anyCompletions = True
+                        self.completions.append((path[:], point))
+                logValue = None if point is None else (
+                    "Complete" if point.complete else "Incomplete")
+                self.completionsLog = pathstore.merge(
+                        self.completionsLog, logValue, path)
+        
+        context = Context()
         try:
-            animations = self.rest_get('animations')
+            self.rest_walk(context.set_now, 'animations')
         except KeyError:
-            animations = tuple()
-        completions = []
-        # ToDo: Make it descend, perhaps by adding a walk method to pathstore.
-        # Walk would descend through dict, list, and tuple levels and emit their
-        # childs.
-        completionsLog = None
-        anyCompletions = False
-        for specifier, animation in pathstore.iterify(animations):
-            if animation is not None and not animation.complete:
-                # Setting nowTime has the side effect of applying the animation.
-                animation.nowTime = nowTime
-                if animation.complete:
-                    anyCompletions = True
-                    completions.append((specifier, animation))
-            logValue = None if animation is None else (
-                "Complete" if animation.complete else "Incomplete")
-            completionsLog = pathstore.merge(
-                    completionsLog, logValue, specifier)
+            pass
+
+        if context.anyCompletions:
+            log(INFO, "Animations:{}.", context.completionsLog)
         
-        if anyCompletions:
-            log(INFO, "Animations:{}.", completionsLog)
-        
-        return completions
+        return context.completions
 
 # Do:
 #

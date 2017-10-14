@@ -44,6 +44,7 @@ from test.pointmaker import TestPointMaker
 from test.hostedproperty import TestHostedProperty
 from test.interceptproperty import TestInterceptProperty
 from test.edit import TestEdit
+from test.walk import TestWalk
 #
 # Above should be done with .discover() but I couldn't get it to work.
 

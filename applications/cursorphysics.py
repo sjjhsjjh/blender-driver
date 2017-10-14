@@ -92,8 +92,13 @@ class Application(restanimation.Application):
     # Override.
     _objectRootPath = ('root','objects')
     
+    # Location of the UI cursor.
+    _cursorPath = ['root', 'cursors', 0]
+    
+    # Start position for the camera.
+    _cameraStartOffset = (0.0, 2.0, 0.0)
+    _cameraStartPosition = [None] * len(_cameraStartOffset)
     # Default starting values for the camera, which don't get used actually.
-    _cameraStartPosition = [0.0, 2.0, 0.0]
     _cameraStartOrientation = (radians(90.0), 0.0, radians(45.0))
     #
     # Camera speed.
@@ -118,51 +123,55 @@ class Application(restanimation.Application):
             #
             # Working paths.
             path = list(self._objectRootPath)
-            cursorPath = ['root', 'cursors']
             #
             # Loop for each object, by number.
             for index in range(self._objectCount):
                 #
-                # Every object will have a cursor, so every object needs a
+                # Any object could have a cursor, so every object needs a
                 # tether. Tethers don't need to be accessible to the path store.
                 path.append(index)
                 object_ = self._restInterface.rest_get(path)
                 object_.tether = self._add_empty()
                 #
-                # Add the cursor to this object, and insert it into the path
-                # store.
-                #
-                # Set the cursor working path and create a new Cursor object.
-                cursorPath.append(index)
-                cursor = Cursor()
-                #
-                # Give the cursor the means to add necessary objects.
-                cursor.add_visualiser = self._add_visualiser
-                cursor.add_empty = self._add_empty
-                #
-                # Cursor needs a restInterface to get an object from the path.
-                cursor.restInterface = self._restInterface
-                #
-                # Put the cursor in the path store.
-                self._restInterface.rest_put(cursor, cursorPath)
-                #
-                # Set all its parameters except visibility in a big patch. Then
-                # set visibility in a single put, so that it gets set last.
-                self._restInterface.rest_patch({
+                # Revert the working path.
+                del path[-1:]
+            #
+            # Add the cursor to this object, and insert it into the path
+            # store.
+            #
+            # Set the working paths and create a new Cursor object.
+            path.append(1)
+            cursor = Cursor()
+            #
+            # Give the cursor the means to add necessary objects.
+            cursor.add_visualiser = self._add_visualiser
+            cursor.add_empty = self._add_empty
+            #
+            # Cursor needs a restInterface to get an object from the path.
+            cursor.restInterface = self._restInterface
+            #
+            # Put the cursor in the path store.
+            self._restInterface.rest_put(cursor, self._cursorPath)
+            #
+            # Set all its parameters except visibility in a big patch. Then
+            # set visibility in a single put, so that it gets set last.
+            self._restInterface.rest_patch(
+                {
                     'subjectPath': tuple(path),
                     'offset': 3.0, 'length': 4.0, 'radius': 2.0,
                     'rotation': radians(90)
-                }, cursorPath)
-                cursorPath.append('visible')
-                self._restInterface.rest_put(True, cursorPath)
-                #
-                # Revert the working paths.
-                del cursorPath[-2:]
-                del path[-1:]
-                
-                if index == 0:
-                    for index, value in enumerate(cursor.point):
-                        self._cameraStartPosition[index] += value
+                }, self._cursorPath)
+            self._cursorPath.append('visible')
+            self._restInterface.rest_put(True, self._cursorPath)
+            #
+            # Revert the working paths.
+            del path[-1:]
+            del self._cursorPath[-1:]
+            #
+            # Set the camera starting position as an offset from the cursor.
+            self._cameraStartPosition = tuple(
+                sum(zip_) for zip_ in zip(cursor.point
+                                          , self._cameraStartOffset))
             #
             # Add the floor object, which is handy to stop objects dropping out
             # of sight due to gravity.
@@ -170,7 +179,8 @@ class Application(restanimation.Application):
             path[-1] = 'floor'
             self._restInterface.rest_put(object_, path)
             # Note that path now points to floor.
-            
+            #
+            # Create the camera object, based on the default camera.
             self._Camera = get_camera_subclass(self.bge)
             object_ = self._Camera(self.gameScene.active_camera)
             object_.restInterface = self._restInterface
@@ -182,7 +192,7 @@ class Application(restanimation.Application):
                     'rotation': self._cameraStartOrientation
                 }, path)
             path.append('subjectPath')
-            self._restInterface.rest_put(cursorPath + [0], path)
+            self._restInterface.rest_put(self._cursorPath, path)
             # Note that path now points to the camera subjectPath.
             
             log(INFO, "Objects, cursors, floor, camera: {}"
@@ -200,12 +210,16 @@ class Application(restanimation.Application):
             # Same as in the base class but here we will do something with the
             # completions.
             completions = self._restInterface.set_now_times(self.tickPerf)
-            for specifier, completed in completions:
+            for path, completed in completions:
                 userData = completed.userData
-                log(DEBUG, 'Complete "{}" {}', specifier, userData)
+                log(DEBUG, 'Complete "{}" {}', path, userData)
                 #
                 # Check if there are still other animations going on for this
                 # object.
+                
+                
+                
+                # ToDo: Change to use rest_walk.
                 animations = self._restInterface.rest_get('animations')
                 still = False
                 for _, animation in animations.items():
@@ -229,7 +243,7 @@ class Application(restanimation.Application):
                 #
                 # Discard the completed animation object, so that the above and
                 # other loops can run faster.
-                self._restInterface.rest_put(None, ('animations', specifier))
+                self._restInterface.rest_put(None, path)
 
             #
             # Update all cursors, by updating all physics objects.
@@ -237,8 +251,17 @@ class Application(restanimation.Application):
             for gameObject in gameObjects:
                 gameObject.update()
             
-            
             # Bodge the camera.
+            
+            
+            # Add an animationPath property to the Camera class. If it is set,
+            # then calling pointAtSubject loads an animation instead of just
+            # setting the rotation. The animation might have to be a structure
+            # because the camera will want to set up to three animations, one per
+            # dimension.
+            # Call pointAtSubject near here instead of the bodge.
+            
+            
             self._restInterface.rest_put(
                 ('root', 'cursors', 0), ('root', 'camera', 'subjectPath'))
 
@@ -280,6 +303,8 @@ class Application(restanimation.Application):
             self.move_camera(2, 1)
         elif keyString == "Z":
             self.move_camera(2, -1)
+        elif keyString == "\t":
+            self.move_cursor()
         else:
             return inSuper
         
@@ -359,6 +384,14 @@ class Application(restanimation.Application):
         restInterface.rest_put(self.tickPerf, animationPath)
         log(INFO, "Animations {}"
             , self._restInterface.rest_get(('animations',)))
+    
+    def move_cursor(self):
+        self._cursorPath.append('subjectPath')
+        log(INFO, '{} {}', self._cursorPath, self._restInterface.rest_get(self._cursorPath))
+        subjectPath = list(self._restInterface.rest_get(self._cursorPath))
+        subjectPath[-1] = (subjectPath[-1] + 1) % self._objectCount
+        self._restInterface.rest_put(subjectPath, self._cursorPath)
+        del self._cursorPath[-1:]
     
     # Override.
     def _prepare_animation(self, animation):

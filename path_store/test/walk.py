@@ -25,63 +25,44 @@ from unittest.mock import call, Mock
 # Modules under test.
 import pathstore
 
-class TestWalk(unittest.TestCase):    
+def editor_void(point, path, results):
+    return
+
+def editor_append(point, path, results):
+    results.append([point] + path)
+
+class TestWalk(unittest.TestCase):
     def test_noop_editor(self):
         principal = 23.4
 
-        # Nothing but a pass, implicit return of None.
-        def editor_pass(parent, path):
+        walks = pathstore.walk(principal, editor_void, None)
+        self.assertEqual(walks, 1)
+        self.assertEqual(principal, 23.4)
+
+        # Nothing but a pass.
+        def editor_pass(point, path, results):
             pass
-        walks = pathstore.walk(principal, editor_pass)
-        self.assertEqual(walks, [])
+        walks = pathstore.walk(principal, editor_pass, None)
+        self.assertEqual(walks, 1)
         self.assertEqual(principal, 23.4)
 
-        # Void return, also implicit return of None.
-        def editor_void(parent, path):
-            return
-        walks = pathstore.walk(principal, editor_void)
-        self.assertEqual(walks, [])
-        self.assertEqual(principal, 23.4)
-
-        def editor_none(parent, path):
+        def editor_none(point, path, results):
             return None
-        walks = pathstore.walk(principal, editor_none)
-        self.assertEqual(walks, [])
+        walks = pathstore.walk(principal, editor_none, None)
+        self.assertEqual(walks, 1)
         self.assertEqual(principal, 23.4)
 
-        def editor_false(parent, path):
+        def editor_false(point, path, results):
             return False
-        walks = pathstore.walk(principal, editor_false)
-        self.assertEqual(walks, [])
-        self.assertEqual(principal, 23.4)
-
-        def editor_true(parent, path):
-            return True
-        with self.assertRaises(TypeError) as context:
-            walks = pathstore.walk(principal, editor_true)
-        self.assertEqual(
-            str(context.exception), "'bool' object is not subscriptable")
-        self.assertEqual(principal, 23.4)
-
-        def editor_single_false(parent, path):
-            return [False]
-        walks = pathstore.walk(principal, editor_false)
-        self.assertEqual(walks, [])
-        self.assertEqual(principal, 23.4)
-
-        def editor_single_true(parent, path):
-            return [True]
-        with self.assertRaises(IndexError) as context:
-            walks = pathstore.walk(principal, editor_single_true)
-        self.assertEqual(
-            str(context.exception), "list index out of range")
+        walks = pathstore.walk(principal, editor_false, None)
+        self.assertEqual(walks, 1)
         self.assertEqual(principal, 23.4)
 
         unboundVariable = 20
-        def editor_unbound(parent, path):
+        def editor_unbound(point, path, results):
             unboundVariable += 2
         with self.assertRaises(UnboundLocalError) as context:
-            walks = pathstore.walk(principal, editor_unbound)
+            walks = pathstore.walk(principal, editor_unbound, None)
         self.assertEqual(
             str(context.exception)
             , "local variable 'unboundVariable' referenced before assignment")
@@ -89,116 +70,148 @@ class TestWalk(unittest.TestCase):
 
     def test_scalar(self):
         principal = 4
-        def editor(parent, path):
-            return True, [parent] + path
-        
-        walks = pathstore.walk(principal, editor)
-        self.assertEqual(walks, [[4]])
+        results = []
+        walks = pathstore.walk(principal, editor_append, results)
+        self.assertEqual(results, [[4]])
         self.assertEqual(principal, 4)
         
+        del results[:]
         with self.assertRaises(TypeError) as context:
-            walks = pathstore.walk(principal, editor, 0)
+            walks = pathstore.walk(principal, editor_append, results, 0)
         self.assertEqual(
             str(context.exception), "Couldn't get point for 0 in 4")
 
     def test_list(self):
         principal = [2, 3]
-        def editor(parent, path):
-            return True, [parent] + path
-        
-        walks = pathstore.walk(tuple(), editor)
-        self.assertEqual(walks, [])
-
-        walks = pathstore.walk([], editor)
-        self.assertEqual(walks, [])
-
+        walks = pathstore.walk(tuple(), editor_void)
+        self.assertEqual(walks, 0)
+    
+        walks = pathstore.walk([], editor_void)
+        self.assertEqual(walks, 0)
+    
         principal0 = principal[:]
-        walks = pathstore.walk(principal0, editor)
-        self.assertEqual(walks, [[2,0], [3,1]])
+        results = []
+        walks = pathstore.walk(principal0, editor_append, results)
+        self.assertEqual(walks, 2)
+        self.assertEqual(results, [[2,0], [3,1]])
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
         
         principal0 = principal[:]
-        walks = pathstore.walk(principal0, editor, 1)
-        self.assertEqual(walks, [[3,1]])
+        del results[:]
+        walks = pathstore.walk(principal0, editor_append, results, 1)
+        self.assertEqual(walks, 1)
+        self.assertEqual(results, [[3,1]])
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
         
         with self.assertRaises(IndexError) as context:
-            walks = pathstore.walk(principal, editor, 2)
+            walks = pathstore.walk(principal, editor_void, None, 2)
         self.assertEqual(
             str(context.exception), "No point for 2 in {}".format(principal))
-
+    
     def test_list_nested(self):
         principal = ['d', ['a', 'b'], 'c']
         # Deep copy by pasting.
         principal0 = ['d', ['a', 'b'], 'c']
-        def editor(parent, path):
-            return True, [parent] + path
+        results = []
         
-        walks = pathstore.walk(principal0, editor)
-
-        self.assertEqual(walks, [
+        walks = pathstore.walk(principal0, editor_append, results)
+    
+        self.assertEqual(walks, 4)
+        self.assertEqual(results, [
             ['d', 0], ['a', 1, 0], ['b', 1, 1], ['c', 2]])
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
-
+    
     def test_dict(self):
         principal = {'ef':'jape', 'gh': 'idol', 'kl': 'master'}
         principal0 = dict(principal)
-        def editor(parent, path):
-            return True, [parent] + path
-        expectedWalks = [['idol', 'gh'], ['jape', 'ef'], ['master', 'kl']]
-        expectedWalks.sort()
+        expected = [['idol', 'gh'], ['jape', 'ef'], ['master', 'kl']]
+        expected.sort()
         
-        walks = pathstore.walk(principal0, editor)
-        walks.sort()
-
-        self.assertEqual(walks, expectedWalks)
+        results = []
+        walks = pathstore.walk(principal0, editor_append, results)
+        results.sort()
+    
+        self.assertEqual(walks, 3)
+        self.assertEqual(results, expected)
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
-
-        walks = pathstore.walk({}, editor)
-        self.assertEqual(walks, [])
-
+    
+        walks = pathstore.walk({}, editor_void)
+        self.assertEqual(walks, 0)
+    
     def test_list_dict(self):
         principal = [{'ef':'jape', 'gh': 'idol', 'kl': 'master'}, {'no':'yes'}]
         principal0 = [{'ef':'jape', 'gh': 'idol', 'kl': 'master'}, {'no':'yes'}]
-        def editor(parent, path):
-            return True, [parent] + path
-        expectedWalks = [
+        expected = [
             ['idol', 0, 'gh'], ['jape', 0, 'ef'], ['master', 0, 'kl'],
             ['yes', 1, 'no']]
-        expectedWalks.sort()
+        expected.sort()
         
-        walks = pathstore.walk(principal0, editor)
-        walks.sort()
-
-        self.assertEqual(walks, expectedWalks)
+        results = []
+        walks = pathstore.walk(principal0, editor_append, results)
+        results.sort()
+    
+        self.assertEqual(walks, 4)
+        self.assertEqual(results, expected)
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
-
+    
     def test_list_object(self):
         mock0 = Mock(spec_set=['attr'])
         mock0.attr = 11
         mock1 = Mock(mock0)
         mock1.attr = 13
         principal = [mock0, mock1]
-
-        def editor0(parent, path):
-            parent.attr += 1
-            return True, [parent] + path
-        walks = pathstore.walk(principal, editor0)
-        self.assertEqual(walks, [[mock0,0], [mock1,1]])
+    
+        def editor_inc(point, path, results):
+            point.attr += 1
+            editor_append(point, path, results)
+        testResults = []
+        walks = pathstore.walk(principal, editor_inc, testResults)
+        self.assertEqual(walks, 2)
+        self.assertEqual(testResults, [[mock0,0], [mock1,1]])
         self.assertEqual(mock0.attr, 12)
         self.assertEqual(mock1.attr, 14)
-
-        def editor1(parent, path):
-            if parent.attr < 14:
-                return False, None
-            parent.attr += 1
-            return True, [parent] + path
-        walks = pathstore.walk(principal, editor1)
-        self.assertEqual(walks, [[mock1,1]])
+    
+        def editor_inc_if(point, path, results):
+            if point.attr >= 14:
+                point.attr += 1
+                editor_append(point, path, results)
+        testResults = []
+        walks = pathstore.walk(principal, editor_inc_if, testResults)
+        self.assertEqual(walks, 2)
+        self.assertEqual(testResults, [[mock1,1]])
         self.assertEqual(mock0.attr, 12)
         self.assertEqual(mock1.attr, 15)
+
+    def test_stop(self):
+        principal = [2, 3, 4]
+
+        def editor_stop(point, path, results):
+            if point > 2:
+                raise StopIteration
+            editor_append(point, path, results)
+
+        principal0 = principal[:]
+        testResults = []
+        walks = pathstore.walk(principal0, editor_stop, testResults)
+        self.assertEqual(walks, 1)
+        self.assertEqual(testResults, [[2,0]])
+        self.assertEqual(principal0, principal)
+        self.assertIsNot(principal0, principal)
+
+        def editor_stop_after(point, path, results):
+            editor_append(point, path, results)
+            if point > 2:
+                raise StopIteration
+
+        principal0 = principal[:]
+        del testResults[:]
+        walks = pathstore.walk(principal0, editor_stop_after, testResults)
+        self.assertEqual(walks, 1)
+        self.assertEqual(testResults, [[2,0], [3,1]])
+        self.assertEqual(principal0, principal)
+        self.assertIsNot(principal0, principal)

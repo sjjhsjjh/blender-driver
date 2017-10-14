@@ -116,62 +116,55 @@ def get(parent, path=None):
         parent = point
     return parent
 
-def walk(parent, editor, path=None):
+def walk(parent, editor, results=None, path=None):
     """\
-    Descend from the parent along the path, then walk the structure and execute
-    editor on each item that can't be iterified. Returns a list of editor return
-    values.
-    
-    The editor callable is invoked as follows.
+    Descend from the parent along the path, then walk the structure there and
+    execute editor on each item that can't be iterified. The editor callable is
+    invoked as follows.
 
-        editor(point,path)
+        editor(point, path, results)
 
     Where:
     
-    -   `point` is the object on the walk.
+    -   `point` is the item on the walk.
     -   `path` is the navigation path to reach it from the parent. The list gets
         modified during execution, so copy it if needed.
+    -   `results` is the object passed to the walk function, which can be used
+        to store results.
     
-    The editor callable can return a tuple `(append, result)`. If append is
-    True, result is appended to the result list returned by this function. If
-    editor has no return, or returns None, or returns False, or returns a tuple
-    whose first element is False, then nothing is appended.
-    
-    ToDo: Change it to take a context object for results. Also, change all the
-    unit tests.
+    Returns the number of items walked to.
+
+    If editor raises StopIteration, then the walk ends. The item on which the
+    editor raised StopIteration isn't counted in the walk return value.
     """
     log(DEBUG, "{} {} {}.", parent, editor, path)
-    parent = get(parent, path)
-    return_ = []
 
     def walk1(point, path1):
         try:
             iterator = iterify(point)
-            log(DEBUG, "iterator {} {}.", point, path1)
+            log(DEBUG, "iterator {} {}.", point, path1, results)
         except TypeError:
             iterator = None
 
         if iterator is None:
-            result = editor(point, path1)
-            append = False
-            if result is not None:
-                try:
-                    append = result[0]
-                except TypeError:
-                    append = result
-            if append:
-                return_.append(result[1])
-            log(DEBUG, "return {} {} {}.", point, path1, result)
-            return
+            try:
+                editor(point, path1, results)
+                return False, 1
+            except StopIteration:
+                return True, 0
 
+        count = 0
+        stop = False
         for key, value in iterator:
             path1.append(key)
-            walk1(value, path1)
+            stop, increment = walk1(value, path1)
+            count += increment
             del path1[-1]
-        
-    walk1(parent, list(pathify(path)))
+            if stop:
+                break
+        return stop, count
     
-    return return_
+    return walk1(get(parent, path), list(pathify(path)))[1]
 
 def iterify(source):
     """\

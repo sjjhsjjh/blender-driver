@@ -66,8 +66,8 @@ class RestInterface(object):
     def rest_get(self, path=None):
         return pathstore.get(self.principal, path)
     
-    def rest_walk(self, editor, path=None):
-        return pathstore.walk(self.principal, editor, path)
+    def rest_walk(self, editor, results=None, path=None):
+        return pathstore.walk(self.principal, editor, results, path)
     
     def __init__(self):
         self._principal = None
@@ -140,35 +140,36 @@ class AnimatedRestInterface(RestInterface):
     
     def set_now_times(self, nowTime):
 
-        class Context(object):
-            completionsLog = None
-            anyCompletions = False
-            completions = []
-            
-            def set_now(self, point, path):
-                if point is not None and not point.complete:
-                    # Setting nowTime has the side effect of applying the
-                    # animation, which could have the further side effect of
-                    # completing the animation.
-                    point.nowTime = nowTime
-                    if point.complete:
-                        self.anyCompletions = True
-                        self.completions.append((path[:], point))
-                logValue = None if point is None else (
-                    "Complete" if point.complete else "Incomplete")
-                self.completionsLog = pathstore.merge(
-                        self.completionsLog, logValue, path)
-        
-        context = Context()
-        try:
-            self.rest_walk(context.set_now, 'animations')
-        except KeyError:
+        class Results:
             pass
-
-        if context.anyCompletions:
-            log(INFO, "Animations:{}.", context.completionsLog)
+        setResults = Results()
+        setResults.completionsLog = None
+        setResults.anyCompletions = False
+        setResults.completions = []
+            
+        def set_now(point, path, results):
+            if point is not None and not point.complete:
+                # Setting nowTime has the side effect of applying the animation,
+                # which could have the further side effect of completing the
+                # animation.
+                point.nowTime = nowTime
+                if point.complete:
+                    results.anyCompletions = True
+                    results.completions.append((path[:], point))
+            logValue = None if point is None else (
+                "Complete" if point.complete else "Incomplete")
+            results.completionsLog = pathstore.merge(
+                results.completionsLog, logValue, path)
         
-        return context.completions
+        try:
+            walks = self.rest_walk(set_now, setResults, 'animations')
+        except KeyError:
+            walks = 0
+
+        if setResults.anyCompletions:
+            log(INFO, "Animations:{} {}.", walks, setResults.completionsLog)
+        
+        return setResults.completions
 
 # Do:
 #

@@ -216,26 +216,32 @@ class Application(restanimation.Application):
                 #
                 # Check if there are still other animations going on for this
                 # object.
-                
-                
-                
-                # ToDo: Change to use rest_walk.
-                animations = self._restInterface.rest_get('animations')
-                still = False
-                for _, animation in animations.items():
-                    if animation is None:
-                        continue
-                    otherData = animation.userData
+                #
+                # Empty class for results.
+                class Results:
+                    pass
+                checkResults = Results()
+                checkResults.still = False
+                checkResults.userData = userData
+                #
+                # Checking subroutine that can be passed to walk().
+                def check(point, path, results):
+                    if point is None:
+                        return
+                    otherData = point.userData
                     if (
-                        otherData is not None and userData is not None
-                        and otherData['number'] == userData['number']
-                        and not animation.complete
+                        otherData is not None and results.userData is not None
+                        and otherData['number'] == results.userData['number']
+                        and not point.complete
                     ):
-                        still = True
+                        results.still = True
+                        raise StopIteration
+                
+                self._restInterface.rest_walk(check, checkResults, 'animations')
                 #
                 # If there are no other animations: restore physics to the
                 # object and reset its rotation overrides.
-                if not still and userData is not None:
+                if not checkResults.still and userData is not None:
                     object_ = self._restInterface.rest_get(userData['path'])
                     log(INFO, "Restoring {}.", userData['path'])
                     object_.restoreDynamics()

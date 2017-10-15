@@ -104,7 +104,7 @@ class Application(demonstration.Application):
                 path.extend(('worldPosition', 1))
                 value = self._restInterface.rest_get(path)
                 displace = (
-                    3.0 * (float(index) - (float(self._objectCount) / 2.0)))
+                    6.0 * (float(index) - (float(self._objectCount) / 2.0)))
                 self._restInterface.rest_put(value + displace, path)
                 #
                 # Revert working path.
@@ -218,7 +218,7 @@ class Application(demonstration.Application):
             value, tuple(restInterface.rest_get(valuePath[:-1])))
         #
         # There is up to one size animation per object.
-        animationPath = ['animations', 'size_{:02d}'.format(objectNumber)]
+        animationPath = ['animations', 'size', objectNumber]
         self._prepare_animation(animation)
         #
         # Insert the animation. The point maker will set the store
@@ -270,8 +270,7 @@ class Application(demonstration.Application):
                 animation['speed'] *= -1
         #
         # There is up to one altitude animation per object.
-        animationPath = ['animations',
-                         'position_{:02d}'.format(objectNumber)]
+        animationPath = ['animations', 'position', objectNumber]
         self._prepare_animation(animation)
         #
         # Insert the animation. The point maker will set the store
@@ -319,8 +318,7 @@ class Application(demonstration.Application):
             # animation['targetValue'] = None
         #
         # There is up to one rotation animation per object.
-        animationPath = ['animations',
-                         'orientation_{:02d}'.format(objectNumber)]
+        animationPath = ['animations', 'orientation', objectNumber]
         self._prepare_animation(animation)
         #
         # Insert the animation. The point maker will set the store

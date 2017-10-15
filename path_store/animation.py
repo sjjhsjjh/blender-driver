@@ -132,7 +132,12 @@ class Animation(object):
         nowValue = start + increment
         #
         # Apply the target value, if any.
-        if target is not None:
+        if target is None:
+            if modulo is not None:
+                nowValue = fmod(nowValue, modulo)
+                if nowValue < 0.0:
+                    nowValue += modulo
+        else:
             if simple or (modulo is None):
                 if (
                     (start <= target and nowValue >= target)

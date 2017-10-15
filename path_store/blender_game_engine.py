@@ -18,7 +18,7 @@ from logging import DEBUG, INFO, WARNING, ERROR, log
 #
 # Module for mathematical operations needed to decompose a rotation matrix.
 # https://docs.python.org/3.5/library/math.html
-from math import atan2, pow, sqrt, degrees, radians, atan
+from math import atan2, pow, sqrt, degrees, radians, atan, isclose, fabs
 #
 # Blender library imports, in alphabetic order.
 #
@@ -481,6 +481,31 @@ def get_camera_subclass(bge):
         def subjectPath(self, subjectPath):
             self._subjectPath = subjectPath
             self._pointAtSubject()
+            
+        @property
+        def animationPath(self):
+            return self._animationPath
+        @animationPath.setter
+        def animationPath(self, animationPath):
+            self._animationPath = animationPath
+            self._pointAtSubject()
+            
+        @property
+        def selfPath(self):
+            return self._selfPath
+        @selfPath.setter
+        def selfPath(self, selfPath):
+            self._selfPath = selfPath
+            self._pointAtSubject()
+            
+        @property
+        def trackSpeed(self):
+            return self._trackSpeed
+        @trackSpeed.setter
+        def trackSpeed(self, trackSpeed):
+            self._trackSpeed = trackSpeed
+            self._small = trackSpeed * 0.1
+            self._pointAtSubject()
         
         def _get_subject(self):
             if (self._subject is None
@@ -494,8 +519,7 @@ def get_camera_subclass(bge):
         def _pointAtSubject(self):
             """\
             Calculate the rotation needed to make the camera point at its
-            subject, and then apply it. Returns a Boolean for whether any
-            rotation was needed.
+            subject, and then apply it.
             """
             subject = self._get_subject()
             if subject is None:
@@ -505,18 +529,14 @@ def get_camera_subclass(bge):
             # target. The offset vector is normalised.
             (dist, worldv, localv) = self.getVectTo(subject.point)
             #
-            # Get the current camera rotation. It's used to check whether any
-            # rotation is needed to point at the object, which happens at the
-            # end of the method but it's nice to dump it here if in diagnostic
-            # mode.
-            rotation = self.rotation[:]
-            # This is pretty expensive, even for a debug, so it's commented out.
+            # This looks pretty expensive, even for a debug, so it's commented
+            # out.
             # log(DEBUG
             #     , "Camera 0 {} {} ({:.2f}, {:.2f}, {:.2f})"
             #     " ({:.2f}, {:.2f}, {:.2f}) point{} position{}"
             #     , degrees(atan2(1.0, 0)), degrees(atan2(-1.0, 0))
             #     , *tuple(dist * _ for _ in worldv)
-            #     , *tuple(degrees(_) for _ in rotation)
+            #     , *tuple(degrees(_) for _ in self.rotation)
             #     , subject.point, self.worldPosition[:])
             #
             # Convenience variables for the offset in each dimension.
@@ -578,20 +598,125 @@ def get_camera_subclass(bge):
                 log(DEBUG, 'oy positive {:.2f} {:.2f} {:.2f} {:.2f}'
                     , oz, oy, degrees(atan2(oz, oy)), degrees(rotx))
             #
-            # Check if any rotation was needed to point the camera at the target.
-            return_ = \
-                  abs( rotation[0] - rotx ) > 0.001 or \
-                  abs( rotation[2] - rotz ) > 0.001
+            # Apply it, either directly or by pending an animation.
+            self._apply_rotation(rotx, 0.0, rotz)
+            log(DEBUG, 'New rotation {:.2f} {:.2f} {:.2f} {:.2f}'
+                , rotx, degrees(rotx), rotz, degrees(rotz))
+        
+        def _apply_rotation(self, rotX, rotY, rotZ):
+            if (self.animationPath is None
+                or self.restInterface is None
+                or self.selfPath is None
+            ):
+                self.rotation = (rotX, rotY, rotZ)
+                self._trackRotation = None
+            else:
+                self._trackRotation = (rotX, rotY, rotZ)
+        
+        def tick(self, tickPerf):
+            # Rotate the camera, either directly or by animation.
             #
-            # Apply the rotation.
-            newRotation = (rotx, 0.0, rotz)
-            # log(DEBUG, 'New rotation {} {} {}', return_, newRotation
-            #     , tuple(degrees(_) for _ in newRotation))
-            if return_:
-                self.rotation = newRotation
+            # If there isn't a pending rotation from a setter, the camera still
+            # might need to rotate, if its subject is moving.
+            if self._trackRotation is None:
+                self._pointAtSubject()
             #
-            # Return true if any rotation was needed.
-            return return_
+            # If it isn't possible to animate, do nothing.
+            if (self.animationPath is None
+                or self.restInterface is None
+                or self.selfPath is None
+            ):
+                return
+
+            if self._trackRotation is None:
+                # ToDo: Tidy up completed track animations by setting to None.
+                # Also reset animated rotations, like this:
+                # self.rotation[:] = (None, None, None)
+                return
+
+            if self._trackRotationLast is None:
+                # Initialise the last rotation sent to be a copy of the current
+                # rotation.
+                self._trackRotationLast = self.rotation[:]
+
+            animationPath = list(self.animationPath)
+            for index, target in enumerate(self._trackRotation):
+                #
+                # Convenience variables for this dimension.
+                rotation = self.rotation[index]
+                last = self._trackRotationLast[index]
+                animationPath.append(index)
+                #
+                # A change will be considered small, and done directly without
+                # an animation, if it would be done within a fraction of a
+                # second.
+                log(DEBUG
+                    , 'track rotation [{}] {:.2f} {:.2f} {:.2f} {:.2f}'
+                    , index, degrees(target), degrees(rotation), degrees(last)
+                    , degrees(self._small))
+                #
+                # If the new target is the same as the last target, do nothing.
+                # If the new target is close to the current rotation, apply
+                # directly, unless it's very close, in which case do nothing.
+                # Otherwise, load an animation.
+                if (last is not None
+                    and isclose(target, last, abs_tol=radians(0.1))
+                ):
+                    log(DEBUG, '[{}] same.', index)
+                else:
+                    speed, change = self._get_speed(rotation, target)
+                    if speed is None:
+                        log(DEBUG, '[{}] small.', index)
+                        self.restInterface.rest_put(None, animationPath)
+                        #
+                        # If the required rotation isn't very small, apply it.
+                        if fabs(change) >radians(0.1):
+                            self.rotation[index] = target
+                    else:
+                        log(DEBUG, '[{}] large {:.2f} {:.2f} {:.2f}'
+                            , index, degrees(change), degrees(speed)
+                            , degrees(self.trackSpeed))
+                        #
+                        # Assemble the animation in a dictionary.
+                        animation = {
+                            'path': tuple(self.selfPath) + ('rotation', index),
+                            'targetValue': target, 'speed': speed,
+                            'modulo': radians(360)
+                        }
+                        #
+                        # Insert the animation. The point maker will set the store
+                        # attribute.
+                        log(INFO, 'Patching {} {}', animationPath, animation)
+                        self.restInterface.rest_put(animation, animationPath)
+                        #
+                        # Set the start time, which has the following side
+                        # effects:
+                        # -   Retrieves the start value.
+                        # -   Clears the complete state.
+                        animationPath.append('startTime')
+                        self.restInterface.rest_put(tickPerf, animationPath)
+                        log(DEBUG, "Animations {}"
+                            , self._restInterface.rest_get(('animations',)))
+                        del animationPath[-1]
+                        self._trackRotationLast[index] = target
+                del animationPath[-1]
+            
+            self._trackRotation = None
+        
+        def _get_speed(self, current, target):
+            change = target - current
+            trackSpeed = self.trackSpeed
+            if change > radians(0.0):
+                if change > radians(180.0):
+                    change = radians(360) - change
+                    trackSpeed *= -1.0
+            else:
+                if change > radians(-180.0):
+                    trackSpeed *= -1.0
+                else:
+                    change += radians(360)
+
+            return (None if fabs(change) < self._small else trackSpeed, change)
 
         @property
         def orbitDistance(self):
@@ -670,8 +795,14 @@ def get_camera_subclass(bge):
         def __init__(self, *args):
             self._subjectPath = None
             self._restInterface = None
+            self._animationPath = None
+            self._trackSpeed = None
+            self._selfPath = None
             
             self._subject = None
+            self._trackRotation = None
+            self._trackRotationLast = None
+            self._small = None
 
             super().__init__(*args)
     

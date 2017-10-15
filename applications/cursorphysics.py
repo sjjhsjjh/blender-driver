@@ -87,7 +87,9 @@ class Application(restanimation.Application):
     _instructions = "\n".join((
         "Ctrl-Q to terminate; space, plus, minus, or 0 to move object 0;"
         , "< or > to rotate it;"
-        , "plus Ctrl to move object 2. Object 1 doesn't move. TBD"))
+        , "plus Ctrl to move object 2. Object 1 doesn't move."
+        , "o, p, x, y, z to move the camera, or a to stop it."
+        , "TAB to move the cursor"))
 
     # Override.
     _objectRootPath = ('root','objects')
@@ -168,7 +170,8 @@ class Application(restanimation.Application):
             del path[-1:]
             del self._cursorPath[-1:]
             #
-            # Set the camera starting position as an offset from the cursor.
+            # Set what will be the camera starting position as an offset from
+            # the cursor.
             self._cameraStartPosition = tuple(
                 sum(zip_) for zip_ in zip(cursor.point
                                           , self._cameraStartOffset))
@@ -186,8 +189,14 @@ class Application(restanimation.Application):
             object_.restInterface = self._restInterface
             path[-1] = 'camera'
             self._restInterface.rest_put(object_, path)
+            # By the way, if any of the properties set in the following
+            # rest_patch haven't been set in the __init__ then it somehow stops
+            # being a camera and becomes a dictionary. 
             self._restInterface.rest_patch(
                 {
+                    'animationPath': ('animations', 'cameraTracking'),
+                    'selfPath': path[:],
+                    'trackSpeed': self._cameraAngular,
                     'worldPosition': self._cameraStartPosition,
                     'rotation': self._cameraStartOrientation
                 }, path)
@@ -258,18 +267,8 @@ class Application(restanimation.Application):
                 gameObject.update()
             
             # Bodge the camera.
-            
-            
-            # Add an animationPath property to the Camera class. If it is set,
-            # then calling pointAtSubject loads an animation instead of just
-            # setting the rotation. The animation might have to be a structure
-            # because the camera will want to set up to three animations, one per
-            # dimension.
-            # Call pointAtSubject near here instead of the bodge.
-            
-            
-            self._restInterface.rest_put(
-                ('root', 'cursors', 0), ('root', 'camera', 'subjectPath'))
+            camera = self._restInterface.rest_get(('root', 'camera'))
+            camera.tick(self.tickPerf)
 
         finally:
             self.mainLock.release()
@@ -317,15 +316,12 @@ class Application(restanimation.Application):
         return True
     
     def stop_camera(self, dimensions=range(5)):
-        valuePath = self._objectRootPath[:-1] + ('camera', 'orbitAngle')
-        log(INFO, "Camera orbitAngle: {:.2f}"
-            , degrees(self._restInterface.rest_get(valuePath)))
         for dimension in dimensions:
             animationPath = self._animation_path(dimension)
             self._restInterface.rest_put(None, animationPath)
     
     def _animation_path(self, dimension):
-        return ['animations', 'camera_{:d}'.format(dimension)]
+        return ['animations', 'camera', dimension]
     
     def move_camera(self, dimension, direction):
         #
@@ -380,7 +376,7 @@ class Application(restanimation.Application):
         #
         # Insert the animation. The point maker will set the store
         # attribute.
-        log(DEBUG, 'Patching {} {}', animationPath, animation)
+        log(INFO, 'Patching {} {}', animationPath, animation)
         restInterface.rest_put(animation, animationPath)
         #
         # Set the start time, which has the following side effects:
@@ -393,11 +389,15 @@ class Application(restanimation.Application):
     
     def move_cursor(self):
         self._cursorPath.append('subjectPath')
-        log(INFO, '{} {}', self._cursorPath, self._restInterface.rest_get(self._cursorPath))
+        log(DEBUG, '{} {}'
+            , self._cursorPath, self._restInterface.rest_get(self._cursorPath))
         subjectPath = list(self._restInterface.rest_get(self._cursorPath))
         subjectPath[-1] = (subjectPath[-1] + 1) % self._objectCount
         self._restInterface.rest_put(subjectPath, self._cursorPath)
         del self._cursorPath[-1:]
+        # ToDo maybe: Force the camera to update to point to the new location.
+        # It doesn't seem necessary, because the camera checks whether its
+        # subject has moved every tick anyway.
     
     # Override.
     def _prepare_animation(self, animation):

@@ -117,20 +117,30 @@ class PathAnimation(Animation):
 class AnimatedRestInterface(RestInterface):
     """RestInterface with the following items at the top level.
     
-    -   'animations' is a collection of animations.
-    -   'nowTime' is a shorthand property, the setting of which sets the nowTime
-        property in all the animations in the collection.
-    -   'root' is the conventional item for the principal data.
+    |
+    +-- 'animations'
+    |   |
+    |   +-- STRING
+    |       |
+    |       +-- STRING or NUMBER
+    |           Individual animation.
+    |
+    +-- 'nowTime'
+    |   Shorthand property, the setting of which sets the nowTime property in
+    |   all the animations in the collection, above.
+    |
+    +-- 'root'
+        Conventional item under which all the principal data sits.
     """
     
     # Override
     def point_maker(self, path, index, point):
         log(DEBUG, "({}, {}, {}) AnimatedRestInterface", path, index, point)
         #
-        # Next line has index == 2, which is one more than the level at which
-        # the animation object is to be created. The index == 1 level can get a
+        # Next line has index == 3, which is one more than the level at which
+        # the animation object is to be created. The index < 3 levels can get a
         # None in order to build the array or dictionary.
-        if path[0] == 'animations' and index == 2:
+        if path[0] == 'animations' and index == 3:
             if not isinstance(point, PathAnimation):
                 point = PathAnimation()
             point.store = self.principal

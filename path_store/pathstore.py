@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # (c) 2017 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
-"""Path Store base module.
+"""\
+Path Store base module.
 
 Path Store is a module for hierarchical data structures. It supports mixed
 hierarchies of dictionary, list, and objects.
@@ -139,7 +140,12 @@ def walk(parent, editor, results=None, path=None):
     """
     log(DEBUG, "{} {} {}.", parent, editor, path)
 
-    def walk1(point, path1):
+    # Inner function for recursive descent. Returns a tuple:
+    #
+    # -   Flag for whether to stop now.
+    # -   Sub-total.
+    #
+    def inner_walk(point, path1):
         try:
             iterator = iterify(point)
             log(DEBUG, "iterator {} {}.", point, path1, results)
@@ -157,14 +163,14 @@ def walk(parent, editor, results=None, path=None):
         stop = False
         for key, value in iterator:
             path1.append(key)
-            stop, increment = walk1(value, path1)
+            stop, increment = inner_walk(value, path1)
             count += increment
             del path1[-1]
             if stop:
                 break
         return stop, count
     
-    return walk1(get(parent, path), list(pathify(path)))[1]
+    return inner_walk(get(parent, path), list(pathify(path)))[1]
 
 def iterify(source):
     """\
@@ -232,6 +238,7 @@ def replace(parent, value, path=None, point_maker=default_point_maker):
     return _insert(parent
                    , tuple(pathify(path))
                    , lambda current: (None, value)
+                   , None
                    , point_maker
                    , enumerate(pathify(path)))
     # There is a possible problem with the lambda in the above. Because it
@@ -247,6 +254,7 @@ def merge(parent, value, path=None, point_maker=default_point_maker):
     return _insert(parent
                    , tuple(pathify(path))
                    , lambda current: (current, value)
+                   , None
                    , point_maker
                    , enumerate(pathify(path)))
 
@@ -276,20 +284,25 @@ def edit(parent, editor, path=None, point_maker=default_point_maker):
     return _insert(parent
                    , tuple(pathify(path))
                    , editor
+                   , None
                    , point_maker
                    , enumerate(pathify(path)))
 
-def _insert(parent, path, value, point_maker, enumerator):
+def _insert(parent, path, prepare, value, point_maker, enumerator):
     try:
         index, leg = next(enumerator)
+        stopping = False
     except StopIteration:
-        if callable(value):
-            result = value(parent)
-            log(DEBUG, "callable {} {}.", parent, result)
-            parent = result[0]
-            value = result[1]
+        stopping = True
+    
+    if stopping:
+        if prepare is None:
+            log(DEBUG, "prepared {} {}.", parent, value)
         else:
-            log(DEBUG, "not callable {} {}.", parent, value)
+            prepared = prepare(parent)
+            log(DEBUG, "preparing {} {}.", parent, prepared)
+            parent = prepared[0]
+            value = prepared[1]
         return _merge(parent, value, point_maker, path)
 
     wasTuple = isinstance(parent, tuple)
@@ -319,7 +332,7 @@ def _insert(parent, path, value, point_maker, enumerator):
             , " leg:", str_quote(leg), ".")))
 
     value = _insert(
-        point, path, value, point_maker, enumerator)
+        point, path, prepare, value, point_maker, enumerator)
     
     didSet, parent = _set(parent, leg, value, type)
 
@@ -355,7 +368,7 @@ def _merge(parent, value, point_maker, pointMakerPath):
         # if legValue is None:
         #     continue
         path.append(legKey)
-        parent = _insert(parent, path, legValue, point_maker
+        parent = _insert(parent, path, None, legValue, point_maker
                          , enumerate_one(pathLen, legKey))
         path.pop()
 

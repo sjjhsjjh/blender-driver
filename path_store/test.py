@@ -33,7 +33,7 @@ from test.principal import TestPrincipal
 #
 # Unit test modules.
 from test.strquote import TestStrQuote
-from test.pathify import TestPathify
+from test.ify import TestPathify, TestIterify
 from test.descendone import TestDescendOne
 from test.descend import TestDescend
 from test.makepoint import TestMakePoint
@@ -45,6 +45,7 @@ from test.hostedproperty import TestHostedProperty
 from test.interceptproperty import TestInterceptProperty
 from test.edit import TestEdit
 from test.walk import TestWalk
+from test.json import TestJSON
 #
 # Above should be done with .discover() but I couldn't get it to work.
 

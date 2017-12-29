@@ -12,14 +12,15 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
+# Module for JavaScript Object Notation (JSON) strings.
+# https://docs.python.org/3.5/library/json.html
+import json
+#
 # Unit test module.
 # https://docs.python.org/3.5/library/unittest.html
 import unittest
 #
 # Local imports.
-#
-# Utilities.
-from .principal import Principal
 #
 # Modules under test.
 import pathstore
@@ -32,13 +33,13 @@ class TestRestPut(unittest.TestCase):
         self.assertIsNone(restInterface.rest_get())
         restInterface.rest_put(1)
         self.assertEqual(restInterface.rest_get(), 1)
-        principal = Principal("one")
+        principal = object()
         restInterface.rest_put(principal)
         self.assertIs(restInterface.rest_get(), principal)
 
     def test_zero(self):
         restInterface = rest.RestInterface()
-        principal = Principal("two")
+        principal = object()
         restInterface.rest_put(principal, [0])
         self.assertEqual(len(restInterface.principal), 1)
         self.assertIs(restInterface.principal[0], principal)
@@ -75,7 +76,58 @@ class TestRestPut(unittest.TestCase):
 
     def test_principal(self):
         restInterface = rest.RestInterface()
-        principal = Principal('bacon')
+        class Principal:
+            pass
+        principal = Principal()
+        principal.testAttr = 'bacon'
         restInterface.rest_put(principal)
         restInterface.rest_put('pork', ['testAttr'])
         self.assertEqual(principal.testAttr, 'pork')
+        
+    def test_track(self):
+        restInterface = rest.RestInterface()
+        self.assertEqual(restInterface.track, {})
+        
+        restInterface.rest_put('bleb', 'root')
+        self.assertEqual(restInterface.track, restInterface.principal)
+        # self.assertEqual(restInterface.track, {'root': None})
+
+        restInterface.rest_put(2, ['route',1])
+        self.assertEqual(restInterface.track, restInterface.principal)
+        # self.assertEqual(restInterface.track
+        #                  , {'root': None, 'route': [None, None]})
+        
+        class Principal:
+            pass
+        principal = Principal()
+        principal.al = 3
+        principal.rum = 34
+        principal.hof = None
+        with self.assertRaises(TypeError) as context:
+            asJSON = json.dumps(principal)
+        
+        restInterface.rest_put(principal, ['mcroute'])
+        with self.assertRaises(TypeError) as context:
+            asJSON = json.dumps(restInterface.rest_get())
+        self.assertEqual(restInterface.track
+                         , {'root': None,
+                            'route': [None, None],
+                            'mcroute':None})
+        
+        restInterface.rest_put(9, ['mcroute', 'al'])
+        self.assertEqual(restInterface.track
+                         , {'root': None,
+                            'route': [None, None],
+                            'mcroute':{'al': None}
+                            })
+
+        restInterface.rest_put("busa", ['mcroute', 'hof', 2])
+        expectedTrack = {
+            'root': None,
+            'route': [None, None],
+            'mcroute':{'al': None, 'hof':[None, None, None]}
+            }
+        self.assertEqual(restInterface.track, expectedTrack)
+        self.assertEqual(json.dumps(restInterface.track)
+                         , json.dumps(expectedTrack))
+        self.assertIs(principal, restInterface.rest_get('mcroute'))

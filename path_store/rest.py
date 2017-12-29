@@ -46,6 +46,21 @@ class RestInterface(object):
     @property
     def principal(self):
         return self._principal
+    
+    @property
+    def track(self):
+        return self._track
+    
+    # def _add_track(self, path, value):
+    # #     # trackPoint = self.track
+    # #     # added = 0
+    # #     # for leg in pathstore.pathify(path):
+    # #     #     if leg not in trackPoint:
+    # #     #         added += 1
+    # #     #         trackPoint[leg] = {}
+    # #     #     trackPoint = trackPoint[leg]
+    # #     # return added
+    #     pathstore.replace(self._track, None, path)
 
     def point_maker(self, path, index, point):
         """Default point_maker, which can be overridden so that a subclass can
@@ -60,6 +75,8 @@ class RestInterface(object):
 
     def rest_put(self, value, path=None):
         log(DEBUG, '({}, {})', value, path)
+        # self._add_track(path)
+        self._track = pathstore.replace(self._track, value, path)
         self._principal = pathstore.replace(
             self._principal, value, path, point_maker=self.point_maker)
 
@@ -71,6 +88,7 @@ class RestInterface(object):
     
     def __init__(self):
         self._principal = None
+        self._track = {}
 
 class PathAnimation(Animation):
 

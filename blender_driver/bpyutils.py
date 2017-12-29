@@ -13,7 +13,9 @@ if __name__ == '__main__':
 # Standard library imports, in alphabetic order.
 #
 # Module for JavaScript Object Notation (JSON) strings.
+# https://docs.python.org/3.5/library/json.html
 import json
+#
 # Module for levelled logging messages.
 # Tutorial is here: https://docs.python.org/3.5/howto/logging.html
 # Reference is here: https://docs.python.org/3.5/library/logging.html

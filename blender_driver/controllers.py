@@ -17,6 +17,7 @@ if __name__ == '__main__':
 import importlib
 #
 # Python module for JavaScript Object Notation (JSON) strings.
+# https://docs.python.org/3.5/library/json.html
 import json
 #
 # Module for levelled logging messages.

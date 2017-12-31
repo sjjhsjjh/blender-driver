@@ -3,7 +3,7 @@
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 """Path Store unit test module. Tests in this module can be run like:
 
-    python3 path_store/test.py TestEdit
+    python3 path_store/test.py TestWalk
 """
 # Exit if run other than as a module.
 if __name__ == '__main__':
@@ -18,7 +18,7 @@ import unittest
 #
 # Unit test module for mock subroutines.
 # https://docs.python.org/3.5/library/unittest.mock.html
-from unittest.mock import call, Mock
+from unittest.mock import Mock
 #
 # Local imports.
 #
@@ -215,3 +215,41 @@ class TestWalk(unittest.TestCase):
         self.assertEqual(testResults, [[2,0], [3,1]])
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
+
+    def test_second(self):
+        results = []
+        def editor_append_second(point, path, resultsUnused, second):
+            results.append([point, second] + path)
+
+        principal = ('alpha', 'bravo', 'charlie')
+        second = ('delta', 'echo', 'foxtrot')
+        expected = [[value, second[index], index
+                     ] for index, value in enumerate(principal)]
+        del results[:]
+        walks = pathstore.walk(principal, editor_append_second, second=second)
+        self.assertEqual(results, expected)
+
+        class Instance:
+            attr = 'Instance.attribute'
+            attrOther = 'Instance.other attribute'
+        
+        principal = {'attr': 'dictionary attribute'}
+        second = Instance()
+        expected = [['dictionary attribute', 'Instance.attribute', 'attr']]
+        del results[:]
+        walks = pathstore.walk(principal, editor_append_second, second=second)
+        self.assertEqual(results, expected)
+
+        principal = ('alpha', 'bravo',
+                     {'attrOther': 'dictionary other attribute'}, 'charlie')
+        second = ('delta', 'echo', Instance(), 'foxtrot')
+        expected = [
+            ['alpha', 'delta', 0],
+            ['bravo', 'echo', 1],
+            ['dictionary other attribute',
+             'Instance.other attribute',
+             2, 'attrOther'],
+            ['charlie', 'foxtrot', 3]]
+        del results[:]
+        walks = pathstore.walk(principal, editor_append_second, second=second)
+        self.assertEqual(results, expected)

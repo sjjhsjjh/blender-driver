@@ -117,11 +117,11 @@ def get(parent, path=None):
         parent = point
     return parent
 
-def walk(parent, editor, results=None, path=None):
+def walk(parent, editor, results=None, path=None, second=None):
     """\
     Descend from the parent along the path, then walk the structure there and
-    execute editor on each item that can't be iterified. The editor callable is
-    invoked as follows.
+    execute editor on each item that can't be iterified. If `second` is None,
+    the editor callable is invoked as follows.
 
         editor(point, path, results)
 
@@ -132,6 +132,10 @@ def walk(parent, editor, results=None, path=None):
         modified during execution, so copy it if needed.
     -   `results` is the object passed to the walk function, which can be used
         to store results.
+    
+    If `second` isn't None, then its structure is walked in parallel to the
+    parent. The current point in the second structure is also passed to the
+    editor callable.
     
     Returns the number of items walked to.
 
@@ -145,16 +149,19 @@ def walk(parent, editor, results=None, path=None):
     # -   Flag for whether to stop now.
     # -   Sub-total.
     #
-    def inner_walk(point, path1):
+    def inner_walk(point, walkPath, secondPoint):
         try:
             iterator = iterify(point)
-            log(DEBUG, "iterator {} {}.", point, path1, results)
+            log(DEBUG, "iterator {} {}.", point, walkPath, results)
         except TypeError:
             iterator = None
 
         if iterator is None:
             try:
-                editor(point, path1, results)
+                if second is None:
+                    editor(point, walkPath, results)
+                else:
+                    editor(point, walkPath, results, secondPoint)
                 return False, 1
             except StopIteration:
                 return True, 0
@@ -162,15 +169,20 @@ def walk(parent, editor, results=None, path=None):
         count = 0
         stop = False
         for key, value in iterator:
-            path1.append(key)
-            stop, increment = inner_walk(value, path1)
+            walkPath.append(key)
+            secondValue = None
+            if second is not None:
+                secondValue = descend(secondPoint, key)[0]
+            stop, increment = inner_walk(value, walkPath, secondValue)
             count += increment
-            del path1[-1]
+            del walkPath[-1]
             if stop:
                 break
         return stop, count
     
-    return inner_walk(get(parent, path), list(pathify(path)))[1]
+    return inner_walk(get(parent, path)
+                      , list(pathify(path))
+                      , None if second is None else get(second, path))[1]
 
 def iterify(source):
     """\
@@ -270,7 +282,7 @@ def edit(parent, editor, path=None, point_maker=default_point_maker):
     The input `parent` will contain the value that is initially at the path.
     Return the following in the output tuple.
     
-    -   The new value to be assigned to that point on the path in the second
+    -   The new value to be assigned to that point on the path, in the second
         element.
     -   To execute a replace type of assignment, return None in the first
         element.

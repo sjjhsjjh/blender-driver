@@ -97,7 +97,8 @@ class Animation(object):
     # Next thing isn't a property because getting its value has a side effect:
     # the complete flag could be set.
     def get_value(self):
-        """Get the animated value be, based on:
+        """\
+        Get the animated value be, based on all the following.
         
         -   Start value.
         -   Start time.

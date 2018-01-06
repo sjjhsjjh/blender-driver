@@ -3,7 +3,6 @@
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 """Path Store REST module.
 
-
 Cannot be run as a program, sorry."""
 # Exit if run other than as a module.
 if __name__ == '__main__':
@@ -39,6 +38,20 @@ class RestMethod(Enum):
     POST   = 4
     PUT    = 5
 
+def _generic_value(value):
+    # The required test here is: can the value can be serialised into JSON?
+    # That could be determined by attempting to serialise, for example by
+    # calling json.dumps(value). It seems expensive to process the
+    # serialisation, and then discard the result. Instead, the code just
+    # checks the type of the value.
+    if type(value) in (dict, list, tuple, str, int, float):
+        return value
+    if value is True or value is False or value is None:
+        return value
+    # Otherwise, assume it is a class instance and return an empty
+    # dictionary.
+    return {}
+    
 class RestInterface(object):
     """Class for a RESTful interface onto a principal object, implemented by
     Path Store.
@@ -47,20 +60,15 @@ class RestInterface(object):
     def principal(self):
         return self._principal
     
-    @property
-    def track(self):
-        return self._track
-    
-    # def _add_track(self, path, value):
-    # #     # trackPoint = self.track
-    # #     # added = 0
-    # #     # for leg in pathstore.pathify(path):
-    # #     #     if leg not in trackPoint:
-    # #     #         added += 1
-    # #     #         trackPoint[leg] = {}
-    # #     #     trackPoint = trackPoint[leg]
-    # #     # return added
-    #     pathstore.replace(self._track, None, path)
+    def get_generic(self, path=None):
+        def populate(pointUnused, pathUnused, resultsUnused, second):
+            return True, second
+
+        if self.principal is not None:
+            self._generic = pathstore.walk(
+                self._generic, populate, path, second=self.principal)
+
+        return pathstore.get(self._generic, path)
 
     def point_maker(self, path, index, point):
         """Default point_maker, which can be overridden so that a subclass can
@@ -75,20 +83,20 @@ class RestInterface(object):
 
     def rest_put(self, value, path=None):
         log(DEBUG, '({}, {})', value, path)
-        # self._add_track(path)
-        self._track = pathstore.replace(self._track, value, path)
         self._principal = pathstore.replace(
             self._principal, value, path, point_maker=self.point_maker)
+        self._generic = pathstore.replace(
+            self._generic, _generic_value(value), path)
 
     def rest_get(self, path=None):
         return pathstore.get(self.principal, path)
     
-    def rest_walk(self, editor, results=None, path=None):
-        return pathstore.walk(self.principal, editor, results, path)
+    def rest_walk(self, editor, path=None, results=None):
+        return pathstore.walk(self.principal, editor, path, results)
     
     def __init__(self):
         self._principal = None
-        self._track = {}
+        self._generic = None
 
 class PathAnimation(Animation):
 
@@ -189,13 +197,16 @@ class AnimatedRestInterface(RestInterface):
             results.completionsLog = pathstore.merge(
                 results.completionsLog, logValue, path)
         
+        error = None
         try:
-            walks = self.rest_walk(set_now, setResults, 'animations')
-        except KeyError:
-            walks = 0
+            self.rest_walk(set_now, 'animations', setResults)
+        except KeyError as keyError:
+            # This error is raised if there isn't even an animations path, which
+            # can be true during initialisation.
+            error = keyError
 
         if setResults.anyCompletions:
-            log(INFO, "Animations:{} {}.", walks, setResults.completionsLog)
+            log(INFO, "Animations:{} {}.", error, setResults.completionsLog)
         
         return setResults.completions
 

@@ -31,6 +31,11 @@ def str_quote(str_, quote='"'):
     else:
         return str(str_)
 
+class PointType(Enum):
+    LIST = 1
+    DICTIONARY = 2
+    ATTR = 3
+
 def pathify(path):
     """Generator that returns a list suitable for path store navigation:
     
@@ -48,10 +53,23 @@ def pathify(path):
             except TypeError:
                 yield path
 
-class PointType(Enum):
-    LIST = 1
-    DICTIONARY = 2
-    ATTR = 3
+def iterify(source):
+    """\
+    Either source.items(), for a dictionary, or enumerate(source), for a list or
+    tuple.
+    """
+    try:
+        # Dictionary.
+        return PointType.DICTIONARY, source.items()
+    except AttributeError:
+        pass
+
+    if isinstance(source, str):
+        raise TypeError()
+
+    # Assume source is a list or a tuple. If it isn't, the next line raises
+    # TypeError, which is what we want.
+    return PointType.LIST, enumerate(source)
 
 def descend(parent, specifier):
     """Descend one level, either by array index, dictionary key, or object
@@ -65,35 +83,35 @@ def descend(parent, specifier):
     if specifier is None:
         raise TypeError("Specifier must be string or numeric, but is None.")
     numeric = not isinstance(specifier, str)
-    type = None
+    pointType = None
     if numeric:
-        type = PointType.LIST
+        pointType = PointType.LIST
         try:
             point = parent[specifier]
         except IndexError:
             point = None
         except TypeError:
-            type = None
+            pointType = None
             point = None
         except KeyError:
-            type = None
+            pointType = None
             point = None
     else:
-        type = PointType.DICTIONARY
+        pointType = PointType.DICTIONARY
         try:
             in_ = specifier in parent
         except TypeError:
-            type = None
+            pointType = None
             in_ = False
         if in_:
             point = parent[specifier]
         elif hasattr(parent, specifier):
             point = getattr(parent, specifier)
-            type = PointType.ATTR
+            pointType = PointType.ATTR
         else:
             point = None
             
-    return point, numeric, type
+    return point, numeric, pointType
 
 def get(parent, path=None):
     """Descend from the parent along the path. Returns the point descended to,
@@ -106,8 +124,8 @@ def get(parent, path=None):
     If path is None or empty, returns the parent.
     """
     for leg in pathify(path):
-        point, numeric, type = descend(parent, leg)
-        if type is None:
+        point, numeric, pointType = descend(parent, leg)
+        if pointType is None:
             raise TypeError(" ".join((
                 "Couldn't get point for", str_quote(leg), "in", str(parent))))
         if point is None:
@@ -117,11 +135,21 @@ def get(parent, path=None):
         parent = point
     return parent
 
-def walk(parent, editor, results=None, path=None, second=None):
+def walk(parent, editor, path=None, results=None, second=None
+         , editIterable=False
+         ):
     """\
-    Descend from the parent along the path, then walk the structure there and
-    execute editor on each item that can't be iterified. If `second` is None,
-    the editor callable is invoked as follows.
+    Descend from the parent along the path by calling get(), then walk the
+    structure there and execute editor on the items there and below.
+    
+    -   If `editIterable` is false, the default, then the editor isn't called on
+        lists, tuples, dictionaries, and other items that can be iterated.
+    -   If `editIterable` is true, then the editor is called on every item. An
+        iterable item will be passed to the editor before its child items. If
+        the editor replaces the iterable, see below, then the replaced iterable
+        is iterated.
+    
+    If `second` is None, the editor callable is invoked as follows.
 
         editor(point, path, results)
 
@@ -131,16 +159,23 @@ def walk(parent, editor, results=None, path=None, second=None):
     -   `path` is the navigation path to reach it from the parent. The list gets
         modified during execution, so copy it if needed.
     -   `results` is the object passed to the walk function, which can be used
-        to store results.
+        to store and accumulate results.
     
     If `second` isn't None, then its structure is walked in parallel to the
     parent. The current point in the second structure is also passed to the
-    editor callable.
+    editor callable, as a fourth parameter.
     
-    Returns the number of items walked to.
+    The editor can return one of the following.
+    
+    -   (True, `value`) to replace the point object with `value`.
+    -   (False, any) or just None or just False not to replace the point. The
+        editor could have called a method on the point object that modified it
+        in place but the object itself isn't replaced.
+    
+    Returns parent, which could be different to the input parameter, if the
+    editor replaced the top level object.
 
-    If editor raises StopIteration, then the walk ends. The item on which the
-    editor raised StopIteration isn't counted in the walk return value.
+    If editor raises StopIteration, then the walk ends.
     """
     log(DEBUG, "{} {} {}.", parent, editor, path)
 
@@ -150,57 +185,103 @@ def walk(parent, editor, results=None, path=None, second=None):
     # -   Sub-total.
     #
     def inner_walk(point, walkPath, secondPoint):
+        
+        result = [False, False, point]
+        wasTuple = isinstance(point, tuple)
+
+        def edit_one():
+            try:
+                editorResult = None
+                if second is None:
+                    editorResult = editor(point, walkPath, results)
+                else:
+                    editorResult = editor(point, walkPath, results, secondPoint)
+                
+                if not(editorResult is None or editorResult is False):
+                    result[1:] = editorResult
+
+            except StopIteration:
+                result[0] = True
+
+        if editIterable:
+            edit_one()
+            if result[1]:
+                point = result[2]
+            if result[0]:
+                return result
+        
         try:
-            iterator = iterify(point)
+            pointType, iterator = iterify(point)
             log(DEBUG, "iterator {} {}.", point, walkPath, results)
         except TypeError:
             iterator = None
 
-        if iterator is None:
-            try:
-                if second is None:
-                    editor(point, walkPath, results)
-                else:
-                    editor(point, walkPath, results, secondPoint)
-                return False, 1
-            except StopIteration:
-                return True, 0
+        if iterator is None and not editIterable:
+            edit_one()
 
-        count = 0
-        stop = False
+        if iterator is None:
+            return result
+
         for key, value in iterator:
             walkPath.append(key)
             secondValue = None
             if second is not None:
                 secondValue = descend(secondPoint, key)[0]
-            stop, increment = inner_walk(value, walkPath, secondValue)
-            count += increment
+            innerResult = inner_walk(value, walkPath, secondValue)
             del walkPath[-1]
-            if stop:
+            if innerResult[0]:
+                result[0] = True
                 break
-        return stop, count
+            if innerResult[1]:
+                assigned, point = _set(point, key, innerResult[2], pointType)
+                if assigned:
+                    result[1] = True
+                    result[2] = point
+
+        if result[1] and wasTuple and isinstance(point, list):
+            result[2] = tuple(point)
+
+        return result
     
-    return inner_walk(get(parent, path)
-                      , list(pathify(path))
-                      , None if second is None else get(second, path))[1]
+    innerResult = inner_walk(get(parent, path)
+                             , list(pathify(path))
+                             , None if second is None else get(second, path))
+    if innerResult[1]:
+        parent = replace(parent, innerResult[2], path)
+    
+    return parent
 
-def iterify(source):
-    """\
-    Either source.items(), for a dictionary, or enumerate(source), for a list or
-    tuple.
-    """
-    try:
-        # Dictionary.
-        return source.items()
-    except AttributeError:
-        pass
-
-    if isinstance(source, str):
-        raise TypeError()
-
-    # Assume list or tuple. The next line raises TypeError if source isn't a
-    # list or tuple, which is what we want.
-    return enumerate(source)
+# def populate(destination, source, path=None):
+#     log(DEBUG, "{} {} {}.", destination, source, path)
+# 
+#     def inner_populate(destinationPoint, sourcePoint):
+#         try:
+#             pointType, iterator = iterify(destinationPoint)
+#         except TypeError:
+#             return True, sourcePoint
+# 
+#         wasTuple = isinstance(destinationPoint, tuple)
+#         assignParent = False
+#         for key, destinationValue in iterator:
+#             sourceValue = descend(sourcePoint, key)[0]
+#             assign, value = inner_populate(destinationValue, sourceValue)
+#             if assign:
+#                 assigned, destinationPoint = _set(
+#                     destinationPoint, key, value, pointType)
+#                 assignParent = (assignParent or assigned)
+#                 
+#                 # Next line assumes destinationPoint is a list or a dictionary.
+#                 # It's an OK assumption because iterify didn't return None,
+#                 # except that destinationPoint could be a tuple. 
+#                 # destinationPoint[key] = value
+#         if wasTuple and isinstance(destinationPoint, list):
+#             destinationPoint = tuple(destinationPoint)
+#         return assignParent, destinationPoint
+# 
+#     assign, value = inner_populate(get(destination, path), get(source, path))
+#     if assign:
+#         destination = replace(destination, value, path)
+#     return destination
 
 def make_point(specifier, point=None):
     """\
@@ -208,7 +289,9 @@ def make_point(specifier, point=None):
     specified as input, the new point is based on it.
     """
     log(DEBUG, "{} {}.", specifier, point)
-    if isinstance(specifier, str):
+    if specifier is None:
+        return point
+    elif isinstance(specifier, str):
         # The if on the next line might be unnecessary. It might be the case
         # that hasattr(None, specifier) is False for all specifier. For safety
         # and perhaps readability, however, it seems better to make a special
@@ -243,14 +326,18 @@ def default_point_maker(path, index, point=None):
     return make_point(path[index], point)
 
 def replace(parent, value, path=None, point_maker=default_point_maker):
-    """Descend from the parent along the path and replace whatever is there with
-    a new value. Returns parent as modified.
+    """\
+    Descend from the parent along the path and replace whatever is there with a
+    new value. Returns parent as modified.
+    
+    Elements on the path that don't exist will be created by invoking the
+    point_maker.
     """
     log(DEBUG, "{} {} {}.", parent, path, value)
     return _insert(parent
                    , tuple(pathify(path))
-                   , lambda current: (None, value)
-                   , None
+                   , True
+                   , value
                    , point_maker
                    , enumerate(pathify(path)))
     # There is a possible problem with the lambda in the above. Because it
@@ -258,49 +345,23 @@ def replace(parent, value, path=None, point_maker=default_point_maker):
     # a custom point maker.
 
 def merge(parent, value, path=None, point_maker=default_point_maker):
-    """Descend from the parent along the path and merge a specified value into
+    """\
+    Descend from the parent along the path and merge a specified value into
     whatever is there. Returns parent as modified.
+    
+    Elements on the path that don't exist will be created by invoking the
+    point_maker.
     """
     log(DEBUG, "{} {} {}.", parent, path, value)
     
     return _insert(parent
                    , tuple(pathify(path))
-                   , lambda current: (current, value)
-                   , None
+                   , False
+                   , value
                    , point_maker
                    , enumerate(pathify(path)))
 
-def edit(parent, editor, path=None, point_maker=default_point_maker):
-    """Descend from the parent along the path and call a function to modify
-    whatever is there. Pass the function in the `editor` parameter.
-    
-    The editor function should return a tuple of two values. It will be called
-    like:
-    
-        parent, newValue = editor(parent)
-    
-    The input `parent` will contain the value that is initially at the path.
-    Return the following in the output tuple.
-    
-    -   The new value to be assigned to that point on the path, in the second
-        element.
-    -   To execute a replace type of assignment, return None in the first
-        element.
-    -   To execute a merge type of assignment, return the input `parent` in the
-        first element.
-    
-    Returns parent as modified.
-    """
-    log(DEBUG, "{} {} {}.", parent, path, editor)
-    
-    return _insert(parent
-                   , tuple(pathify(path))
-                   , editor
-                   , None
-                   , point_maker
-                   , enumerate(pathify(path)))
-
-def _insert(parent, path, prepare, value, point_maker, enumerator):
+def _insert(parent, path, replacing, value, point_maker, enumerator):
     try:
         index, leg = next(enumerator)
         stopping = False
@@ -308,13 +369,20 @@ def _insert(parent, path, prepare, value, point_maker, enumerator):
         stopping = True
     
     if stopping:
-        if prepare is None:
-            log(DEBUG, "prepared {} {}.", parent, value)
-        else:
-            prepared = prepare(parent)
-            log(DEBUG, "preparing {} {}.", parent, prepared)
-            parent = prepared[0]
-            value = prepared[1]
+        if replacing:
+            pathLen = len(path)
+            #
+            # If a made point would have the same type as value, discard it and
+            # use value. Otherwise, _merge value into the point. If the value
+            # isn't iterable, _merge will discard the parent anyway.
+            if pathLen <= 0:
+                parent = point_maker((None,), 0, None)
+            else:
+                parent = point_maker(path, pathLen - 1, None)
+            if parent is None or type(parent) is type(value):
+                return value
+            else:
+                parent = None
         return _merge(parent, value, point_maker, path)
 
     wasTuple = isinstance(parent, tuple)
@@ -323,33 +391,32 @@ def _insert(parent, path, prepare, value, point_maker, enumerator):
 # If leg is -1, discard parent unless it is a list or tuple,
 # and change leg to len(parent)
 
-    point, numeric, type = descend(parent, leg)
+    point, numeric, pointType = descend(parent, leg)
     if numeric and isinstance(parent, str):
         # Sorry, hack to force descent into a string to fail if setting.
         point = None
     
     log(DEBUG, "{:d} {}\n  {}\n  {}\n  {} {}", index, str_quote(leg), parent
-        , str_quote(point), str(numeric), str(type))
+        , str_quote(point), str(numeric), str(pointType))
 
-    if type is None or point is None:
+    if pointType is None or point is None:
         log(DEBUG, "about to point_maker({}, {}, {}).", path, index, parent)
         parent = point_maker(path, index, parent)
         log(DEBUG, "made point {} {}.", parent, parent.__class__)
-        point, numeric, type = descend(parent, leg)
+        point, numeric, pointType = descend(parent, leg)
 
-    if type is None:
+    if pointType is None:
         raise AssertionError("".join((
-            "type was None twice at ", str(parent)
+            "pointType was None twice at ", str(parent)
             ," path:", str(path), " index:", str(index)
             , " leg:", str_quote(leg), ".")))
 
-    value = _insert(
-        point, path, prepare, value, point_maker, enumerator)
+    value = _insert(point, path, replacing, value, point_maker, enumerator)
     
-    didSet, parent = _set(parent, leg, value, type)
+    didSet, parent = _set(parent, leg, value, pointType)
 
     if not didSet:
-        log(DEBUG, "setter optimised: {}.", type)
+        log(DEBUG, "setter optimised: {}.", pointType)
 
     if wasTuple and isinstance(parent, list):
         parent = tuple(parent)
@@ -359,17 +426,23 @@ def _insert(parent, path, prepare, value, point_maker, enumerator):
 def _merge(parent, value, point_maker, pointMakerPath):
     log(DEBUG, "{} {} {}.", parent, value, pointMakerPath)
     if value is None:
-        log(DEBUG, "None.")
         return parent
     try:
-        legIterator = iterify(value)
+        legIterator = iterify(value)[1]
     except TypeError:
-        log(DEBUG, "replacing.")
-        return value
+        legIterator = None
 
+    if legIterator is None:
+        return value
+    #
+    # The code reaches this point only if the value is iterable.
+    #
+    # Create a path that is definitely a list, and therefore mutable.
     path = list(pathify(pointMakerPath))
+    #
+    # Set the length into a variable to avoid recalculation later.
     pathLen = len(path)
-    
+
     def enumerate_one(index, item):
         yield index, item
     
@@ -380,25 +453,41 @@ def _merge(parent, value, point_maker, pointMakerPath):
         # if legValue is None:
         #     continue
         path.append(legKey)
-        parent = _insert(parent, path, None, legValue, point_maker
+        parent = _insert(parent, path, False, legValue, point_maker
                          , enumerate_one(pathLen, legKey))
         path.pop()
 
     log(DEBUG, "return {}.", parent)
     return parent
 
-def _set(parent, key, value, type):
-    if type is PointType.ATTR:
+def _set(parent, key, value, pointType):
+    '''\
+    Assign a value to a point within a parent, using a specified type of
+    assignment.
+    
+    If the point is already the value, the assignment isn't made.
+    
+    If the parent is a tuple, and the point isn't already the value, the
+    assignment is made into a list copy of the parent.
+    
+    Returns a tuple of:
+    
+    -   True in the first element, if the assignment was made, or False
+        otherwise.
+    -   The parent in the second element, which could be different, if a list
+        copy had to be created.
+    '''
+    if pointType is PointType.ATTR:
         if getattr(parent, key) is value:
             return False, parent
         else:
             setattr(parent, key, value)
-    elif type is PointType.DICTIONARY:
+    elif pointType is PointType.DICTIONARY:
         if (key in parent) and (parent[key] is value):
             return False, parent
         else:
             parent[key] = value
-    elif type is PointType.LIST:
+    elif pointType is PointType.LIST:
         if parent[key] is value:
             return False, parent
         else:
@@ -408,5 +497,5 @@ def _set(parent, key, value, type):
                 parent = list(parent)
             parent[key] = value
     else:
-        raise AssertionError(" ".join(("Unknown PointType:", str(type))))
+        raise AssertionError(" ".join(("Unknown PointType:", str(pointType))))
     return True, parent

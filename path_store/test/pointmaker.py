@@ -23,100 +23,116 @@ from unittest.mock import call, Mock
 # Local imports.
 #
 # Utilities.
-from .principal import PointMakerTracker, Principal
+# from .principal import PointMakerTracker, Principal
 #
 # Modules under test.
 import pathstore
 
-class PointMaker(PointMakerTracker):
+class Principal:
+    testAttr = None
+
+class PointMaker:
     def principal_point_maker(self, path, index, point):
         return_ = None
-        if index == self.principalIndex:
-            if isinstance(point, Principal):
-                return_ = point
-            else:
-                return_ = Principal()
-        return self.point_maker(path, index, point, return_)
+        if index == self._principalIndex:
+            return_ = point if isinstance(point, Principal) else Principal()
+        else:
+            return_ = pathstore.default_point_maker(path, index, point)
+        self._lastPoint = return_
+        return return_
+    
+    @property
+    def lastPoint(self):
+        return self._lastPoint
         
-    def __init__(self, principalIndex=0):
-        super().__init__()
-        self.principalIndex = principalIndex
+    def __init__(self, principalIndex):
+        self._principalIndex = principalIndex
 
 class TestPointMaker(unittest.TestCase):
     def test_empty(self):
-        pointMaker = PointMaker()
-        point = pathstore.merge(
-            None, None, point_maker=pointMaker.principal_point_maker)
-        self.assertEqual(len(pointMaker.makerTrack), 0)
+        mock = Mock(side_effect=pathstore.default_point_maker)
+
+        point = pathstore.merge(None, None, point_maker=mock)
+        self.assertEqual(mock.call_count, 0)
         self.assertIs(point, None)
         
         point0 = "discarded"
         value = "replaced"
-        point1 = pathstore.merge(
-            point0, value, point_maker=pointMaker.principal_point_maker)
-        self.assertEqual(len(pointMaker.makerTrack), 0)
+        point1 = pathstore.merge(point0, value, point_maker=mock)
+        self.assertEqual(mock.call_count, 0)
         self.assertIsNot(point1, point0)
         self.assertIs(point1, value)
 
     def test_principal_root(self):
-        pointMaker = PointMaker()
-        point0 = None
+        pointMaker = PointMaker(0)
         path = ('testAttr', 'de', 'fgh', 'ij', 'kl')
-        expected = [
-            (str(path), index, str(point0)) for index in range(len(path))]
-        point1 = pathstore.merge(
-            point0, None, path, point_maker=pointMaker.principal_point_maker)
-        self.assertEqual(pointMaker.makerTrack, expected)
+        #
+        # Start with None.
+        point0 = None
+        mock = Mock(side_effect=pointMaker.principal_point_maker)
+        point1 = pathstore.merge(point0, None, path, point_maker=mock)
+        self.assertEqual(mock.call_count, len(path))
+        for index in range(len(path)):
+            self.assertEqual(
+                mock.call_args_list[index], call(path, index, None))
+            #
+            # Following code extracts positional arguments and makes an
+            # assertion about each. It is equivalent to the single assertion
+            # above and is kept only for reference.
+            callPositional = mock.call_args_list[index][0]
+            self.assertEqual(callPositional[0], path)
+            self.assertEqual(callPositional[1], index)
+            self.assertEqual(callPositional[2], None)
         self.assertIsInstance(point1, Principal)
         self.assertEqual(point1.testAttr, {'de':{'fgh':{'ij':{'kl': None}}}})
-        
-        pointMaker = PointMaker()
-        point0 = Principal()
-        point1 = pathstore.merge(
-            point0, None, path, point_maker=pointMaker.principal_point_maker)
-        expected[0] = pointMaker.tracker_for(path, 0, point0)
-        self.assertEqual(pointMaker.makerTrack, expected)
+        #
+        # Start with an object of the required type. It should be passed to the
+        # first point maker call, and shouldn't be replaced.
+        principal = Principal()
+        point0 = principal
+        mock.reset_mock()
+        point1 = pathstore.merge(point0, None, path, point_maker=mock)
+        self.assertEqual(
+            mock.call_args_list, [
+                call(path, index, principal if index == 0 else None
+                     ) for index in range(len(path))])
         self.assertIs(point1, point0)
-        
-        pointMaker = PointMaker()
+        self.assertIs(point1, principal)
+        #
+        # Try a path that can't be rooted in the required type.
         point0 = None
         path = ('de', 'fgh', 'ij', 'kl')
         with self.assertRaises(AssertionError) as context:
-            point1 = pathstore.merge(
-                point0, None, path
-                , point_maker=pointMaker.principal_point_maker)
+            point1 = pathstore.merge(point0, None, path, point_maker=mock)
         index = 0
         assertionError = AssertionError("".join((
-            "type was None twice at ", str(pointMaker.lastPoint)
+            "pointType was None twice at ", str(pointMaker.lastPoint)
             ," path:", str(path), " index:", str(index)
             , " leg:", pathstore.str_quote(path[index]), ".")))
         self.assertEqual(str(context.exception), str(assertionError))
 
     def test_principal_leaf(self):
         pointMaker = PointMaker(3)
+        mock = Mock(side_effect=pointMaker.principal_point_maker)
         point0 = None
         path = ('de', 'fgh', 'ij', 'testAttr')
         value = "valueTest"
-        expected = [
-            (str(path), index, str(point0)) for index in range(len(path))]
-        point1 = pathstore.merge(
-            point0, value, path, point_maker=pointMaker.principal_point_maker)
-        self.assertEqual(pointMaker.makerTrack, expected)
+        point1 = pathstore.merge(point0, value, path, point_maker=mock)
+        self.assertEqual(mock.call_args_list, [
+            call(path, index, None) for index in range(len(path))])
         self.assertEqual(point1, {'de':{'fgh':{'ij':pointMaker.lastPoint}}})
         self.assertEqual(pointMaker.lastPoint.testAttr, value)
+        self.assertIsInstance(pointMaker.lastPoint, Principal)
 
-    def test_principal_middle(self):
-        pointMaker = PointMaker(3)
+        mock.reset_mock()
         point0 = None
         path0 = ('de', 2, 'ij')
         path1 = ('testAttr', 1, 0)
         path = path0 + path1
         value = "arrayValue"
-        expected = [
-            (str(path), index, str(point0)) for index in range(len(path))]
-        point1 = pathstore.merge(
-            point0, value, path, point_maker=pointMaker.principal_point_maker)
-        self.assertEqual(pointMaker.makerTrack, expected)
+        point1 = pathstore.merge(point0, value, path, point_maker=mock)
+        self.assertEqual(mock.call_args_list, [
+            call(path, index, None) for index in range(len(path))])
         principal = pathstore.get(point1, path0)
         self.assertEqual(point1, {'de':[None, None, {'ij':principal}]})
         self.assertIsInstance(principal, Principal)
@@ -124,13 +140,12 @@ class TestPointMaker(unittest.TestCase):
 
     def test_principal_not_reached(self):
         pointMaker = PointMaker(4)
+        mock = Mock(side_effect=pointMaker.principal_point_maker)
         point0 = None
         path = ('de', 'fgh', 'ij', 'kl')
-        expected = [
-            (str(path), index, str(point0)) for index in range(len(path))]
-        point1 = pathstore.merge(
-            point0, None, path, point_maker=pointMaker.principal_point_maker)
-        self.assertEqual(pointMaker.makerTrack, expected)
+        point1 = pathstore.merge(point0, None, path, point_maker=mock)
+        self.assertEqual(mock.call_args_list, [
+            call(path, index, None) for index in range(len(path))])
         self.assertEqual(point1, {'de':{'fgh':{'ij':{'kl': None}}}})
 
     def test_principal_in_array(self):
@@ -160,9 +175,8 @@ class TestPointMaker(unittest.TestCase):
             return root
 
         expectedCalls = [
-            call(('outvaluearr', 0, 'invalue'), 0, None),
-            call(('outvaluearr', 0, 'invalue'), 1, None),
-            call(('outvaluearr', 0, 'invalue'), 2, None),
+            call(('outvaluearr', 0, 'invalue'), index, None
+                ) for index in range(3)] + [
             #
             # The last parameter on the next line is the `expected` structure,
             # above. The parameter as passed would have been just the
@@ -170,14 +184,13 @@ class TestPointMaker(unittest.TestCase):
             # has been modified, because pathstore.merge operates in place on
             # the data structure. 
             call(('outvaluedict', 'invalue'), 0, expected),
-            call(('outvaluedict', 'invalue'), 1, None)
-        ]
+            call(('outvaluedict', 'invalue'), 1, None)]
 
 
         mock = Mock(side_effect=pathstore.default_point_maker)
         point = make_structure(mock)
         self.assertEqual(point, expected)
-        mock.assert_has_calls(expectedCalls)
+        self.assertEqual(mock.call_args_list, expectedCalls)
         
         class PointPrincipal(Mock):
             invalue = None
@@ -217,4 +230,38 @@ class TestPointMaker(unittest.TestCase):
         mock = Mock(side_effect=object_point_maker)
         point = make_structure(mock)
         self.assertEqual(point, expected)
-        mock.assert_has_calls(expectedCalls)
+        self.assertEqual(mock.call_args_list, expectedCalls)
+
+    def test_empty_path(self):
+        pointMaker = PointMaker(0)
+        mock = Mock(side_effect=pointMaker.principal_point_maker)
+        #
+        # Merge should always merge into a new object. A test for that with the
+        # default point maker is in That test is in TestMerge.test_into_none.
+        #
+        # Test with a custom point maker is here. We expect the point maker to
+        # be called twice: once for the root, once for the dictionary element.
+        attrValue = {'a': "dictionary"}
+        value = {'testAttr':attrValue}
+        point0 = None
+        point1 = pathstore.merge(point0, value, point_maker=mock)
+        self.assertEqual(mock.call_args_list, [
+            call([], 0, None), call(['testAttr'], 1, None)])
+        self.assertIsInstance(point1, Principal)
+        #
+        # Note that the merge-ness cascades, so the attrValue dictionary is
+        # copied into the testAttr property, not assigned to it.
+        self.assertIsNot(point1.testAttr, attrValue)
+        self.assertEqual(point1.testAttr, attrValue)
+        #
+        # Replace should put the value, if it is the required type. A test for
+        # that with the default point maker is in TestReplace.test_into_none.
+        #
+        # Test for that with a custom point maker is here. There isn't a path,
+        # so the point maker is called with a made-up path: (None,).
+        value = Principal()
+        point0 = None
+        mock.reset_mock()
+        point1 = pathstore.replace(point0, value, point_maker=mock)
+        self.assertIs(point1, value)
+        self.assertEqual(mock.call_args_list, [call((None,), 0, None)])

@@ -684,10 +684,11 @@ def get_camera_subclass(bge):
                             'modulo': radians(360)
                         }
                         #
-                        # Insert the animation. The point maker will set the store
-                        # attribute.
-                        log(INFO, 'Patching {} {}', animationPath, animation)
-                        self.restInterface.rest_put(animation, animationPath)
+                        # Insert the animation. The point maker will set the
+                        # store attribute. Put None first, to remove whatever
+                        # current animation is there.
+                        self.restInterface.rest_put(None, animationPath)
+                        self.restInterface.rest_patch(animation, animationPath)
                         #
                         # Set the start time, which has the following side
                         # effects:
@@ -695,8 +696,6 @@ def get_camera_subclass(bge):
                         # -   Clears the complete state.
                         animationPath.append('startTime')
                         self.restInterface.rest_put(tickPerf, animationPath)
-                        log(DEBUG, "Animations {}"
-                            , self._restInterface.rest_get(('animations',)))
                         del animationPath[-1]
                         self._trackRotationLast[index] = target
                 del animationPath[-1]

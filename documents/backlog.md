@@ -3,7 +3,9 @@ Backlog
 
 -   Remove pathstore populate, which can now be done by walk second.
 
--   Unit tests run from Blender.
+-   Finish replace unit tests.
+
+-   Try patching animations without putting None first.
 
 -   Get a JSON representation of a path store principal.
 
@@ -11,6 +13,8 @@ Backlog
     path store.
 
 -   Blender upgrade and check Python version.
+
+-   Unit tests run from Blender.
 
 -   Move heavier diagnostic logs into unit tests in which Mock objects track
     calls.

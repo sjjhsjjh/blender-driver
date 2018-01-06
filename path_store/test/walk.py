@@ -26,87 +26,102 @@ from unittest.mock import Mock
 import pathstore
 
 def editor_void(point, path, results):
+    '''Implicit return of None.'''
     return
 
 def editor_append(point, path, results):
+    '''Implicit return of None.'''
     results.append([point] + path)
 
 class TestWalk(unittest.TestCase):
     def test_noop_editor(self):
-        principal = 23.4
+        principal0 = 23.4
 
-        walks = pathstore.walk(principal, editor_void, None)
-        self.assertEqual(walks, 1)
+        mock = Mock(side_effect=editor_void)
+        principal = pathstore.walk(principal0, mock)
+        self.assertEqual(mock.call_count, 1)
         self.assertEqual(principal, 23.4)
-
-        # Nothing but a pass.
-        def editor_pass(point, path, results):
-            pass
-        walks = pathstore.walk(principal, editor_pass, None)
-        self.assertEqual(walks, 1)
-        self.assertEqual(principal, 23.4)
+        self.assertIs(principal, principal0)
 
         def editor_none(point, path, results):
             return None
-        walks = pathstore.walk(principal, editor_none, None)
-        self.assertEqual(walks, 1)
+        mock = Mock(side_effect=editor_none)
+        principal = pathstore.walk(principal0, mock)
+        self.assertEqual(mock.call_count, 1)
         self.assertEqual(principal, 23.4)
+        self.assertIs(principal, principal0)
 
         def editor_false(point, path, results):
             return False
-        walks = pathstore.walk(principal, editor_false, None)
-        self.assertEqual(walks, 1)
+        mock = Mock(side_effect=editor_false)
+        principal = pathstore.walk(principal0, mock)
+        self.assertEqual(mock.call_count, 1)
         self.assertEqual(principal, 23.4)
+        self.assertIs(principal, principal0)
 
         unboundVariable = 20
         def editor_unbound(point, path, results):
             unboundVariable += 2
         with self.assertRaises(UnboundLocalError) as context:
-            walks = pathstore.walk(principal, editor_unbound, None)
+            principal = pathstore.walk(principal0, editor_unbound)
         self.assertEqual(
             str(context.exception)
             , "local variable 'unboundVariable' referenced before assignment")
-        self.assertEqual(principal, 23.4)
+        self.assertIs(principal, principal0)
 
     def test_scalar(self):
-        principal = 4
+        principal0 = 4
         results = []
-        walks = pathstore.walk(principal, editor_append, results)
+        principal = pathstore.walk(principal0, editor_append, results=results)
         self.assertEqual(results, [[4]])
         self.assertEqual(principal, 4)
+        self.assertIs(principal, principal0)
         
         del results[:]
         with self.assertRaises(TypeError) as context:
-            walks = pathstore.walk(principal, editor_append, results, 0)
+            principal = pathstore.walk(principal0, editor_append, 0, results)
         self.assertEqual(
             str(context.exception), "Couldn't get point for 0 in 4")
 
     def test_list(self):
+        principal0 = tuple()
+        mock = Mock(side_effect=editor_void)
+        principal = pathstore.walk(principal0, mock)
+        self.assertIs(principal, principal0)
+        self.assertEqual(len(principal), 0)
+        self.assertEqual(mock.call_count, 0)
+    
+        principal0 = []
+        mock = Mock(side_effect=editor_void)
+        principal = pathstore.walk(principal0, mock)
+        self.assertIs(principal, principal0)
+        self.assertEqual(len(principal), 0)
+        self.assertEqual(mock.call_count, 0)
+    
         principal = [2, 3]
-        walks = pathstore.walk(tuple(), editor_void)
-        self.assertEqual(walks, 0)
-    
-        walks = pathstore.walk([], editor_void)
-        self.assertEqual(walks, 0)
-    
+
         principal0 = principal[:]
         results = []
-        walks = pathstore.walk(principal0, editor_append, results)
-        self.assertEqual(walks, 2)
+        mock = Mock(side_effect=editor_append)
+        principal1 = pathstore.walk(principal0, mock, results=results)
+        self.assertEqual(mock.call_count, 2)
         self.assertEqual(results, [[2,0], [3,1]])
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
+        self.assertIs(principal0, principal1)
         
         principal0 = principal[:]
         del results[:]
-        walks = pathstore.walk(principal0, editor_append, results, 1)
-        self.assertEqual(walks, 1)
+        mock = Mock(side_effect=editor_append)
+        principal1 = pathstore.walk(principal0, mock, 1, results)
+        self.assertEqual(mock.call_count, 1)
         self.assertEqual(results, [[3,1]])
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
+        self.assertIs(principal0, principal1)
         
         with self.assertRaises(IndexError) as context:
-            walks = pathstore.walk(principal, editor_void, None, 2)
+            principal1 = pathstore.walk(principal0, editor_void, 2)
         self.assertEqual(
             str(context.exception), "No point for 2 in {}".format(principal))
     
@@ -116,31 +131,45 @@ class TestWalk(unittest.TestCase):
         principal0 = ['d', ['a', 'b'], 'c']
         results = []
         
-        walks = pathstore.walk(principal0, editor_append, results)
+        mock = Mock(side_effect=editor_append)
+        # Next line has positional path=None.
+        principal1 = pathstore.walk(principal0, mock, None, results)
     
-        self.assertEqual(walks, 4)
+        self.assertEqual(mock.call_count, 4)
         self.assertEqual(results, [
             ['d', 0], ['a', 1, 0], ['b', 1, 1], ['c', 2]])
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
+        self.assertIs(principal0, principal1)
     
     def test_dict(self):
+        principal0 = {}
+        mock = Mock(side_effect=editor_void)
+        principal1 = pathstore.walk(principal0, mock)
+        self.assertIs(principal1, principal0)
+        self.assertEqual(len(principal0.keys()), 0)
+        self.assertEqual(mock.call_count, 0)
+
         principal = {'ef':'jape', 'gh': 'idol', 'kl': 'master'}
         principal0 = dict(principal)
         expected = [['idol', 'gh'], ['jape', 'ef'], ['master', 'kl']]
         expected.sort()
         
         results = []
-        walks = pathstore.walk(principal0, editor_append, results)
+        mock = Mock(side_effect=editor_append)
+        principal1 = pathstore.walk(principal0, mock, results=results)
         results.sort()
     
-        self.assertEqual(walks, 3)
+        self.assertEqual(mock.call_count, 3)
         self.assertEqual(results, expected)
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
-    
-        walks = pathstore.walk({}, editor_void)
-        self.assertEqual(walks, 0)
+        self.assertIs(principal0, principal1)
+
+        mock = Mock(side_effect=editor_append)
+        principal1 = pathstore.walk(principal0, mock, 'gh', results)
+        self.assertEqual(mock.call_count, 1)
+        self.assertIs(principal0, principal1)
     
     def test_list_dict(self):
         principal = [{'ef':'jape', 'gh': 'idol', 'kl': 'master'}, {'no':'yes'}]
@@ -151,41 +180,47 @@ class TestWalk(unittest.TestCase):
         expected.sort()
         
         results = []
-        walks = pathstore.walk(principal0, editor_append, results)
+        mock = Mock(side_effect=editor_append)
+        principal1 = pathstore.walk(principal0, mock, results=results)
         results.sort()
     
-        self.assertEqual(walks, 4)
+        self.assertEqual(mock.call_count, 4)
         self.assertEqual(results, expected)
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
+        self.assertIs(principal0, principal1)
     
     def test_list_object(self):
         mock0 = Mock(spec_set=['attr'])
         mock0.attr = 11
         mock1 = Mock(mock0)
         mock1.attr = 13
-        principal = [mock0, mock1]
+        principal0 = [mock0, mock1]
     
         def editor_inc(point, path, results):
             point.attr += 1
             editor_append(point, path, results)
         testResults = []
-        walks = pathstore.walk(principal, editor_inc, testResults)
-        self.assertEqual(walks, 2)
+        mock = Mock(side_effect=editor_inc)
+        principal1 = pathstore.walk(principal0, mock, results=testResults)
+        self.assertEqual(mock.call_count, 2)
         self.assertEqual(testResults, [[mock0,0], [mock1,1]])
         self.assertEqual(mock0.attr, 12)
         self.assertEqual(mock1.attr, 14)
+        self.assertIs(principal0, principal1)
     
         def editor_inc_if(point, path, results):
             if point.attr >= 14:
                 point.attr += 1
                 editor_append(point, path, results)
         testResults = []
-        walks = pathstore.walk(principal, editor_inc_if, testResults)
-        self.assertEqual(walks, 2)
+        mock = Mock(side_effect=editor_inc_if)
+        principal1 = pathstore.walk(principal0, mock, results=testResults)
+        self.assertEqual(mock.call_count, 2)
         self.assertEqual(testResults, [[mock1,1]])
         self.assertEqual(mock0.attr, 12)
         self.assertEqual(mock1.attr, 15)
+        self.assertIs(principal0, principal1)
 
     def test_stop(self):
         principal = [2, 3, 4]
@@ -197,11 +232,13 @@ class TestWalk(unittest.TestCase):
 
         principal0 = principal[:]
         testResults = []
-        walks = pathstore.walk(principal0, editor_stop, testResults)
-        self.assertEqual(walks, 1)
+        mock = Mock(side_effect=editor_stop)
+        principal1 = pathstore.walk(principal0, mock, results=testResults)
+        self.assertEqual(mock.call_count, 2)
         self.assertEqual(testResults, [[2,0]])
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
+        self.assertIs(principal0, principal1)
 
         def editor_stop_after(point, path, results):
             editor_append(point, path, results)
@@ -210,11 +247,13 @@ class TestWalk(unittest.TestCase):
 
         principal0 = principal[:]
         del testResults[:]
-        walks = pathstore.walk(principal0, editor_stop_after, testResults)
-        self.assertEqual(walks, 1)
+        mock = Mock(side_effect=editor_stop_after)
+        principal1 = pathstore.walk(principal0, mock, results=testResults)
+        self.assertEqual(mock.call_count, 2)
         self.assertEqual(testResults, [[2,0], [3,1]])
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
+        self.assertIs(principal0, principal1)
 
     def test_second(self):
         results = []
@@ -226,7 +265,7 @@ class TestWalk(unittest.TestCase):
         expected = [[value, second[index], index
                      ] for index, value in enumerate(principal)]
         del results[:]
-        walks = pathstore.walk(principal, editor_append_second, second=second)
+        pathstore.walk(principal, editor_append_second, second=second)
         self.assertEqual(results, expected)
 
         class Instance:
@@ -237,7 +276,7 @@ class TestWalk(unittest.TestCase):
         second = Instance()
         expected = [['dictionary attribute', 'Instance.attribute', 'attr']]
         del results[:]
-        walks = pathstore.walk(principal, editor_append_second, second=second)
+        pathstore.walk(principal, editor_append_second, second=second)
         self.assertEqual(results, expected)
 
         principal = ('alpha', 'bravo',
@@ -251,5 +290,5 @@ class TestWalk(unittest.TestCase):
              2, 'attrOther'],
             ['charlie', 'foxtrot', 3]]
         del results[:]
-        walks = pathstore.walk(principal, editor_append_second, second=second)
+        pathstore.walk(principal, editor_append_second, second=second)
         self.assertEqual(results, expected)

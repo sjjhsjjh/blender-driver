@@ -35,6 +35,7 @@ class TestMakePoint(unittest.TestCase):
         point1 = pathstore.make_point(0, point0)
         self.assertIs(point1, point0)
         self.assertEqual(point0, ["ma"])
+
     def test_one(self):
         self.assertEqual(pathstore.make_point(1), [None, None])
         point0 = []
@@ -53,6 +54,7 @@ class TestMakePoint(unittest.TestCase):
         point1 = pathstore.make_point(1, point0)
         self.assertIsNot(point1, point0)
         self.assertEqual(point1, [None, None])
+
     def test_string(self):
         specifier = 'memzero'
 
@@ -85,4 +87,11 @@ class TestMakePoint(unittest.TestCase):
         point = pathstore.make_point('wrongAttr', principal)
         self.assertIsNot(point, principal)
         self.assertEqual(point, {})
+    
+    def test_none(self):
+        point1 = pathstore.make_point(None)
+        self.assertIsNone(point1)
         
+        point0 = object()
+        point1 = pathstore.make_point(None, point0)
+        self.assertIs(point0, point1)

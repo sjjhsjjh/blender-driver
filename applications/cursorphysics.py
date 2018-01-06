@@ -246,7 +246,7 @@ class Application(restanimation.Application):
                         results.still = True
                         raise StopIteration
                 
-                self._restInterface.rest_walk(check, checkResults, 'animations')
+                self._restInterface.rest_walk(check, 'animations', checkResults)
                 #
                 # If there are no other animations: restore physics to the
                 # object and reset its rotation overrides.
@@ -376,7 +376,6 @@ class Application(restanimation.Application):
         #
         # Insert the animation. The point maker will set the store
         # attribute.
-        log(INFO, 'Patching {} {}', animationPath, animation)
         restInterface.rest_put(animation, animationPath)
         #
         # Set the start time, which has the following side effects:

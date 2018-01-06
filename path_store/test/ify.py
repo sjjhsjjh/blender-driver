@@ -62,7 +62,11 @@ class TestIterify(unittest.TestCase):
     
     def test_ok(self):
         list_ = ['bif', 2, 2, None]
-        self.assertEqual(tuple(enumerate(list_))
-                         , tuple(pathstore.iterify(list_)))
+        type, iterator = pathstore.iterify(list_)
+        self.assertEqual(tuple(enumerate(list_)), tuple(iterator))
+        self.assertEqual(type, pathstore.PointType.LIST)
+
         dict_ = {'pag':1, 'pog':1, 'pygi':None, 'pli':list_}
-        self.assertEqual(tuple(dict_.items()), tuple(pathstore.iterify(dict_)))
+        type, iterator = pathstore.iterify(dict_)
+        self.assertEqual(tuple(dict_.items()), tuple(iterator))
+        self.assertEqual(type, pathstore.PointType.DICTIONARY)

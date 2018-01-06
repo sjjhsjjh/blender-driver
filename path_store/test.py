@@ -39,6 +39,7 @@ from test.descend import TestDescend
 from test.makepoint import TestMakePoint
 from test.insert import TestInsert
 from test.merge import TestMerge
+from test.replace import TestReplace
 from test.restput import TestRestPut
 from test.pointmaker import TestPointMaker
 from test.hostedproperty import TestHostedProperty

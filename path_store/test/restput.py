@@ -23,8 +23,11 @@ import unittest
 # Local imports.
 #
 # Modules under test.
-import pathstore
 import rest
+#
+# Modules that will be patched.
+import pathstore
+
 
 class TestRestPut(unittest.TestCase):
     def test_no_path(self):
@@ -71,31 +74,49 @@ class TestRestPut(unittest.TestCase):
         restInterface = rest.RestInterface()
         restInterface.rest_put("clap", ('piker',))
         restInterface.rest_put("bleb", ['keypit'])
-        self.assertEqual(restInterface.principal
-                         , {'keypit': 'bleb', 'piker':"clap"})
+        self.assertEqual(
+            restInterface.principal, {'keypit': 'bleb', 'piker':"clap"})
 
+    def test_generic_value(self):
+        class Principal:
+            pass
+        principal = Principal()
+        self.assertEqual(rest._generic_value(principal), {})
+
+        principal = Principal()
+        principal.testAttr = 'bacon'
+        self.assertEqual(rest._generic_value(principal), {})
+        
     def test_principal(self):
         restInterface = rest.RestInterface()
         class Principal:
             pass
         principal = Principal()
         principal.testAttr = 'bacon'
-        restInterface.rest_put(principal)
-        restInterface.rest_put('pork', ['testAttr'])
+        #
+        # Next couple of lines show a way to use patch to replace an imported
+        # function. First line puts a Mock object in place; second line makes it
+        # chain to the original function imported by a different route.
+        with unittest.mock.patch('rest.pathstore.replace') as patched:
+            patched.side_effect = pathstore.replace
+            restInterface.rest_put(principal)
+            restInterface.rest_put('pork', ['testAttr'])
+        # Now we have a call list that can be printed for debugging, like this:
+        # print(patched.call_args_list)
+        # Assertions can also be made.
+        self.assertEqual(patched.call_count, 4)
+        self.assertIs(principal, restInterface.principal)
         self.assertEqual(principal.testAttr, 'pork')
-        
-    def test_track(self):
+    
+    def test_get_generic(self):
         restInterface = rest.RestInterface()
-        self.assertEqual(restInterface.track, {})
+        self.assertIsNone(restInterface.get_generic())
         
         restInterface.rest_put('bleb', 'root')
-        self.assertEqual(restInterface.track, restInterface.principal)
-        # self.assertEqual(restInterface.track, {'root': None})
+        self.assertEqual(restInterface.get_generic(), restInterface.principal)
 
         restInterface.rest_put(2, ['route',1])
-        self.assertEqual(restInterface.track, restInterface.principal)
-        # self.assertEqual(restInterface.track
-        #                  , {'root': None, 'route': [None, None]})
+        self.assertEqual(restInterface.get_generic(), restInterface.principal)
         
         class Principal:
             pass
@@ -109,25 +130,28 @@ class TestRestPut(unittest.TestCase):
         restInterface.rest_put(principal, ['mcroute'])
         with self.assertRaises(TypeError) as context:
             asJSON = json.dumps(restInterface.rest_get())
-        self.assertEqual(restInterface.track
-                         , {'root': None,
-                            'route': [None, None],
-                            'mcroute':None})
+        generic = restInterface.get_generic()
+        self.assertNotEqual(generic, restInterface.principal)
+        # Generic has an empty dictionary in place of the Principal instance.
+        self.assertEqual(generic, {
+            'root': "bleb", 'route': [None, 2], 'mcroute': {}})
         
         restInterface.rest_put(9, ['mcroute', 'al'])
-        self.assertEqual(restInterface.track
-                         , {'root': None,
-                            'route': [None, None],
-                            'mcroute':{'al': None}
-                            })
+        self.assertEqual(restInterface.get_generic(), {
+            'root': "bleb", 'route': [None, 2], 'mcroute': {'al': 9}})
 
         restInterface.rest_put("busa", ['mcroute', 'hof', 2])
-        expectedTrack = {
-            'root': None,
-            'route': [None, None],
-            'mcroute':{'al': None, 'hof':[None, None, None]}
-            }
-        self.assertEqual(restInterface.track, expectedTrack)
-        self.assertEqual(json.dumps(restInterface.track)
-                         , json.dumps(expectedTrack))
-        self.assertIs(principal, restInterface.rest_get('mcroute'))
+        expectedGeneric = {
+            'root': "bleb",
+            'route': [None, 2],
+            'mcroute': {
+                'al': 9, 'hof':[None, None, "busa"]}
+        }
+        self.assertEqual(restInterface.get_generic(), expectedGeneric)
+
+        principal0 = restInterface.rest_get('mcroute')
+        self.assertIs(principal, principal0)
+        self.assertEqual(principal0.hof, [None, None, "busa"])
+
+        self.assertEqual(
+            json.dumps(restInterface.get_generic()), json.dumps(expectedGeneric))

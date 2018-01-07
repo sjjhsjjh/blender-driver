@@ -28,11 +28,6 @@ class TestReplace(unittest.TestCase):
         parent = pathstore.replace(None, value)
         self.assertIs(parent, value)
     
-    
-    # Replace at a path might be different to replace at the root, which would
-    # be bad.
-
-
     def test_at_path(self):
         parent0 = {'kiki':"valoo", 'ikik':"valet"}
         #
@@ -44,9 +39,11 @@ class TestReplace(unittest.TestCase):
         parent1 = pathstore.replace(parent0, value, 'ikik')
         self.assertIs(parent1, parent0)
         self.assertIs(pathstore.get(parent1, 'ikik'), value)
+        self.assertIs(parent1['ikik'], value)
         #
         # Put a dictionary into the dictionary instead.
         value = {'leel':"wab", 'lahal': "amb"}
         parent1 = pathstore.replace(parent0, value, 'ikik')
         self.assertIs(parent1, parent0)
         self.assertIs(pathstore.get(parent1, 'ikik'), value)
+        self.assertIs(parent1['ikik'], value)

@@ -1,10 +1,6 @@
 Backlog
 =======
 
--   Remove pathstore populate, which can now be done by walk second.
-
--   Finish replace unit tests.
-
 -   Try patching animations without putting None first.
 
 -   Get a JSON representation of a path store principal.

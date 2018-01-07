@@ -251,38 +251,6 @@ def walk(parent, editor, path=None, results=None, second=None
     
     return parent
 
-# def populate(destination, source, path=None):
-#     log(DEBUG, "{} {} {}.", destination, source, path)
-# 
-#     def inner_populate(destinationPoint, sourcePoint):
-#         try:
-#             pointType, iterator = iterify(destinationPoint)
-#         except TypeError:
-#             return True, sourcePoint
-# 
-#         wasTuple = isinstance(destinationPoint, tuple)
-#         assignParent = False
-#         for key, destinationValue in iterator:
-#             sourceValue = descend(sourcePoint, key)[0]
-#             assign, value = inner_populate(destinationValue, sourceValue)
-#             if assign:
-#                 assigned, destinationPoint = _set(
-#                     destinationPoint, key, value, pointType)
-#                 assignParent = (assignParent or assigned)
-#                 
-#                 # Next line assumes destinationPoint is a list or a dictionary.
-#                 # It's an OK assumption because iterify didn't return None,
-#                 # except that destinationPoint could be a tuple. 
-#                 # destinationPoint[key] = value
-#         if wasTuple and isinstance(destinationPoint, list):
-#             destinationPoint = tuple(destinationPoint)
-#         return assignParent, destinationPoint
-# 
-#     assign, value = inner_populate(get(destination, path), get(source, path))
-#     if assign:
-#         destination = replace(destination, value, path)
-#     return destination
-
 def make_point(specifier, point=None):
     """\
     Make or create a suitable point that can hold specifier. If a point is

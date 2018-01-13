@@ -32,21 +32,41 @@ class Principal:
     testAttr = None
 
 class PointMaker:
+    '''\
+    Class for unit testing of point maker mechanism. The principal_point_maker
+    copies its input parameters, which is necessary in case one of them is a
+    list that is subsequently modified. The Mock class doesn't copy the
+    parameters, only references to them.
+    '''
     def principal_point_maker(self, path, index, point):
+        if index >= len(path):
+            raise ValueError(
+                "Point maker index too big index:{} path:{} length:{}.".format(
+                    index, path, len(path)))
         return_ = None
         if index == self._principalIndex:
             return_ = point if isinstance(point, Principal) else Principal()
         else:
             return_ = pathstore.default_point_maker(path, index, point)
         self._lastPoint = return_
+        self._calls.append(call(path[:], index, point))
         return return_
+    
+    def reset(self):
+        del self._lastPoint
+        self._calls = []
     
     @property
     def lastPoint(self):
         return self._lastPoint
+    
+    @property
+    def calls(self):
+        return self._calls
         
     def __init__(self, principalIndex):
         self._principalIndex = principalIndex
+        self._calls = []
 
 class TestPointMaker(unittest.TestCase):
     def test_empty(self):
@@ -62,6 +82,15 @@ class TestPointMaker(unittest.TestCase):
         self.assertEqual(mock.call_count, 0)
         self.assertIsNot(point1, point0)
         self.assertIs(point1, value)
+    
+    def test_principal(self):
+        principal = Principal()
+        self.assertTrue(hasattr(principal, 'testAttr'))
+        pointMaker = PointMaker(0)
+        with self.assertRaises(ValueError):
+            pointMaker.principal_point_maker(('one', 'two'), 2, None)
+        with self.assertRaises(ValueError):
+            pointMaker.principal_point_maker(('one', 'two'), 20, None)
 
     def test_principal_root(self):
         pointMaker = PointMaker(0)
@@ -137,6 +166,54 @@ class TestPointMaker(unittest.TestCase):
         self.assertEqual(point1, {'de':[None, None, {'ij':principal}]})
         self.assertIsInstance(principal, Principal)
         self.assertEqual(principal.testAttr, [None, [value]])
+        #
+        # Replacing with a dictionary should result in an object if the point
+        # maker specifies that.
+        mock.reset_mock()
+        pointMaker.reset()
+        point0 = None
+        path = ('de', 2, 'ij')
+        value0 = "Value in dictionary."
+        value = {'testAttr': value0}
+        point1 = pathstore.replace(point0, value, path, point_maker=mock)
+        principal = pathstore.get(point1, path)
+        self.assertEqual(point1, {'de':[None, None, {'ij':principal}]})
+        self.assertIsInstance(principal, Principal)
+        self.assertIs(principal.testAttr, value0)
+        self.assertEqual(pointMaker.calls, [
+            call(path, index, None) for index in range(len(path))
+            ] + [
+            call(tuple(path) + (None,), len(path), None),
+            call(list(path) + ['testAttr'], len(path), principal)])
+        #
+        # Replacing with an empty dictionary should result in an object if the
+        # point maker specifies that.
+        mock.reset_mock()
+        pointMaker.reset()
+        point0 = None
+        path = ('de', 2, 'ij')
+        point1 = pathstore.replace(point0, {}, path, point_maker=mock)
+        principal = pathstore.get(point1, path)
+        self.assertEqual(point1, {'de':[None, None, {'ij':principal}]})
+        self.assertIsInstance(principal, Principal)
+        self.assertEqual(pointMaker.calls, [
+            call(path, index, None) for index in range(len(path))
+            ] + [
+            call(tuple(path) + (None,), len(path), None)])
+        #
+        # Replacing with a None should result in None, regardless of what the
+        # point maker specifies. The last invocation of the point maker in the
+        # previous test shouldn't take place here because the point maker
+        # doesn't get invoked after the end of the path has been reached.
+        mock.reset_mock()
+        pointMaker.reset()
+        point0 = None
+        path = ('de', 2, 'ij')
+        point1 = pathstore.replace(point0, None, path, point_maker=mock)
+        self.assertEqual(point1, {'de':[None, None, {'ij':None}]})
+        principal = pathstore.get(point1, path)
+        self.assertEqual(pointMaker.calls, [
+            call(path, index, None) for index in range(len(path))])
 
     def test_principal_not_reached(self):
         pointMaker = PointMaker(4)

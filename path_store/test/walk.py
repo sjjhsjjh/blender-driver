@@ -119,11 +119,12 @@ class TestWalk(unittest.TestCase):
         self.assertEqual(principal0, principal)
         self.assertIsNot(principal0, principal)
         self.assertIs(principal0, principal1)
-        
-        with self.assertRaises(IndexError) as context:
+
+        expected = IndexError(
+            "Couldn't get point for 2 in {}".format(principal))
+        with self.assertRaises(type(expected)) as context:
             principal1 = pathstore.walk(principal0, editor_void, 2)
-        self.assertEqual(
-            str(context.exception), "No point for 2 in {}".format(principal))
+        self.assertEqual(str(context.exception), str(expected))
     
     def test_list_nested(self):
         principal = ['d', ['a', 'b'], 'c']

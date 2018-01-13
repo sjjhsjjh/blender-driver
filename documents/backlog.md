@@ -18,3 +18,5 @@ Backlog
 -   Maybe change some implementations to inherit from UserDict or UserList.
 
     https://docs.python.org/3.5/library/collections.html#collections.UserDict
+
+-   Fix problem that recording only works with --verbose.

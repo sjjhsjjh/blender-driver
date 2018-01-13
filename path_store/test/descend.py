@@ -18,99 +18,114 @@ import unittest
 #
 # Local imports.
 #
-# Utilities.
-from .principal import Principal
-#
 # Modules under test.
 import pathstore
 
 class TestDescend(unittest.TestCase):
-    def test_None_None(self):
-        value = pathstore.get(None, None)
-        self.assertIsNone(value)
-    def test_string_None(self):
-        parent = "t1 parent"
-        value = pathstore.get(parent, None)
-        self.assertIs(parent, value)
     def test_None_numeric(self):
-        with self.assertRaises(TypeError) as context:
-            pathstore.get(None, 0)
-        self.assertEqual(
-            str(context.exception), "Couldn't get point for 0 in None")
-    def test_empty_numeric(self):
-        with self.assertRaises(IndexError) as context:
-            pathstore.get([], 0)
-        self.assertEqual(str(context.exception), "No point for 0 in []")
-    def test_empty_string(self):
-        with self.assertRaises(TypeError) as context:
-            pathstore.get({}, 0)
-        self.assertEqual(
-            str(context.exception), "Couldn't get point for 0 in {}")
-    def test_short_list_numeric(self):
-        with self.assertRaises(IndexError) as context:
-            pathstore.get(["Blibb", "Abb"], 2)
-        self.assertEqual(
-            str(context.exception), "No point for 2 in ['Blibb', 'Abb']")
+        pointType, point, error = pathstore.descend(None, 0)
+        self.assertIsNone(pointType)
+        self.assertIsNone(point)
+        self.assertIsInstance(error, TypeError)
+        
+    def test_None_string(self):
+        pointType, point, error = pathstore.descend(None, 'key1')
+        self.assertIsNone(pointType)
+        self.assertIsNone(point)
+        self.assertIsInstance(error, TypeError)
+        
+    def test_empty_list_numeric(self):
+        pointType, point, error = pathstore.descend([], 0)
+        self.assertIsNone(pointType)
+        self.assertIsNone(point)
+        self.assertIsInstance(error, IndexError)
+        
+    def test_list_numeric(self):
+        pointType, point, error = pathstore.descend(['atfirst'], 0)
+        self.assertIs(pointType, pathstore.PointType.LIST)
+        self.assertEqual(point, 'atfirst')
+        self.assertIsNone(error)
+
     def test_list_string(self):
-        parent = ["Blibb", "Abb"]
-        expected = KeyError(" ".join((
-            'No point for "keyZero" in', str(parent))))
-        with self.assertRaises(KeyError) as context:
-            pathstore.get(parent, "keyZero")
-        self.assertEqual(str(context.exception), str(expected))
-    def test_list_numerics(self):
-        parent = ["Blibb", "Abb"]
-        with self.subTest(path=0):
-            value = pathstore.get(parent, 0)
-            self.assertIs(value, parent[0])
-        for path in (1, [1]):
-            with self.subTest(path=path):
-                value = pathstore.get(parent, path)
-                self.assertIs(value, parent[1])
-    def test_list_in_list(self):
-        parent = [0.0, [1.0, 1.1]]
-        self.assertEqual(pathstore.get(parent, 0), 0.0)
-        self.assertIs(pathstore.get(parent, 1), parent[1])
-        self.assertIs(pathstore.get(parent, [1]), parent[1])
-        self.assertEqual(pathstore.get(parent, (1, 0)), 1.0)
-        with self.assertRaises(TypeError) as context:
-            pathstore.get(parent, [0, 0])
-        self.assertEqual(
-            str(context.exception), "Couldn't get point for 0 in 0.0")
-        with self.assertRaises(TypeError) as context:
-            pathstore.get(parent, [0, 1])
-        self.assertEqual(
-            str(context.exception), "Couldn't get point for 1 in 0.0")
-    def test_dictionary_in_dictionary(self):
-        parent = {'kaye': "valee", 'kdee': {'kb': "bee", 'ksee': "sea"}}
-        self.assertIs(pathstore.get(parent, None), parent)
-        self.assertIs(pathstore.get(parent, 'kaye'), parent['kaye'])
-        with self.assertRaises(TypeError) as context:
-            pathstore.get(parent, 3)
-        self.assertEqual(
-            str(context.exception)
-            , "".join(("Couldn't get point for 3 in ", str(parent))))
-        self.assertEqual(pathstore.get(parent, ('kdee', 'kb')), "bee")
-    def test_list_in_dictionary(self):
-        parent = {'kaye': "valee"
-                  , 'kdee': {'kb': "bee", 'ksee': "sea"}
-                  , 'kale': [23, 45, 67]}
-        self.assertIs(pathstore.get(parent, None), parent)
-        self.assertIs(pathstore.get(parent, 'kaye'), parent['kaye'])
-        with self.assertRaises(TypeError) as context:
-            pathstore.get(parent, 3)
-        self.assertEqual(
-            str(context.exception)
-            , "".join(("Couldn't get point for 3 in ", str(parent))))
-        self.assertEqual(pathstore.get(parent, ('kale', 2)), 67)
-    def test_attr(self):
-        value = "bobo"
-        parent = Principal(value)
-        self.assertIs(pathstore.get(parent, None), parent)
-        with self.assertRaises(TypeError) as context:
-            pathstore.get(parent, 0)
-        self.assertEqual(
-            str(context.exception)
-            , "".join(("Couldn't get point for 0 in ", str(parent))))
-        self.assertIs(pathstore.get(parent, 'testAttr'), value)
-        self.assertEqual(pathstore.get(parent, ('testAttr', 1)), value[1])
+        pointType, point, error = pathstore.descend(['atfirst'], 'key1')
+        self.assertIsNone(pointType)
+        self.assertIsNone(point)
+        self.assertIsInstance(error, TypeError)
+
+    def test_missing_dictionary_string(self):
+        pointType, point, error = pathstore.descend({}, 'key1')
+        self.assertIsNone(pointType)
+        self.assertIsNone(point)
+        self.assertIsInstance(error, KeyError)
+
+        pointType, point, error = pathstore.descend({'key2': "Valtwo"}, 'key3')
+        self.assertIsNone(pointType)
+        self.assertIsNone(point)
+        self.assertIsInstance(error, KeyError)
+
+    def test_dictionary_string(self):
+        pointType, point, error = pathstore.descend({'key1': 8}, 'key1')
+        self.assertIs(pointType, pathstore.PointType.DICTIONARY)
+        self.assertEqual(point, 8)
+        self.assertIsNone(error)
+
+    def test_dictionary_numeric(self):
+        # The pathstore _insert() function relies on KeyError only being
+        # returned if the parent is a dictionary and the specifier is a string.
+        # This test verifies that a numeric specifier applied to a dictionary
+        # returns TypeError, not KeyError.
+        pointType, point, error = pathstore.descend({'key1': 8}, 0)
+        self.assertIsNone(pointType)
+        self.assertIsNone(point)
+        self.assertIsInstance(error, TypeError)
+
+    def test_dictionary_None(self):
+        pointType, point, error = pathstore.descend({'keen': None}, 'keen')
+        self.assertIsNone(point)
+        self.assertIs(pointType, pathstore.PointType.DICTIONARY)
+        self.assertIsNone(error)
+
+    def test_attr_string(self):
+        class Principal:
+            pass
+        parent = Principal()
+        parent.testAttr = "one"
+        pointType, point, error = pathstore.descend(parent, 'testAttr')
+        self.assertIs(pointType, pathstore.PointType.ATTR)
+        self.assertEqual(point, "one")
+        self.assertIsNone(error)
+
+    def test_attr_none(self):
+        class Principal:
+            pass
+        parent = Principal()
+        parent.testAttr = None
+        pointType, point, error = pathstore.descend(parent, 'testAttr')
+        self.assertIs(pointType, pathstore.PointType.ATTR)
+        self.assertIsNone(point)
+        self.assertIsNone(error)
+        
+    def test_attr_string_not_found(self):
+        parent = object()
+        pointType, point, error = pathstore.descend(parent, 'nonsalad')
+        self.assertIsNone(pointType)
+        self.assertIsNone(point)
+        self.assertIsInstance(error, TypeError)
+
+    def test_specifier_None(self):
+        expected = TypeError(
+            "Specifier must be string or numeric, but is None.")
+        with self.assertRaises(type(expected)) as context:
+            pointType, point, error = pathstore.descend([], None)
+
+    def test_string_numeric(self):
+        parent = "qwert"
+        pointType, point, error = pathstore.descend(parent, 4)
+        self.assertIs(pointType, pathstore.PointType.LIST)
+        self.assertEqual(point, "t")
+        self.assertIsNone(error)
+
+        pointType, point, error = pathstore.descend(parent, 5)
+        self.assertIsNone(pointType)
+        self.assertIsNone(point)
+        self.assertIsInstance(error, IndexError)

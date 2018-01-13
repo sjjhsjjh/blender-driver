@@ -56,7 +56,7 @@ def pathify(path):
 def iterify(source):
     """\
     Either source.items(), for a dictionary, or enumerate(source), for a list or
-    tuple.
+    tuple, or raises TypeError otherwise.
     """
     try:
         # Dictionary.
@@ -72,46 +72,61 @@ def iterify(source):
     return PointType.LIST, enumerate(source)
 
 def descend(parent, specifier):
-    """Descend one level, either by array index, dictionary key, or object
+    """\
+    Descend one level, either by array index, dictionary key, or object
     attribute. Returns a tuple of:
     
-    0.  The point descended to, or None.
-    1.  True if the specifier is numeric, or False otherwise.
-    2.  pathstore.PointType value for the type of descent used, or None if
+    0.  pathstore.PointType value for the type of descent used, or None if
         descent wasn't possible.
+    1.  The point descended to, or None.
+    2.  The error that occurred if descent wasn't possible, or None.
     """
     if specifier is None:
         raise TypeError("Specifier must be string or numeric, but is None.")
-    numeric = not isinstance(specifier, str)
     pointType = None
-    if numeric:
-        pointType = PointType.LIST
+    returnError = None
+    point = None
+    if isinstance(specifier, str):
         try:
             point = parent[specifier]
-        except IndexError:
+            pointType = PointType.DICTIONARY
+        except TypeError as error:
+            # String specifier applied to:
+            # -   list or tuple.
+            # -   object, except a Blender KX_GameObject or subclass.
+            returnError = error
             point = None
-        except TypeError:
-            pointType = None
+        except KeyError as error:
+            # String specifier applied to dictionary but it isn't present, or
+            # applied to a Blender KX_GameObject or subclass.
+            returnError = error
             point = None
-        except KeyError:
-            pointType = None
-            point = None
+        
+        if pointType is None:
+            # Subscription raised an error.
+            if hasattr(parent, specifier):
+                point = getattr(parent, specifier)
+                pointType = PointType.ATTR
+                returnError = None
+                
     else:
-        pointType = PointType.DICTIONARY
         try:
-            in_ = specifier in parent
-        except TypeError:
-            pointType = None
-            in_ = False
-        if in_:
             point = parent[specifier]
-        elif hasattr(parent, specifier):
-            point = getattr(parent, specifier)
-            pointType = PointType.ATTR
-        else:
+            pointType = PointType.LIST
+        except IndexError as error:
+            # Out of range.
             point = None
+            returnError = error
+        except TypeError as error:
+            # Not iterable.
+            point = None
+            returnError = error
+        except KeyError as error:
+            # Numeric specifier applied to dictionary. Change the type of error.
+            point = None
+            returnError = TypeError("Numeric specifier applied to dictionary")
             
-    return point, numeric, pointType
+    return pointType, point, returnError
 
 def get(parent, path=None):
     """Descend from the parent along the path. Returns the point descended to,
@@ -123,15 +138,24 @@ def get(parent, path=None):
     
     If path is None or empty, returns the parent.
     """
+    error = None
     for leg in pathify(path):
-        point, numeric, pointType = descend(parent, leg)
+        if error is not None:
+            raise error
+        pointType, point, descendError = descend(parent, leg)
         if pointType is None:
-            raise TypeError(" ".join((
-                "Couldn't get point for", str_quote(leg), "in", str(parent))))
+            message = " ".join(("Couldn't get point for", str_quote(leg), "in"
+                                , str(parent)))
+            raise type(descendError)(message)
         if point is None:
-            error = " ".join((
+            # Won't be able to descend from here, which only matters if this
+            # isn't the last iteration. Create the error here, because the code
+            # has the details for the message. It gets raised at the top of the
+            # next iteration, if there's another go-around.
+            message = " ".join((
                 "No point for", str_quote(leg), "in", str(parent)))
-            raise IndexError(error) if numeric else KeyError(error)
+            error = (IndexError(message) if pointType is PointType.LIST
+                     else KeyError(message))
         parent = point
     return parent
 
@@ -226,7 +250,7 @@ def walk(parent, editor, path=None, results=None, second=None
             walkPath.append(key)
             secondValue = None
             if second is not None:
-                secondValue = descend(secondPoint, key)[0]
+                secondValue = descend(secondPoint, key)[1]
             innerResult = inner_walk(value, walkPath, secondValue)
             del walkPath[-1]
             if innerResult[0]:
@@ -266,9 +290,17 @@ def make_point(specifier, point=None):
         # check for None.
         if point is None:
             return {}
-        if isinstance(point, dict) or hasattr(point, specifier):
+        if hasattr(point, specifier):
             return point
-        return {}
+        try:
+            subscript = point[specifier]
+        except KeyError:
+            # Dictionary or dictionary-like, such as a Blender KX_GameObject.
+            pass
+        except TypeError:
+            # Like a list or another unsuitable object.
+            point = {}
+        return point
     else:
         # It would be super-neat to do this by try:ing the len() and then
         # except TypeError: to set length zero. The problem is that all
@@ -338,19 +370,17 @@ def _insert(parent, path, replacing, value, point_maker, enumerator):
     
     if stopping:
         if replacing:
-            pathLen = len(path)
+            if value is None:
+                return None
+            #
+            # Pad the path with a None so that the index isn't out of bounds.
+            parent = point_maker(tuple(path) + (None,), len(path), None)
             #
             # If a made point would have the same type as value, discard it and
             # use value. Otherwise, _merge value into the point. If the value
             # isn't iterable, _merge will discard the parent anyway.
-            if pathLen <= 0:
-                parent = point_maker((None,), 0, None)
-            else:
-                parent = point_maker(path, pathLen - 1, None)
             if parent is None or type(parent) is type(value):
                 return value
-            else:
-                parent = None
         return _merge(parent, value, point_maker, path)
 
     wasTuple = isinstance(parent, tuple)
@@ -359,19 +389,29 @@ def _insert(parent, path, replacing, value, point_maker, enumerator):
 # If leg is -1, discard parent unless it is a list or tuple,
 # and change leg to len(parent)
 
-    point, numeric, pointType = descend(parent, leg)
-    if numeric and isinstance(parent, str):
+    pointType, point, descendError = descend(parent, leg)
+    if pointType is PointType.LIST and isinstance(parent, str):
         # Sorry, hack to force descent into a string to fail if setting.
         point = None
     
-    log(DEBUG, "{:d} {}\n  {}\n  {}\n  {} {}", index, str_quote(leg), parent
-        , str_quote(point), str(numeric), str(pointType))
+    log(DEBUG, "{:d} {}\n  {}\n  {}\n  {} {}({})", index, str_quote(leg), parent
+        , str(pointType)
+        , str_quote(point), type(descendError).__name__, str(descendError))
 
     if pointType is None or point is None:
-        log(DEBUG, "about to point_maker({}, {}, {}).", path, index, parent)
-        parent = point_maker(path, index, parent)
+        pathLen = len(path)
+        makePath = path
+        if index >= pathLen:
+            makePath = tuple(path) + (None,) * (index + 1 - pathLen)
+        log(DEBUG, "about to point_maker({}, {}, {}).", makePath, index, parent)
+        parent = point_maker(makePath, index, parent)
         log(DEBUG, "made point {} {}.", parent, parent.__class__)
-        point, numeric, pointType = descend(parent, leg)
+        pointType, point, descendError = descend(parent, leg)
+        if (pointType is None
+            and point is None
+            and isinstance(descendError, KeyError)
+        ):
+            pointType = PointType.DICTIONARY
 
     if pointType is None:
         raise AssertionError("".join((

@@ -47,3 +47,5 @@ class TestReplace(unittest.TestCase):
         self.assertIs(parent1, parent0)
         self.assertIs(pathstore.get(parent1, 'ikik'), value)
         self.assertIs(parent1['ikik'], value)
+
+# Put in an object where the (default) point maker would have put a dictionary.

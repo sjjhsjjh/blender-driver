@@ -34,8 +34,8 @@ from test.principal import TestPrincipal
 # Unit test modules.
 from test.strquote import TestStrQuote
 from test.ify import TestPathify, TestIterify
-from test.descendone import TestDescendOne
 from test.descend import TestDescend
+from test.get import TestGet
 from test.makepoint import TestMakePoint
 from test.insert import TestInsert
 from test.merge import TestMerge

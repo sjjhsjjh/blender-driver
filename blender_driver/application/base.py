@@ -22,7 +22,37 @@ import argparse
 # https://docs.python.org/3.5/library/importlib.html
 import importlib
 #
+# Module for degrees to radians conversion.
+# https://docs.python.org/3.5/library/math.html#math.radians
+from math import radians
+#
 # Blender library imports, in alphabetic order.
+#
+# These modules can only be imported if running from within Blender.
+try:
+    # Main Blender Python interface, which is used to get the size of a mesh.
+    # Import isn't needed because the base class keeps a reference to the
+    # interface object.
+    # import bpy
+    #
+    # Blender Game Engine KX_GameObject
+    # Import isn't needed because this class gets an object that has been
+    # created elsewhere.
+    # https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
+    #
+    # Blender Game Engine maths utilities, which can only be imported if running
+    # from within the Blender Game Engine.
+    # http://www.blender.org/api/blender_python_api_current/mathutils.html
+    # This class gets a Vector from the bpy layer, so Vector needn't be
+    # imported.
+    from mathutils import Matrix
+except ImportError as error:
+    print(__doc__)
+    print(error)
+
+
+
+
 #
 # Blender Game Engine all the classes:
 # http://www.blender.org/api/blender_python_api_current/bge.types.html
@@ -221,6 +251,22 @@ class Application(object):
         self._bge = importlib.import_module('bge')
         self._gameScene = scene
         self._gameGateway = gateway
+
+    def game_add_object(self, objectName):
+        object_ = self.gameScene.addObject(objectName, self.gameGateway)
+        object_.worldPosition = self.bpy.data.objects[objectName].location
+        return object_
+
+    def game_add_text(self, objectName, text=None):
+        object_ = self.gameScene.addObject(objectName, self.gameGateway)
+        object_.worldPosition = self.bpy.data.objects[objectName].location
+        object_.worldOrientation.rotate(Matrix.Rotation(radians(90), 4, 'Y'))
+        object_.worldOrientation.rotate(Matrix.Rotation(radians(90), 4, 'X'))
+        if text is not None:
+            # No text specified. Object will show whatever text was set up in
+            # the data context.
+            object_.text = text
+        return object_
 
     def __init__(self, settings):
         """Constructor common to both Blender data and Blender Game Engine

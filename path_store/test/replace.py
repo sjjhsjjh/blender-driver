@@ -48,4 +48,23 @@ class TestReplace(unittest.TestCase):
         self.assertIs(pathstore.get(parent1, 'ikik'), value)
         self.assertIs(parent1['ikik'], value)
 
-# Put in an object where the (default) point maker would have put a dictionary.
+    def test_object(self):
+        # Put in an object where the (default) point maker would have put a
+        # dictionary.
+        path = ('wouldbe', 'aDictionary')
+        value = object()
+        parent0 = pathstore.replace(None, value, path)
+        self.assertIsInstance(parent0, dict)
+        self.assertIsInstance(parent0[path[0]], dict)
+        self.assertIs(parent0[path[0]][path[1]], value)
+        
+        class Principal:
+            pass
+        principal = Principal()
+        principal.aDictionary = None
+        parent0 = pathstore.replace(None, principal, path[0])
+        parent1 = pathstore.replace(parent0, value, path)
+        self.assertIs(parent1, parent0)
+        self.assertIsInstance(parent0, dict)
+        self.assertIs(parent0[path[0]], principal)
+        self.assertIs(principal.aDictionary, value)

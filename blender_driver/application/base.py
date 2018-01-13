@@ -30,15 +30,20 @@ from math import radians
 #
 # These modules can only be imported if running from within Blender.
 try:
-    # Main Blender Python interface, which is used to get the size of a mesh.
-    # Import isn't needed because the base class keeps a reference to the
-    # interface object.
+    # Main Blender Python interface for the data layer, not the game engine.
+    # Imported dynamically in the data_constructor method.
     # import bpy
+    #
+    # Blender Game Engine all the classes:
+    # http://www.blender.org/api/blender_python_api_current/bge.types.html
     #
     # Blender Game Engine KX_GameObject
     # Import isn't needed because this class gets an object that has been
     # created elsewhere.
     # https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
+    #
+    # Blender Game Engine logic functions:
+    # https://www.blender.org/api/blender_python_api_current/bge.logic.html
     #
     # Blender Game Engine maths utilities, which can only be imported if running
     # from within the Blender Game Engine.
@@ -46,25 +51,16 @@ try:
     # This class gets a Vector from the bpy layer, so Vector needn't be
     # imported.
     from mathutils import Matrix
+    #
+    # Blender Game Engine scene
+    # https://docs.blender.org/api/blender_python_api_current/bge.types.KX_Scene.html
+    # Can't be imported here because this module gets imported in the bpy
+    # context too, in which bge isn't available. No need anyway, because the
+    # object is passed in from elsewhere.
 except ImportError as error:
     print(__doc__)
     print(error)
 
-
-
-
-#
-# Blender Game Engine all the classes:
-# http://www.blender.org/api/blender_python_api_current/bge.types.html
-#
-# Blender Game Engine logic functions:
-# https://www.blender.org/api/blender_python_api_current/bge.logic.html
-#
-# Blender Game Engine scene
-# https://docs.blender.org/api/blender_python_api_current/bge.types.KX_Scene.html
-# Can't be imported here because this module gets imported in the bpy context
-# too, in which bge isn't available. No need anyway, because the object is
-# passed in from elsewhere.
 
 class Application(object):
     templates = None

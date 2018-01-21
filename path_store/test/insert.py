@@ -19,7 +19,7 @@ import unittest
 # Local imports.
 #
 # Utilities.
-from .principal import Principal, SetCounterDict, SetCounterList
+from path_store.test.principal import Principal, SetCounterDict, SetCounterList
 #
 # Modules under test.
 import pathstore

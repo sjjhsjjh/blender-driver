@@ -19,7 +19,8 @@ import unittest
 # Local imports.
 #
 # Utilities.
-from . import principal
+import path_store.test.principal
+principal = path_store.test.principal
 #
 # Modules under test.
 from hosted import InterceptProperty, InterceptCast

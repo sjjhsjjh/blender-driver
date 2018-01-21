@@ -19,7 +19,7 @@ import unittest
 # Local imports.
 #
 # Utilities.
-from .principal import Principal
+from path_store.test.principal import Principal
 #
 # Modules under test.
 import pathstore

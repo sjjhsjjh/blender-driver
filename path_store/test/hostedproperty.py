@@ -19,10 +19,10 @@ import unittest
 # Local imports.
 #
 # Utilities.
-from . import principal
+import path_store.test.principal
 #
 # Modules under test.
-from hosted import HostedProperty
+from path_store.hosted import HostedProperty
 
 class ReadOnly(list):
     """Class with same behaviour as the KX_GameObject.worldScale property:
@@ -45,7 +45,7 @@ class Host(object):
         self.hostedList = listValue
         self.hostedReadOnly = readOnlyValue
         
-class Principal(principal.Principal):
+class Principal(path_store.test.principal.Principal):
     @property
     def host(self):
         return self._host

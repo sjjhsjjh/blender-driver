@@ -1,12 +1,11 @@
 #!/usr/bin/python
 # (c) 2017 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
-"""Path Store unit tests."""
+"""Path Store unit test script."""
 
 # Standard library imports, in alphabetic order.
 #
-# Module for file and directory paths, which is only used to build an import
-# path.
+# Module for building paths.
 # https://docs.python.org/3.5/library/os.path.html
 import os.path
 #
@@ -27,31 +26,13 @@ sys.path.append(os.path.abspath(os.path.join(
 #
 # Local module for setting up Python logging.
 from blender_driver.loggingutils import initialise_logging
-#
-# Unit test tests.
-from test.principal import TestPrincipal
-#
-# Unit test modules.
-from test.strquote import TestStrQuote
-from test.ify import TestPathify, TestIterify
-from test.descend import TestDescend
-from test.get import TestGet
-from test.makepoint import TestMakePoint
-from test.insert import TestInsert
-from test.merge import TestMerge
-from test.replace import TestReplace
-from test.restput import TestRestPut
-from test.pointmaker import TestPointMaker
-from test.hostedproperty import TestHostedProperty
-from test.interceptproperty import TestInterceptProperty
-from test.edit import TestEdit
-from test.walk import TestWalk
-from test.json import TestJSON
-#
-# Above should be done with .discover() but I couldn't get it to work.
 
 if __name__ == '__main__':
-    # The next line isn't proper but I couldn't find another way to detect that
-    # tests are being run in verbose mode.
-    initialise_logging(('-v' in sys.argv) or ('--verbose' in sys.argv))
-    unittest.main()
+    # The next line is carried over from unittest.main().
+    verboseMode = ('-v' in sys.argv) or ('--verbose' in sys.argv)
+    initialise_logging(verboseMode)
+    suites = unittest.defaultTestLoader.discover(
+        os.path.join('path_store', 'test'), "*.py")
+    results = unittest.TextTestRunner(
+        verbosity=(2 if verboseMode else 1)).run(suites)
+    sys.exit(len(results.errors) + len(results.failures))

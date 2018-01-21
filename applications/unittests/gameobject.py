@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # (c) 2017 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
-"""Blender Driver Application with Python unit test integration.
+"""Blender Driver unit test that can be run from the unittest application.
 
 This module is intended for use within Blender Driver and can only be used from
 within Blender."""
@@ -12,49 +12,55 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
-# Unit test module.
-# https://docs.python.org/3.5/library/unittest.html
-import unittest
+# Module for mathematical operations needed to decompose a rotation matrix.
+# https://docs.python.org/3.5/library/math.html
+from math import radians
 #
 # Local imports.
+#
+# Custom TestCase
+from applications.unittest import TestCaseWithApplication
 #
 # Modules under test: 
 from path_store import pathstore, blender_game_engine
 
-class TestGameObject(unittest.TestCase):
-    application = None
-    
-    @classmethod
-    def set_application(cls, application):
-        '''\
-        Has to be a class method because instantiation is hidden by the test
-        loader.'''
-        cls.application = application
-    
-    def test_game_object(self):
-        #
-        # Fundamentals.
-        self.assertTrue(self.application.bge)
-        self.assertTrue(self.application.bge.types.KX_GameObject)
-        templates = self.application.templates
-        
+class TestGameObject(TestCaseWithApplication):
+    def get_class_and_name(self):
         GameObject = blender_game_engine.get_game_object_subclass(
             self.application.bge)
         objectName = None
-        for key in templates.keys():
+        for key in self.application.templates.keys():
             objectName = key
             break
+        return GameObject, objectName
+    
+    def get_game_object(self):
+        GameObject, objectName = self.get_class_and_name()
+        return GameObject(self.application.game_add_object(objectName))
+    
+    def test_fundamentals(self):
+        self.assertIsNotNone(self.application)
+        self.assertTrue(self.application.bge)
+        self.assertTrue(self.application.bge.types.KX_GameObject)        
+        GameObject, objectName = self.get_class_and_name()
         self.assertIsNotNone(objectName)
-        gameObject = GameObject(self.application.game_add_object(objectName))
+
+        gameObject = self.get_game_object()
+        name = 'worldPosition'
         #
         # Grab the position before gravity has had a chance to move the object.
-        name = 'worldPosition'
         worldPositionNative = gameObject.worldPosition[:]
         worldPositionGot = pathstore.get(gameObject, name)[:]
         self.assertEqual(worldPositionGot, worldPositionNative)
         #
         # Test the intercept property works as expected.
-        self.assertEqual(worldPositionNative, templates[objectName]['location'])
+        self.assertEqual(worldPositionNative
+                         , self.application.templates[objectName]['location'])
+    
+    def test_path_store(self):
+        gameObject = self.get_game_object()
+        GameObject = type(gameObject)
+        name = 'worldPosition'
         #
         # In general, an object other than a dictionary raise TypeError when
         # an attempt to subscript it is made. A Blender KX_GameObject instance
@@ -110,3 +116,17 @@ class TestGameObject(unittest.TestCase):
         self.assertIs(gameObject0, gameObject1)
         self.assertIsInstance(gameObject1, GameObject)
         self.assertEqual(gameObject0[path], value)
+
+    def test_rotation(self):
+        gameObject = self.get_game_object()
+        self.assertEqual(0, pathstore.get(gameObject, ('rotation', 0)))
+        self.assertEqual(gameObject.rotation[:], (0, 0, 0))
+        for xDegrees in range(0,720):
+            xRadians = radians(xDegrees)
+            gameObject.rotation.x = xRadians
+            self.assertEqual(xRadians, gameObject.rotation.x)
+            self.assertEqual(0, gameObject.rotation.y)
+            self.assertEqual(0, gameObject.rotation.z)
+        
+        del gameObject.rotation[:]
+        self.assertEqual(len(gameObject.rotation), 3)

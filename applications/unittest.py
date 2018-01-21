@@ -18,6 +18,11 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
+# Module for building paths, which is only used to build a unittest discover
+# path.
+# https://docs.python.org/3.5/library/os.path.html
+import os.path
+#
 # Unit test module.
 # https://docs.python.org/3.5/library/unittest.html
 import unittest
@@ -26,12 +31,43 @@ import unittest
 #
 # Application base class module.
 import blender_driver.application.base
-#
-# Unit test modules.
-from applications.unittests.gameobject import TestGameObject
 
 # Diagnostic print to show when it's imported, if all its own imports run OK.
 print("".join(('Application module "', __name__, '" ')))
+
+
+# TOTH: https://stackoverflow.com/a/37916673/7657675
+class TestLoaderWithApplication(unittest.TestLoader):
+    '''\
+    Custom test loader that gets a Blender Driver application instance and
+    passes it to all test case classes.
+    '''
+
+    # Override.
+    def loadTestsFromTestCase(self, testCaseClass):
+        '''Return a suite of all tests cases contained in testCaseClass.'''
+        # print('"'.join(('Loading ', testCaseClass.__name__, '.')))
+
+        testCaseNames = self.getTestCaseNames(testCaseClass)
+        if (not testCaseNames) and hasattr(testCaseClass, 'runTest'):
+            testCaseNames = ['runTest']
+    
+        return self.suiteClass([
+            testCaseClass(testCaseName, self._application
+                          ) for testCaseName in testCaseNames])
+    
+    def __init__(self, application):
+        self._application = application
+        # ToDo: Handle other constructor options for TestLoader.
+
+class TestCaseWithApplication(unittest.TestCase):
+    @property
+    def application(self):
+        return self._application
+
+    def __init__(self, testCaseName, application):
+        self._application = application
+        super().__init__(testCaseName)
 
 class Application(blender_driver.application.base.Application):
     templates = {
@@ -42,7 +78,10 @@ class Application(blender_driver.application.base.Application):
 
     # Override
     def game_tick(self):
-        TestGameObject.set_application(self)
-        suite = unittest.defaultTestLoader.loadTestsFromTestCase(TestGameObject)
-        unittest.TextTestRunner().run(suite)
+        loader = TestLoaderWithApplication(self)
+        suites = loader.discover(os.path.join('applications', 'unittests')
+                                 , "*.py")
+        unittest.TextTestRunner(
+            verbosity=(2 if self.settings['arguments']['verbose'] else 1)
+            ).run(suites)
         self.game_terminate()

@@ -698,10 +698,8 @@ def get_camera_subclass(bge):
                         }
                         #
                         # Insert the animation. The point maker will set the
-                        # store attribute. Put None first, to remove whatever
-                        # current animation is there.
-                        self.restInterface.rest_put(None, animationPath)
-                        self.restInterface.rest_patch(animation, animationPath)
+                        # store attribute.
+                        self.restInterface.rest_put(animation, animationPath)
                         #
                         # Set the start time, which has the following side
                         # effects:

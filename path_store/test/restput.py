@@ -121,9 +121,22 @@ class TestRestPut(unittest.TestCase):
         class Principal:
             pass
         principal = Principal()
+        #
+        # Attribute that gets changed by rest_put.
         principal.al = 3
+        #
+        # Attribute that isn't access via the path store, so doesn't feature in
+        # the generic.
         principal.rum = 34
+        #
+        # Attribute that gets changed to a different type, by rest_put.
         principal.hof = None
+        #
+        # Attribute that is rest_get'd and so is added to the generic, but isn't
+        # set by path store.
+        gotValue = 'gotten'
+        principal.got = gotValue
+        
         with self.assertRaises(TypeError) as context:
             asJSON = json.dumps(principal)
         
@@ -139,13 +152,16 @@ class TestRestPut(unittest.TestCase):
         restInterface.rest_put(9, ['mcroute', 'al'])
         self.assertEqual(restInterface.get_generic(), {
             'root': "bleb", 'route': [None, 2], 'mcroute': {'al': 9}})
+        
+        gotGot = restInterface.rest_get(['mcroute', 'got'])
+        self.assertIs(gotGot, gotValue)
 
         restInterface.rest_put("busa", ['mcroute', 'hof', 2])
         expectedGeneric = {
             'root': "bleb",
             'route': [None, 2],
             'mcroute': {
-                'al': 9, 'hof':[None, None, "busa"]}
+                'al': 9, 'hof':[None, None, "busa"], 'got':"gotten"}
         }
         self.assertEqual(restInterface.get_generic(), expectedGeneric)
 
@@ -154,4 +170,5 @@ class TestRestPut(unittest.TestCase):
         self.assertEqual(principal0.hof, [None, None, "busa"])
 
         self.assertEqual(
-            json.dumps(restInterface.get_generic()), json.dumps(expectedGeneric))
+            json.dumps(restInterface.get_generic(), sort_keys=True)
+            , json.dumps(expectedGeneric, sort_keys=True))

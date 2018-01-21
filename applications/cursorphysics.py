@@ -157,8 +157,7 @@ class Application(restanimation.Application):
             #
             # Set all its parameters except visibility in a big patch. Then
             # set visibility in a single put, so that it gets set last.
-            self._restInterface.rest_patch(
-                {
+            self._restInterface.rest_patch({
                     'subjectPath': tuple(path),
                     'offset': 3.0, 'length': 4.0, 'radius': 2.0,
                     'rotation': radians(90)

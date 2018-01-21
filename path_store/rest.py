@@ -77,18 +77,17 @@ class RestInterface(object):
         return pathstore.default_point_maker(path, index, point)
     
     def rest_patch(self, value, path=None):
-        log(DEBUG, '({}, {})', value, path)
         self._principal = pathstore.merge(
             self._principal, value, path, point_maker=self.point_maker)
 
     def rest_put(self, value, path=None):
-        log(DEBUG, '({}, {})', value, path)
         self._principal = pathstore.replace(
             self._principal, value, path, point_maker=self.point_maker)
         self._generic = pathstore.replace(
             self._generic, _generic_value(value), path)
 
     def rest_get(self, path=None):
+        self._generic = pathstore.merge(self._generic, None, path)
         return pathstore.get(self.principal, path)
     
     def rest_walk(self, editor, path=None, results=None):

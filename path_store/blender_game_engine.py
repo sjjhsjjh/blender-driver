@@ -134,16 +134,14 @@ def get_game_object_subclass(bge):
 class Rotation(object):
     """Class to represent the x,y,z rotation of a Blender game object."""
 
-    # Each instance of this class has three lists:
+    # Each instance of this class has two lists:
     #
     # -   _listGameObject, which is created with maths from the rotation matrix
     #     of the game object.
-    # -   _listSet, which only has elements that have been set externally.
-    # -   _list, which is a cache in which each element is the _listSet value,
-    #     if it has been set, or the _listGameObject value otherwise.
+    # -   _list, the elements of which are either copied from the game object
+    #     list or set externally. This list can also be empty.
     #
-    # The game object and cache lists are maintained by the getters and setters
-    # of the class.
+    # The lists are maintained by the getters and setters of the class.
     #
     # The set list is needed to support users that control some axes of
     # rotation, and require consistent results, such as returning a value just
@@ -155,20 +153,29 @@ class Rotation(object):
     # the switch, the Y and Z rotations will change, even if they haven't been
     # set.
     #
-    # ToDo: A better model could be as follows.
+    # Usage:
     #
-    # -   Indicate relinquishment of control by deleting from the list, actually
-    #     the set list.
-    # -   In principle, if the game object list is longer than the set list, the
-    #     excess elements fill in the blanks. In practice, the set list will
-    #     either have zero elements or the same number of elements as the game
-    #     object list.
-    # -   When any element is set and the set list isn't long enough, copy the
-    #     game object list to the set list.
+    # -   When an instance of this class is constructed, the set list will be
+    #     empty. Instances are generally constructed by constructing a
+    #     GameObject, see above. Every instance is linked to one game object.
+    # -   Setting any item when the list is empty first causes the game object
+    #     list elements to be copied to the set list. After that, the item is
+    #     set in the set list, and the rotation represented by the set list is
+    #     applied to the linked game object.
+    # -   Getting an item gets it from the set list, unless the set list is
+    #     empty, in which case it gets it from the game object list.
+    # -   Deleting any item effectively empties the set list.
+    #
+    # To rotate an object repeatedly, make repeated settings of an item in its
+    # rotation property, then delete the set list in the rotation property, as
+    # in:
+    #
+    #     del gameObject.rotation[:]
+    #
     
     axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
     
-    def _set_list_game_object(self, cache):
+    def _set_list_game_object(self):
         """Set the list property from the rotation of the game object."""
         orientation = self._gameObject.worldOrientation
         if self._orientationCache == orientation:
@@ -186,17 +193,7 @@ class Rotation(object):
             atan2(orientation[2][0] * -1.0
                   , sqrt(pow(orientation[2][1], 2)
                          + pow(orientation[2][2], 2))),
-            atan2(orientation[1][0], orientation[0][0])
-        )
-        #
-        # Apply it to the cache.
-        if cache:
-            self._update_list()
-
-    def _update_list(self):
-        for index, setValue in enumerate(self._listSet):
-            self._list[index] = (
-                self._listGameObject[index] if setValue is None else setValue)
+            atan2(orientation[1][0], orientation[0][0]))
     
     @property
     def x(self):
@@ -220,19 +217,35 @@ class Rotation(object):
         self[2] = z
     
     def __len__(self):
-        return self._list.__len__()
+        return self._listLength
 
     def __getitem__(self, specifier):
-        self._set_list_game_object(True)
-        return self._list.__getitem__(specifier)
+        if self._usingList:
+            return self._list.__getitem__(specifier)
+        else:
+            self._set_list_game_object()
+            return self._listGameObject.__getitem__(specifier)
     
     def __setitem__(self, specifier, value):
-        self._listSet.__setitem__(specifier, value)
-        self._update_list()
+        if not self._usingList:
+            self._set_list_game_object()
+            self._list[:] = self._listGameObject[:]
+            self._usingList = True
+
+        self._list.__setitem__(specifier, value)
         self._apply()
+    
+    def __delitem__(self, specifier):
+        if self._usingList:
+            self._list.__delitem__(specifier)
+            self._usingList = False
         
     def __repr__(self):
-        return self._list.__repr__()
+        if self._usingList:
+            return self._list.__repr__()
+        else:
+            self._set_list_game_object()
+            return self._listGameObject.__repr__()
     
     def _apply(self):
         # Apply the rotation to the BGE object.
@@ -244,7 +257,7 @@ class Rotation(object):
         #
         # Apply the rotation in each dimension, in order.
         any = False
-        for dimension, value in enumerate(self._listSet):
+        for dimension, value in enumerate(self._list):
             if value is not None:
                 worldOrientation.rotate(Quaternion(self.axes[dimension], value))
                 any = True
@@ -255,11 +268,11 @@ class Rotation(object):
     def __init__(self, gameObject):
         self._gameObject = gameObject
         self._orientationCache = None
-        
-        self._set_list_game_object(False)
-        self._listSet = [None] * len(self._listGameObject)
-        self._list = self._listSet[:]
-        self._update_list()
+                
+        self._set_list_game_object()
+        self._listLength = len(self._listGameObject)
+        self._list = []
+        self._usingList = False
 
 class Cursor(object):
     #

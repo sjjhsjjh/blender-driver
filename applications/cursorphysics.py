@@ -254,7 +254,7 @@ class Application(restanimation.Application):
                     object_ = self._restInterface.rest_get(userData['path'])
                     log(INFO, "Restoring {}.", userData['path'])
                     object_.restoreDynamics()
-                    object_.rotation[:] = (None, None, None)
+                    del object_.rotation[:]
                 #
                 # Discard the completed animation object, so that the above and
                 # other loops can run faster.

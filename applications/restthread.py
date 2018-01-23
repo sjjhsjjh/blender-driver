@@ -82,10 +82,6 @@ class Application(pulsar.Application):
                    , 'location': (0, 0, -1)}
     }
 
-    def data_initialise(self):
-        super().data_initialise()
-        self.bpyutils.delete_except(self.dontDeletes)
-
     # Overridden.
     def pulse_object_scale(self):
         """Pulse the scale of three game objects for ever. Run as a thread."""

@@ -63,7 +63,19 @@ except ImportError as error:
 
 
 class Application(object):
+    
     templates = None
+    '''Dictionary of template objects, used in both the data and game
+    contexts.'''
+
+    @property
+    def dontDeletes(self):
+        '''\
+        List of object names that won't get deleted by data_initialise. Typical
+        use is to append to it before calling super().data_initialise(). Note
+        that the templates are automatically added to the list.
+        '''
+        return self._dontDeletes
     
     _applicationName = None
     @property
@@ -109,8 +121,11 @@ class Application(object):
         pass
     
     def data_initialise(self):
-        """Override it."""
-        pass
+        """\
+        Method that is invoked just after the data_constructor. Call super() if
+        overriden. If extending dontDeletes, do so before calling super().
+        """
+        self.bpyutils.delete_except(self.dontDeletes)
 
     def data_constructor(self, scene, gateway):
         """Method that is invoked just after the constructor in the Blender data
@@ -134,6 +149,11 @@ class Application(object):
         #
         # Add the template objects.
         self.bpyutils.set_up_objects(self.templates)
+        #
+        # Set the don't delete list to the default.
+        self._dontDeletes = [self.dataGateway, 'Lamp']
+        if self.templates is not None:
+            self._dontDeletes.extend(self.templates.keys())
 
     @property
     def argumentParser(self):

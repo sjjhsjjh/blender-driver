@@ -71,11 +71,9 @@ class Application(demonstration.Application):
     }
 
     # Override.
-    _instructions = "Ctrl-Q to terminate.\nspace, plus, minus, or 0 to animate."
-
-    def data_initialise(self):
-        super().data_initialise()
-        self.bpyutils.delete_except(self.dontDeletes)
+    _instructions = (
+        "Ctrl-Q to terminate; space, plus, minus, or 0 to animate left object;"
+        "\nplus Ctrl to animate right object. Middle object doesn't move.")
 
     # Overriden.
     def game_initialise(self):

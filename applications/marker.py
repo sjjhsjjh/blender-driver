@@ -89,17 +89,12 @@ class Application(pulsar.Application):
                  , 'scale': (0.5, 0.5, 0.5)}
     }
     
-    def data_initialise(self):
-        super().data_initialise()
-        self.bpyutils.delete_except(self.dontDeletes)
-    
     # Override.
     def game_initialise(self):
         #
         # Set up this application class's pulsar, which is different to the base
         # class pulsar. The base class doesn't need to add the pulsar, because
-        # it doesn't delete it in its data_initialise, in turn because it
-        # doesn't have a templates collection.
+        # it doesn't delete it in its data_initialise.
         self.arguments.pulsar = "pulsar"
         #
         # Do base class initialisation.

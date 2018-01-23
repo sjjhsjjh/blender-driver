@@ -98,10 +98,6 @@ class Application(pulsar.Application):
                    , 'location': (0, 0, -1)}
     }
 
-    def data_initialise(self):
-        super().data_initialise()
-        self.bpyutils.delete_except(self.dontDeletes)
-
     # Overriden.
     def game_initialise(self):
         self._restInterface = RestInterface()

@@ -44,21 +44,15 @@ class Application(blender_driver.application.thread.Application):
     def bannerObject(self):
         return self._bannerObject
     
-    @property
-    def dontDeletes(self):
-        return self._dontDeletes
-    
     # Overriden.
     def data_initialise(self):
         #
-        # Formally, run the base class method. Actually, it's a pass.
-        super().data_initialise()
-        #
         # Do common initialisation for subclasses.
         self._bannerObject = self.data_add_banner()
-        self._dontDeletes = [self.dataGateway, 'Lamp', self._bannerName]
-        if self.templates is not None:
-            self._dontDeletes.extend(self.templates.keys())
+        self.dontDeletes.append(self._bannerName)
+        #
+        # Run the base class method.
+        super().data_initialise()
         
     def data_add_banner(self):
         banner = "\n".join(

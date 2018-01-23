@@ -68,17 +68,13 @@ class Application(demonstration.Application):
     }
 
     # Override.
-    _instructions = "\n".join((
-        "Ctrl-Q to terminate; space, plus, minus, or 0 to move object 0;"
-        , "< or > to rotate it;"
-        , "plus Ctrl to move object 2. Object 1 doesn't move."))
+    _instructions = (
+        "Ctrl-Q to terminate; space, plus, minus, or 0 to move left object;"
+        "\n< or > to rotate it;"
+        "\nplus Ctrl to move right object. Middle object doesn't move.")
 
     _objectCount = 3
     _objectRootPath = ('root',)
-
-    def data_initialise(self):
-        super().data_initialise()
-        self.bpyutils.delete_except(self.dontDeletes)
 
     # Overriden.
     def game_initialise(self):

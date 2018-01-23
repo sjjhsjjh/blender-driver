@@ -71,7 +71,11 @@ from . import demonstration
 print('"'.join(('Application module ', __name__, '.')))
 
 class Application(demonstration.Application):
-    
+    templates = {
+        'Cube': {'subtype':'Cube', 'physicsType':'NO_COLLISION'
+                   , 'location': (0, 0, 1)}
+    }
+
     # Overriden.
     def game_initialise(self):
         super().game_initialise()

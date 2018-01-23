@@ -91,18 +91,16 @@ class Application(demonstration.Application):
     # Override.
     _instructions = "Ctrl-Q to terminate.\nTAB to traverse."
 
+    # Override.
     def data_initialise(self):
-        #
-        # Call the base class initialise, to show the banner.
-        super().data_initialise()
         #
         # Initialise what this class needs.
         self._textUtilities = blender_driver.textutils.TextUtilities(self.bpy)
         self._textUtilities.data_initialise(self.bpyutils)
-        self.bpyutils.delete_except(
-            [self.dataGateway, 'Lamp', self._bannerName]
-            + list(self.templates.keys())
-            + self._textUtilities.objectNames)
+        self.dontDeletes.extend(self._textUtilities.objectNames)
+        #
+        # Call the base class initialise, to show the banner.
+        super().data_initialise()
     
     @property
     def textBoxIndex(self):

@@ -150,10 +150,6 @@ class AnimatedRestInterface(RestInterface):
     |       +-- STRING or NUMBER
     |           Individual animation.
     |
-    +-- 'nowTime'
-    |   Shorthand property, the setting of which sets the nowTime property in
-    |   all the animations in the collection, above.
-    |
     +-- 'root'
         Conventional item under which all the principal data sits.
     """
@@ -174,6 +170,15 @@ class AnimatedRestInterface(RestInterface):
         return super().point_maker(path, index, point)
     
     def set_now_times(self, nowTime):
+        '''\
+        Applies nowTime to everything under the 'animations' path.
+        
+        Returns a list of tuples representing animations that completed due to
+        the application. In each tuple:
+        
+        -   First element is the path, as a list.
+        -   Second element is the Animation instance.
+        '''
 
         class Results:
             pass

@@ -56,11 +56,8 @@ from mathutils import Vector, Matrix, Quaternion
 # Blender Driver application with background banner.
 from . import restanimation
 #
-# Wrapper for Blender game object that is easy to make RESTful.
-from path_store.blender_game_engine import get_camera_subclass, Cursor
-#
-# RESTful interface base class and Animation subclass for pathstore.
-from path_store.rest import AnimatedRestInterface
+# Blender Driver application with REST.
+import blender_driver.application.rest
 
 # Diagnostic print to show when it's imported. Only printed if all its own
 # imports run OK.
@@ -91,9 +88,6 @@ class Application(restanimation.Application):
         , "o, p, x, y, z to move the camera, or a to stop it."
         , "TAB to move the cursor"))
 
-    # Override.
-    _objectRootPath = ('root','objects')
-    
     # Location of the UI cursor.
     _cursorPath = ['root', 'cursors', 0]
     
@@ -106,11 +100,6 @@ class Application(restanimation.Application):
     # Camera speed.
     _cameraLinear = 9.0
     _cameraAngular = radians(_cameraLinear * 15.0)
-
-    def _add_visualiser(self):
-        return self._GameObject(self.game_add_object('visualiser'))
-    def _add_empty(self):
-        return self._GameObject(self.game_add_object('empty'))
 
     # Overriden.
     def game_initialise(self):
@@ -143,14 +132,7 @@ class Application(restanimation.Application):
             #
             # Set the working paths and create a new Cursor object.
             path.append(1)
-            cursor = Cursor()
-            #
-            # Give the cursor the means to add necessary objects.
-            cursor.add_visualiser = self._add_visualiser
-            cursor.add_empty = self._add_empty
-            #
-            # Cursor needs a restInterface to get an object from the path.
-            cursor.restInterface = self._restInterface
+            cursor = self.game_add_cursor()
             #
             # Put the cursor in the path store.
             self._restInterface.rest_put(cursor, self._cursorPath)
@@ -183,8 +165,7 @@ class Application(restanimation.Application):
             # Note that path now points to floor.
             #
             # Create the camera object, based on the default camera.
-            self._Camera = get_camera_subclass(self.bge)
-            object_ = self._Camera(self.gameScene.active_camera)
+            object_ = self.Camera(self.gameScene.active_camera)
             object_.restInterface = self._restInterface
             path[-1] = 'camera'
             self._restInterface.rest_put(object_, path)
@@ -208,67 +189,58 @@ class Application(restanimation.Application):
             
         finally:
             self.mainLock.release()
+    
+    def _process_complete_animations(self, completions):
+        for path, completed in completions:
+            userData = completed.userData
+            log(DEBUG, 'Complete "{}" {}', path, userData)
+            #
+            # Check if there are still other animations going on for this
+            # object.
+            #
+            # Empty class for results.
+            class Results:
+                pass
+            checkResults = Results()
+            checkResults.still = False
+            checkResults.userData = userData
+            #
+            # Checking subroutine that can be passed to walk().
+            def check(point, path, results):
+                if point is None:
+                    return
+                otherData = point.userData
+                if (
+                    otherData is not None and results.userData is not None
+                    and otherData['number'] == results.userData['number']
+                    and not point.complete
+                ):
+                    results.still = True
+                    raise StopIteration
+            
+            self._restInterface.rest_walk(check, 'animations', checkResults)
+            #
+            # If there are no other animations: restore physics to the
+            # object and reset its rotation overrides.
+            if not checkResults.still and userData is not None:
+                object_ = self._restInterface.rest_get(userData['path'])
+                log(INFO, "Restoring {}.", userData['path'])
+                object_.restoreDynamics()
+                del object_.rotation[:]
+            #
+            # Discard the completed animation object, so that the above and
+            # other loops can run faster.
+            self._restInterface.rest_put(None, path)
 
     # Override.
     def game_tick_run(self):
-        # Base class tick isn't run.
-        # super().game_tick_run()
+        super().game_tick_run()
         self.mainLock.acquire()
         try:
-            # Same as in the base class but here we will do something with the
-            # completions.
-            completions = self._restInterface.set_now_times(self.tickPerf)
-            for path, completed in completions:
-                userData = completed.userData
-                log(DEBUG, 'Complete "{}" {}', path, userData)
-                #
-                # Check if there are still other animations going on for this
-                # object.
-                #
-                # Empty class for results.
-                class Results:
-                    pass
-                checkResults = Results()
-                checkResults.still = False
-                checkResults.userData = userData
-                #
-                # Checking subroutine that can be passed to walk().
-                def check(point, path, results):
-                    if point is None:
-                        return
-                    otherData = point.userData
-                    if (
-                        otherData is not None and results.userData is not None
-                        and otherData['number'] == results.userData['number']
-                        and not point.complete
-                    ):
-                        results.still = True
-                        raise StopIteration
-                
-                self._restInterface.rest_walk(check, 'animations', checkResults)
-                #
-                # If there are no other animations: restore physics to the
-                # object and reset its rotation overrides.
-                if not checkResults.still and userData is not None:
-                    object_ = self._restInterface.rest_get(userData['path'])
-                    log(INFO, "Restoring {}.", userData['path'])
-                    object_.restoreDynamics()
-                    del object_.rotation[:]
-                #
-                # Discard the completed animation object, so that the above and
-                # other loops can run faster.
-                self._restInterface.rest_put(None, path)
-
             #
-            # Update all cursors, by updating all physics objects.
-            gameObjects = self._restInterface.rest_get(self._objectRootPath)
-            for gameObject in gameObjects:
-                gameObject.update()
-            
             # Bodge the camera.
             camera = self._restInterface.rest_get(('root', 'camera'))
             camera.tick(self.tickPerf)
-
         finally:
             self.mainLock.release()
 

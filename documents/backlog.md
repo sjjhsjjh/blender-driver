@@ -1,6 +1,12 @@
 Backlog
 =======
 
+-   See about moving prepare animation and suspend restore into the core
+    application classes.
+
+-   Check if suspend and restore Physics works and can be called on non-physics
+    objects.
+
 -   Get a JSON representation of a path store principal.
 
 -   HTTP server that responds to a GET request with a JSON representation of the

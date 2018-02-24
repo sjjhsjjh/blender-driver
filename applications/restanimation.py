@@ -49,17 +49,15 @@ from math import radians
 # Blender Driver application with background banner.
 from . import demonstration
 #
-# Wrapper for Blender game object that is easy to make RESTful.
-from path_store.blender_game_engine import get_game_object_subclass
-#
-# RESTful interface base class and Animation subclass for pathstore.
-from path_store.rest import AnimatedRestInterface
+# Blender Driver application with REST.
+import blender_driver.application.rest
 
 # Diagnostic print to show when it's imported. Only printed if all its own
 # imports run OK.
 print('"'.join(('Application module ', __name__, '.')))
 
-class Application(demonstration.Application):
+class Application(demonstration.Application
+                  , blender_driver.application.rest.Application):
     
     templates = {
         'cube': {
@@ -79,12 +77,10 @@ class Application(demonstration.Application):
     # Overriden.
     def game_initialise(self):
         super().game_initialise()
-        self._restInterface = AnimatedRestInterface()
         
         self._objectName = "cube"
         self.mainLock.acquire()
         try:
-            self._GameObject = get_game_object_subclass(self.bge)
             objectName = self._objectName
             #
             # Insert game objects.
@@ -92,7 +88,7 @@ class Application(demonstration.Application):
             # Working path.
             path = list(self._objectRootPath)
             for index in range(self._objectCount):
-                object_ = self._GameObject(self.game_add_object(objectName))
+                object_ = self.game_add_object(objectName)
                 path.append(index)
                 self._restInterface.rest_put(object_, path)
                 #
@@ -105,16 +101,6 @@ class Application(demonstration.Application):
                 #
                 # Revert working path.
                 del path[-3:]
-        finally:
-            self.mainLock.release()
-
-    # Override.
-    def game_tick_run(self):
-        self.mainLock.acquire()
-        try:
-            # Set the top-level nowTime shortcut, which sets it in all the
-            # current animations, which makes them animate in the scene.
-            completions = self._restInterface.set_now_times(self.tickPerf)
         finally:
             self.mainLock.release()
 
@@ -173,7 +159,6 @@ class Application(demonstration.Application):
             return False
         return True
         
-    
     def _prepare_animation(self, animation):
         """Override this."""
         pass

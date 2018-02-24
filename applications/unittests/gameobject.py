@@ -62,7 +62,7 @@ class TestGameObject(TestCaseWithApplication):
         GameObject = type(gameObject)
         name = 'worldPosition'
         #
-        # In general, an object other than a dictionary raise TypeError when
+        # In general, an object other than a dictionary raises TypeError when
         # an attempt to subscript it is made. A Blender KX_GameObject instance
         # raises KeyError instead. Next couple of asserts re-prove that.
         with self.assertRaises(KeyError) as context:
@@ -73,8 +73,8 @@ class TestGameObject(TestCaseWithApplication):
         with self.assertRaises(TypeError) as context:
             principal[name]
         #
-        # Also, Blender KX_GameObject returns False but objects in general raise
-        # TypeError.
+        # Also, property name `in` Blender KX_GameObject returns False but
+        # objects in general raise TypeError.
         self.assertFalse(name in gameObject)
         self.assertTrue(hasattr(gameObject, name))
         with self.assertRaises(TypeError) as context:
@@ -93,7 +93,7 @@ class TestGameObject(TestCaseWithApplication):
         value = 3
         gameObject[path] = value
         self.assertEqual(value, pathstore.get(gameObject, path))
-        # Belt and braces: it hasn't become an attribute.
+        # Belt and braces: check that it hasn't become an attribute.
         with self.assertRaises(AttributeError) as context:
             value = gameObject.NotAnAttribute
         #

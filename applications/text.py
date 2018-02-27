@@ -66,11 +66,8 @@ except ImportError as error:
     print(error)
 # Local imports.
 #
-
 # Blender Driver application with threads and locks.
 from . import demonstration
-#
-import blender_driver.textutils
 
 # Diagnostic print to show when it's imported, if all its own imports run OK.
 print("".join(('Application module "', __name__, '" ')))
@@ -91,17 +88,6 @@ class Application(demonstration.Application):
     # Override.
     _instructions = "Ctrl-Q to terminate.\nTAB to traverse."
 
-    # Override.
-    def data_initialise(self):
-        #
-        # Initialise what this class needs.
-        self._textUtilities = blender_driver.textutils.TextUtilities(self.bpy)
-        self._textUtilities.data_initialise(self.bpyutils)
-        self.dontDeletes.extend(self._textUtilities.objectNames)
-        #
-        # Call the base class initialise, to show the banner.
-        super().data_initialise()
-    
     @property
     def textBoxIndex(self):
         return self._textBoxIndex
@@ -129,7 +115,7 @@ class Application(demonstration.Application):
     
     def update_info(self):
         dimensions = list(blf.dimensions(0, self.textBox.text))
-        textWidth = self._textUtilities.text_width(self.textBox.text)
+        textWidth = self.text_width(self.textBox.text)
         self._textDimensions[self.textBoxIndex] = textWidth
         dimensions.append(textWidth)
         self.postion_cube()
@@ -141,9 +127,6 @@ class Application(demonstration.Application):
         super().game_initialise()
         self.mainLock.acquire()
         try:
-            self._textUtilities = blender_driver.textutils.TextUtilities(
-                self.bpy)
-            
             self._textBoxIndex = None
             self._cube = None
             self._cube2 = None
@@ -219,8 +202,6 @@ class Application(demonstration.Application):
                 time.sleep(self.arguments.sleep)
 
     def game_keyboard(self, keyEvents):
-        if not self._textUtilities.initialised:
-            self._textUtilities.game_initialise()
         keyString, ctrl, alt = self.key_events_to_string(keyEvents)
         log(DEBUG, '{} "{}" ctrl:{} alt:{} {} {}'
             , keyEvents, keyString, ctrl, alt

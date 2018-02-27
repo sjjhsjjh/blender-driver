@@ -2,10 +2,16 @@ Backlog
 =======
 
 -   See about moving prepare animation and suspend restore into the core
-    application classes.
+    application classes. Maybe a physics.py server on top of rest.py
+
+-   Uplift path store blender game engine into a sub-package.
 
 -   Check if suspend and restore Physics works and can be called on non-physics
     objects.
+
+-   Unit test for InterceptProperty implementation of a mutable string.
+
+-   Unit tests for InterceptProperty setattr.
 
 -   Get a JSON representation of a path store principal.
 

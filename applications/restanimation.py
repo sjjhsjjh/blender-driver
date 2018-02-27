@@ -67,7 +67,8 @@ class Application(demonstration.Application
 
     # Override.
     _instructions = (
-        "Ctrl-Q to terminate; space, plus, minus, or 0 to move left object;"
+        "Ctrl-Q to terminate; space, numeric plus, minus, or 0 to move"
+        " left object;"
         "\n< or > to rotate it;"
         "\nplus Ctrl to move right object. Middle object doesn't move.")
 

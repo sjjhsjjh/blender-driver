@@ -62,19 +62,23 @@ except ImportError as error:
     print(error)
 
 
+import blender_driver.textutils
+
+
 class Application(object):
     
     templates = None
-    '''Dictionary of template objects, used in both the data and game
-    contexts.'''
+    """\
+    Dictionary of template objects, used in both the data and game contexts.
+    """
 
     @property
     def dontDeletes(self):
-        '''\
+        """\
         List of object names that won't get deleted by data_initialise. Typical
         use is to append to it before calling super().data_initialise(). Note
         that the templates are automatically added to the list.
-        '''
+        """
         return self._dontDeletes
     
     _applicationName = None
@@ -87,19 +91,29 @@ class Application(object):
 
     @property
     def bpy(self):
-        """Reference to the Blender Python interface object.
+        """\
+        Reference to the Blender Python interface object.
         
         A subclass can use this instead of importing bpy, in case that isn't
-        possible in its execution context."""
+        possible in its execution context.
+        """
         return self._bpy
     
     @property
     def bpyutils(self):
-        """Reference to the Blender Driver utilities interface object.
+        """\
+        Reference to the Blender Driver utilities interface object.
         
         A subclass can use this instead of importing blender_driver.bpyutils, in
-        case that isn't possible in its execution context."""
+        case that isn't possible in its execution context.
+        """
         return self._bpyutils
+
+    def text_width(self, text):
+        return self._textUtilities.text_width(text)
+    
+    def game_calibrate_text(self, objectName=None):
+        self._textUtilities.game_calibrate(objectName)
 
     @property
     def dataGateway(self):
@@ -112,11 +126,12 @@ class Application(object):
         return self._dataScene
     
     def diagnostic_remove_controllers(self, controllers):
-        """Method that is invoked to remove controllers. Only override to remove
+        """\
+        Method that is invoked to remove controllers. Only override to remove
         controllers for diagnostic purposes. This method is called in the data
         context. To remove a controller, set its property to None, as in:
         
-        controllers.tick = None
+            controllers.tick = None
         """
         pass
     
@@ -125,10 +140,15 @@ class Application(object):
         Method that is invoked just after the data_constructor. Call super() if
         overriden. If extending dontDeletes, do so before calling super().
         """
+        self._textUtilities = blender_driver.textutils.TextUtilities(self.bpy)
+        self._textUtilities.data_initialise(self.bpyutils)
+        self.dontDeletes.extend(self._textUtilities.objectNames)
+
         self.bpyutils.delete_except(self.dontDeletes)
 
     def data_constructor(self, scene, gateway):
-        """Method that is invoked just after the constructor in the Blender data
+        """\
+        Method that is invoked just after the constructor in the Blender data
         context. Don't override.
         """
         #
@@ -162,7 +182,8 @@ class Application(object):
 
     @property
     def bge(self):
-        """Reference to the Blender Game Engine Python interface object.
+        """\
+        Reference to the Blender Game Engine Python interface object.
         
         A subclass can use this instead of importing bge, in case that isn't
         possible in its execution context.
@@ -181,7 +202,8 @@ class Application(object):
     
     @property
     def settings(self):
-        """Dictionary of settings from everything prior, including the command
+        """\
+        Dictionary of settings from everything prior, including the command
         line.
         """
         return self._settings
@@ -192,8 +214,9 @@ class Application(object):
         return self._arguments
     
     def key_events_to_string(self, keyEvents):
-        """Generate a string from a keyboard sensor event array. Handles
-        multiple keys, and left and right shift. Doesn't handle Caps Lock.
+        """\
+        Generate a string from a keyboard sensor event array. Handles multiple
+        keys, and left and right shift. Doesn't handle Caps Lock.
         """
         # For keyEvents.
         # https://docs.blender.org/api/blender_python_api_current/bge.types.SCA_KeyboardSensor.html
@@ -229,35 +252,47 @@ class Application(object):
         return "".join(characters), ctrl, alt
     
     def game_initialise(self):
-        """Method that is invoked just after the constructor in the Blender game
-        context. Override it."""
-        pass
+        """\
+        Method that is invoked just after the constructor in the Blender game
+        context. Call super() if overriden.
+        """
+        self._textUtilities = blender_driver.textutils.TextUtilities(self.bpy)
 
     def game_keyboard(self, keyEvents):
-        """Method that is invoked on every keyboard event in the Blender Game
-        Engine. Override it."""
+        """\
+        Method that is invoked on every keyboard event in the Blender Game
+        Engine. Override it.
+        """
         pass
     
     def game_tick(self):
-        """Method that is invoked on every tick in the Blender Game Engine.
-        Override it."""
+        """\
+        Method that is invoked on every tick in the Blender Game Engine.
+        Override it.
+        """
         pass
 
     def game_terminate(self):
-        """Terminate the Blender Game Engine by ending the scene. Call super()
-        if overriden."""
+        """\
+        Terminate the Blender Game Engine by ending the scene. Call super() if
+        overriden.
+        """
         self.gameScene.end()
 
     def get_argument_parser(self):
-        """Method that returns an ArgumentParser. Override and call super if the
-        application has command line switches."""
+        """\
+        Method that returns an ArgumentParser. Override and call super if the
+        application has command line switches.
+        """
         parser = argparse.ArgumentParser()
         parser.prog = ".".join((__name__, self.__class__.__name__))
         return parser
     
     def game_constructor(self, scene, gateway):
-        """Method that is invoked just after the constructor in the Blender Game
-        Engine context. Don't override."""
+        """\
+        Method that is invoked just after the constructor in the Blender Game
+        Engine context. Don't override.
+        """
         # Set up references to modules that might be needed in a subclass, but
         # not be importable there.
         #
@@ -285,8 +320,10 @@ class Application(object):
         return object_
 
     def __init__(self, settings):
-        """Constructor common to both Blender data and Blender Game Engine
-        contexts. Call super if overriden."""
+        """\
+        Constructor common to both Blender data and Blender Game Engine
+        contexts. Call super() if overriden.
+        """
         #
         # Store the settings collection
         self._settings = settings.copy()

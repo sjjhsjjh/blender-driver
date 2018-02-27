@@ -18,11 +18,11 @@ if __name__ == '__main__':
 try:
     # Font Drawing module, used to get text width.
     # https://docs.blender.org/api/blender_python_api_current/blf.html
+    import blf
     #
     # bpy.ops.font.open(filepath="/home/jim/Downloads/fonts/IM Fell English/FeENrm2.ttf")
     # bpy.data.curves['ememem'].font = bpy.data.fonts['IM_FELL_English_Roman']
     #
-    import blf
 except ImportError as error:
     print(__doc__)
     print(error)
@@ -32,44 +32,52 @@ except ImportError as error:
 from . import bpyutils
 
 class TextUtilities(object):
-    _calibratorName = "TextUtilitiesmmmmm"
-    _bpy = None
-    _calibratorRatio = None
-    _objectNames = None
-    
-    @property
-    def initialised(self):
-        return False if self._calibratorRatio is None else True
-    
     @property
     def objectNames(self):
         return self._objectNames
 
     def data_initialise(self, bpyutils, objectName=None):
         if objectName is None:
-            objectName = self._calibratorName
-        else:
-            self._calibratorName = objectName
+            objectName = self.objectNames[0]
+
         bpyutils.set_up_object(
             objectName, {'text':"mmmmm", 'physicsType':'NO_COLLISION'})
         self._objectNames = [objectName]
     
-    def game_initialise(self, objectName=None):
+    def game_calibrate(self, objectName=None):
+        '''Store a calibration ratio.'''
+        numerator, denominator = self.get_calibration(objectName)
+        self._ratio = numerator / denominator
+
+    def get_calibration(self, objectName=None):
+        '''\
+        Get a calibration ratio as a float tuple: (numerator, denominator).
+        '''
         if objectName is None:
-            objectName = self._calibratorName
-        else:
-            self._calibratorName = objectName
-        self._objectNames = [objectName]
+            objectName = self.objectNames[0]
         object_ = self._bpy.data.objects[objectName]
-        self._calibratorRatio = (
-            object_.dimensions[0] / blf.dimensions(0, object_.data.body)[0])
+        return (float(object_.dimensions[0])
+                , float(blf.dimensions(0, object_.data.body)[0]))
+
+    @staticmethod
+    def text_width_raw(text):
+        '''Text width from the Blender Font module, without calibration.'''
+        return blf.dimensions(0, text)[0]
         
     def text_width(self, text):
-        if self._calibratorRatio is None:
-            return 0.0
+        '''\
+        Text width from the Blender Font module, calibrated by the stored
+        calibration ratio, if there is one, or on the fly otherwise.
+        '''
+        ratio = self._ratio
+        if ratio is None:
+            numerator, denominator = self.get_calibration()
+            ratio = numerator / denominator
         #
         # Next line has an unexplained fudge factor: 1.35
-        return blf.dimensions(0, text)[0] * self._calibratorRatio * 1.35
+        return TextUtilities.text_width_raw(text) * ratio * 1.35
 
     def __init__(self, bpy):
         self._bpy = bpy
+        self._ratio = None
+        self._objectNames = ["TextUtilitiesmmmmm"]

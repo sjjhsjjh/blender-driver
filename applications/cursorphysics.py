@@ -81,12 +81,12 @@ class Application(restanimation.Application):
     }
 
     # Override.
-    _instructions = "\n".join((
-        "Ctrl-Q to terminate; space, plus, minus, or 0 to move object 0;"
-        , "< or > to rotate it;"
-        , "plus Ctrl to move object 2. Object 1 doesn't move."
-        , "o, p, x, y, z to move the camera, or a to stop it."
-        , "TAB to move the cursor"))
+    _instructions = (
+        "Ctrl-Q to terminate; space, numeric plus, minus,"
+        "\nor 0 to move left object; < or > to rotate it;"
+        "\nplus Ctrl to move right object. Middle object doesn't move."
+        "\no, p, x, y, z to move the camera, or a to stop it."
+        "\nTAB to move the cursor. s or S to change sizes.")
 
     # Location of the UI cursor.
     _cursorPath = ['root', 'cursors', 0]
@@ -223,10 +223,11 @@ class Application(restanimation.Application):
             # If there are no other animations: restore physics to the
             # object and reset its rotation overrides.
             if not checkResults.still and userData is not None:
-                object_ = self._restInterface.rest_get(userData['path'])
-                log(INFO, "Restoring {}.", userData['path'])
-                object_.restoreDynamics()
-                del object_.rotation[:]
+                objectPath = list(userData['path'])
+                objectPath.append('physics')
+                self._restInterface.rest_put(True, objectPath)
+                objectPath[-1] = 'rotation'
+                self._restInterface.rest_put(None, objectPath)
             #
             # Discard the completed animation object, so that the above and
             # other loops can run faster.
@@ -373,12 +374,6 @@ class Application(restanimation.Application):
     def _prepare_animation(self, animation):
         # Override the animation preparation to do things needed when there is
         # Physics.
-        objectPath = animation['userData']['path']
-        object_ = self._restInterface.rest_get(objectPath)
-        log(INFO, "Suspending {}.", objectPath)
-        object_.suspendDynamics(True)
-        # ToDo: Near here, copy all the rotation values into the setList in case
-        # one of them is being animated. Or maybe do that in the Rotation class.
-        #
-        # This could maybe be moved to the GameObject class and included in a
-        # setter for suspendPhysics.
+        path = list(animation['userData']['path'])
+        path.append('physics')
+        self._restInterface.rest_put(False, path)

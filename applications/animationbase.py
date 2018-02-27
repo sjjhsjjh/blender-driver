@@ -50,11 +50,11 @@ from logging import DEBUG, INFO, WARNING, ERROR, log
 # Blender Driver application with background banner.
 from . import demonstration
 #
+# Blender Driver application with REST, imported for the game object subclass.
+import blender_driver.application.rest
+#
 # Animation base class, for demonstration.
 from path_store.animation import Animation
-#
-# Wrapper for Blender game object that is easy to make RESTful.
-from path_store.blender_game_engine import get_game_object_subclass
 #
 # RESTful interface base class and Animation subclass for pathstore.
 from path_store.rest import RestInterface, PathAnimation
@@ -63,7 +63,8 @@ from path_store.rest import RestInterface, PathAnimation
 # imports run OK.
 print('"'.join(('Application module ', __name__, '.')))
 
-class Application(demonstration.Application):
+class Application(demonstration.Application
+                  , blender_driver.application.rest.Application):
     
     templates = {
         'cube': {'subtype':'Cube', 'physicsType':'NO_COLLISION'
@@ -83,15 +84,13 @@ class Application(demonstration.Application):
         self._objectName = "cube"
         self.mainLock.acquire()
         try:
-            self._GameObject = get_game_object_subclass(self.bge)
-
             objectName = self._objectName
 
             #
             # Insert game objects.
             objectCount = 3
             for index in range(objectCount):
-                object_ = self._GameObject(self.game_add_object(objectName))
+                object_ = self.game_add_object(objectName)
                 self._restInterface.rest_put(object_, index)
                 #
                 # Displace along the y axis.

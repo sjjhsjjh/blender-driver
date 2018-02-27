@@ -69,6 +69,7 @@ class Application(base.Application):
     def game_initialise(self):
         """Method that is invoked just after the constructor in the Blender game
         context. Call super first if overriden."""
+        super().game_initialise()
         #
         # It might be unnecessary that the terminate lock is a threading.Lock()
         # instance. An ordinary property might do just as well, because it only
@@ -139,7 +140,7 @@ class Application(base.Application):
         self.tick_skipped()
         
     def game_tick_run(self):
-        """
+        """\
         Method that is run in a thread in every tick in which the tick lock
         can be acquired. Override it.
         If an exception is raised, it will be kept until the next tick, so that
@@ -148,7 +149,7 @@ class Application(base.Application):
         pass
 
     def tick_skipped(self):
-        """
+        """\
         Method that is run in a thread in every tick in which the tick lock
         can't be acquired. Override it to print an error messsage.
         """
@@ -167,13 +168,13 @@ class Application(base.Application):
         log(DEBUG, "Terminate lock acquired.")
 
     def game_terminate_threads(self):
-        log(DEBUG, "Number of threads: {}.", threading.active_count())
+        log(INFO, "Number of threads: {}.", threading.active_count())
         for thread in threading.enumerate():
             if thread is threading.current_thread():
-                log(DEBUG, "Not joining current: {}.", thread)
+                log(INFO, "Not joining current: {}.", thread)
             elif thread is threading.main_thread():
-                log(DEBUG, "Not joining main: {}.", thread)
+                log(INFO, "Not joining main: {}.", thread)
             else:
-                log(DEBUG, "Joining: {} ...", thread)
+                log(INFO, "Joining: {} ...", thread)
                 thread.join()
-                log(DEBUG, "Joined.")
+                log(INFO, "Joined.")

@@ -194,16 +194,20 @@ class InterceptProperty(property):
         # It would be interesting to see if this class should somehow be a
         # subclass of attr.__class__.
         #
-        # For now, __getattr__ and __len__ have been implemented. That gives
-        # access to the methods of the destination property. It might also be a
-        # good idea to implement the rest of that family in the same way:
-        # - __setattr__
+        # For now, __getattr__, __setattr__, and __len__ have been implemented.
+        # That gives access to the methods of the destination property. It might
+        # also be a good idea to implement the rest of that family in the same
+        # way:
         # - __delattr__
         # - __dir__
         # See https://docs.python.org/3.5/reference/datamodel.html#object.__getattr__
 
         def __getattr__(self, name):
             return getattr(self._destination_getter(self._instance), name)
+        def __setattr__(self, name, value):
+            attr = self._destination_getter(self._instance)
+            attr.__setattr__(name, value)
+            
         def __len__(self):
             return self._destination_getter(self._instance).__len__()
 
@@ -219,7 +223,7 @@ class InterceptProperty(property):
                 # The Vector type in Blender Game Engine raises this error.
                 pass
             
-            # If we get here then it wasn't possible to setitem in the
+            # If the code gets here then it wasn't possible to setitem in the
             # destination. Handle it here instead.
 
             mutable = list(attr)
@@ -250,9 +254,11 @@ class InterceptProperty(property):
         #     return self._destination_getter(self._instance)
 
         def __init__(self, instance, destination_getter, intercept_setter):
-            self._instance = instance
-            self._destination_getter = destination_getter
-            self._intercept_setter = intercept_setter
+            # Have to make explicit use of the base class attribute setter,
+            # because this class has its own __setattr__ method.
+            object.__setattr__(self, '_instance', instance)
+            object.__setattr__(self, '_destination_getter', destination_getter)
+            object.__setattr__(self, '_intercept_setter', intercept_setter)
     
     def get(self, instance):
         try:

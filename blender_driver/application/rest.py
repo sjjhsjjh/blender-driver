@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # (c) 2017 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
-"""Blender Driver Application with threads and synchronisation.
+"""Blender Driver Application with various RESTful classes and interfaces.
 
 This module is intended for use within Blender Driver and can only be used from
 within Blender."""
@@ -30,7 +30,8 @@ from . import thread
 #
 # Wrapper for Blender game object and camera that is easy to make RESTful.
 from path_store.blender_game_engine import \
-    get_game_object_subclass, get_camera_subclass, Cursor
+    get_game_object_subclass, get_camera_subclass, Cursor, \
+    get_game_text_subclass
 #
 # RESTful interface base class and Animation subclass for pathstore.
 from path_store.rest import AnimatedRestInterface
@@ -44,6 +45,10 @@ class Application(thread.Application):
     # Override.
     def game_add_object(self, objectName):
         return self._GameObject(super().game_add_object(objectName))
+    
+    # Override.
+    def game_add_text(self, objectName, text=None):
+        return self._GameText(super().game_add_text(objectName, text))
     
     def _add_visualiser(self):
         return self._GameObject(self.game_add_object(self._visualiserName))
@@ -63,13 +68,15 @@ class Application(thread.Application):
     
     def game_initialise(self):
         super().game_initialise()
-        self._restInterface = AnimatedRestInterface()
-        self._GameObject = get_game_object_subclass(self.bge)
-        self._Camera = get_camera_subclass(self.bge)
-
         self._objectRootPath = ('root','objects')
         self._visualiserName = 'visualiser'
         self._emptyName = 'empty'
+
+        self._restInterface = AnimatedRestInterface()
+
+        self._GameObject = get_game_object_subclass(self.bge)
+        self._Camera = get_camera_subclass(self.bge, self._GameObject)
+        self._GameText = get_game_text_subclass(self.bge, self._GameObject)
 
     def _process_complete_animations(self, completions):
         '''\
@@ -89,9 +96,10 @@ class Application(thread.Application):
                 self._restInterface.set_now_times(self.tickPerf))
             #
             # Update all cursors, by updating all physics objects.
-            gameObjects = self._restInterface.rest_get(self._objectRootPath)
-            for gameObject in gameObjects:
-                gameObject.update()
+            if self._restInterface.principal is not None:
+                gameObjects = self._restInterface.rest_get(self._objectRootPath)
+                for gameObject in gameObjects:
+                    gameObject.update()
 
         finally:
             self.mainLock.release()

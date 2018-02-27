@@ -46,8 +46,9 @@ from mathutils import Vector, Matrix, Quaternion
 from path_store.hosted import InterceptProperty
 
 def get_game_object_subclass(bge):
-    """Get a custom subclass of of KX_GameObject in which the Vector properties
-    are mutable at the item level. For example:
+    """\
+    Get a custom subclass of of KX_GameObject in which the Vector properties are
+    mutable at the item level. For example:
     
         gameObject.worldScale[2] = 2.5 # Where 2.5 is the desired Y scale.
     
@@ -107,13 +108,31 @@ def get_game_object_subclass(bge):
             if self.tether is not None:
                 self.tether.worldPosition = self.worldPosition.copy()
                 self.tether.worldOrientation = self.worldOrientation.copy()
+        
+        @property
+        def physics(self):
+            return not self.isSuspendDynamics
+        @physics.setter
+        def physics(self, physics):
+            if physics:
+                self.restoreDynamics()
+            else:
+                self.suspendDynamics(True)
 
         @property
         def rotation(self):
             return self._rotation
         @rotation.setter
         def rotation(self, rotation):
-            self._rotation[:] = tuple(rotation)
+            if rotation is None:
+                # This allows a REST put of None to relinquish control of
+                # rotation.
+                del self._rotation[:]
+            else:
+                self._rotation[:] = tuple(rotation)
+        @rotation.deleter
+        def rotation(self):
+            del self._rotation[:]
         
         def make_vector(self, startVector, endVector, calibre=0.1):
             vector = endVector - startVector
@@ -273,6 +292,31 @@ class Rotation(object):
         self._listLength = len(self._listGameObject)
         self._list = []
         self._usingList = False
+
+def get_game_text_subclass(bge, GameObject):
+    """\
+    Get a custom subclass of of KX_FontObject with similar characteristics to
+    the KX_GameObject subclass returned by get_game_object_subclass().
+    
+    This is a function so that this file can be imported outside the context of
+    Blender Game Engine. Pass as parameters:
+    
+    -   A reference to the bge module.
+    -   The subclass returned by a previous call to get_game_object_subclass().
+    """
+    
+    class GameText(bge.types.KX_FontObject, GameObject):
+        pass
+
+    # KX_FontObject is a very light subclass of KX_GameObject. It seems like it
+    # should be possible to instiate a KX_GameObject subclass from an existing
+    # KX_FontObject instance, but it isn't allowed. The existing KX_FontObject
+    # instance must be passed to a KX_FontObject subclass.
+    # The above declaration uses multiple inhertance to give the KX_FontObject
+    # subclass all the extra methods in the KX_GameObject subclass without any
+    # code.
+    
+    return GameText
 
 class Cursor(object):
     #
@@ -469,9 +513,8 @@ class Cursor(object):
         self._endOffset = None
         self._pointOffset = None
         
-def get_camera_subclass(bge):
+def get_camera_subclass(bge, GameObject):
     KX_Camera = bge.types.KX_Camera
-    GameObject = get_game_object_subclass(bge)
     
     class Camera(GameObject, KX_Camera):
         

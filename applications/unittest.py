@@ -18,6 +18,10 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
+# Module for mathematical operations.
+# https://docs.python.org/3.5/library/math.html
+from math import radians
+#
 # Module for building paths, which is only used to build a unittest discover
 # path.
 # https://docs.python.org/3.5/library/os.path.html
@@ -30,7 +34,7 @@ import unittest
 # Local imports.
 #
 # Application base class module.
-import blender_driver.application.base
+import blender_driver.application.rest
 
 # Diagnostic print to show when it's imported, if all its own imports run OK.
 print("".join(('Application module "', __name__, '" ')))
@@ -64,24 +68,173 @@ class TestCaseWithApplication(unittest.TestCase):
     @property
     def application(self):
         return self._application
+    
+    def get_test_object(self):
+        return self.application.get_test_object(self.id())
+    
+    @property
+    def status(self):
+        return self._status
+    @status.setter
+    def status(self, status):
+        self._status = status
+        self.application.set_test_text(self.id(), status)
+    
+    @property
+    def store(self):
+        return self.application.get_test_store(self.id()).store
+    
+    def setUp(self):
+        super().setUp()
+        try:
+            skipReason = self.application.skipReasons[self.id()]
+        except KeyError:
+            skipReason = None
+        if skipReason is not None:
+            self.skipTest(skipReason)
+    
+    def skipTest(self, reason):
+        self.application.skipReasons[self.id()] = reason
+        super().skipTest(reason)
 
     def __init__(self, testCaseName, application):
         self._application = application
+        self._skipReason = None
         super().__init__(testCaseName)
 
-class Application(blender_driver.application.base.Application):
+class Application(blender_driver.application.rest.Application):
     templates = {
         'cube': {
             'subtype':'Cube', 'physicsType':'RIGID_BODY',
-            'location': (0, 0, 4), 'scale': (0.2, 0.2, 0.2)}
+            'location': (-4.0, -4.0, 4), 'scale':(0.25, 0.25, 0.25)},
+        'floor': {
+            'subtype':'Cube', 'physicsType':'STATIC',
+            'location': (0, 0, 0), 'scale': (10, 10, 0.1)},
+        'banner': {
+            'text':"banner", 'location': (0, 0, 4)},
+        'status': {
+            'text':"status", 'location': (0, 0, 4),
+            'scale':(0.5, 0.5, 0.5)}
     }
+    
+    banner = None
+    terminatePerf = None
+
+    @property
+    def tickNumber(self):
+        return self._tickNumber
+    
+    class TestStore:
+        def __init__(self):
+            self.testObject = None
+            self.skipReason = None
+            self.testText = None
+            self.store = {}
+
+            self.offset = 0.0
+    
+    def get_test_store(self, testID):
+        if testID not in self._testStore:
+            testStore = self.TestStore()
+            testStore.offset = self._testOffset
+            self._testOffset -= 0.5
+            self._testStore[testID] = testStore
+        return self._testStore[testID]
+    
+    def get_test_object(self, testID):
+        '''Only call after acquiring mainLock.'''
+        testStore = self.get_test_store(testID)
+        created = False
+        if testStore.testObject is None:
+            created = True
+            testObject = self.game_add_object('cube')
+            testObject.worldPosition.x = testStore.offset
+            testObject.worldPosition.y = 4.0
+            testStore.testObject = testObject
+
+        return testStore.testObject, created
+    
+    def set_test_text(self, testID, text):
+        statusText = testID if text is None else " ".join((testID, text))
+        testStore = self.get_test_store(testID)
+        if testStore.testText is None:
+            testText = self.game_add_text('status')
+            testText.rotation.x = 0.0
+            testText.worldPosition = (testStore.offset, 0.0, 0.3)
+            testStore.testText = testText
+
+        textWidth = self.text_width(statusText) * self._textScale
+        testStore.testText.text = statusText[:]
+        testStore.testText.worldPosition.y = 3.5 - textWidth
+    
+    @property
+    def skipReasons(self):
+        return self._skipReasons
+
+    # Override.
+    def game_initialise(self):
+        super().game_initialise()
+        
+        self.mainLock.acquire()
+        try:
+            self.banner = self.game_add_text('banner')
+            self.banner.text = "Unit Tests"
+            #
+            # Add the floor object, which is handy to stop objects dropping out
+            # of sight due to gravity. No need to access it later, so it doesn't
+            # get put in the path store.
+            self.game_add_object('floor')
+
+            self._tickNumber = 0
+            self._testStore = {}
+            self._skipReasons = {}
+            self._textScale = self.templates['status']['scale'][0]
+
+            self._testOffset = 5.0
+        finally:
+            self.mainLock.release()
 
     # Override
-    def game_tick(self):
-        loader = TestLoaderWithApplication(self)
-        suites = loader.discover(os.path.join('applications', 'unittests')
-                                 , "*.py")
-        unittest.TextTestRunner(
-            verbosity=(2 if self.settings['arguments']['verbose'] else 1)
+    def game_tick_run(self):
+        super().game_tick_run()
+        # Terrible hack to wait for text calibration to have been done.
+        if self.tickPerf < 0.2:
+            return
+        self.mainLock.acquire()
+        try:
+            if self.terminatePerf is None:
+                loader = TestLoaderWithApplication(self)
+                suites = loader.discover(
+                    os.path.join('applications', 'unittests'), "*.py")
+                # for suite in suites:
+                #     for test in suite:
+                #         for case in test:
+                #             print(case, type(case))
+            else:
+                if self.tickPerf < self.terminatePerf:
+                    self.banner.text = (
+                        "Unit Tests\nEnd:{:.2f} Now:{:.2f}".format(
+                            self.terminatePerf, self.tickPerf))
+                else:
+                    self.game_terminate()
+        finally:
+            self.mainLock.release()
+
+        if self.terminatePerf is None:
+            results = unittest.TextTestRunner(
+                verbosity=(2 if self.settings['arguments']['verbose'] else 1)
+                # verbosity=2
             ).run(suites)
-        self.game_terminate()
+            self.mainLock.acquire()
+            try:
+                # Terminate if any test failed, or there were any errors, or if
+                # all tests skipped, which is how they indicate completion.
+                if (
+                    len(results.errors) + len(results.failures) > 0
+                    or len(results.skipped) >= results.testsRun
+                ):
+                    self.terminatePerf = self.tickPerf + 2.0
+
+                self._tickNumber += 1
+            finally:
+                self.mainLock.release()

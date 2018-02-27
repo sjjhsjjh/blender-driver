@@ -179,6 +179,8 @@ class AnimatedRestInterface(RestInterface):
         -   First element is the path, as a list.
         -   Second element is the Animation instance.
         '''
+        if self.principal is None:
+            return
 
         class Results:
             pass

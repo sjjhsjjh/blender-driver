@@ -726,7 +726,7 @@ def get_camera_subclass(bge, GameObject):
                         self.restInterface.rest_put(None, animationPath)
                         #
                         # If the required rotation isn't very small, apply it.
-                        if fabs(change) >radians(0.1):
+                        if fabs(change) > radians(0.1):
                             self.rotation[index] = target
                     else:
                         log(DEBUG, '[{}] large {:.2f} {:.2f} {:.2f}'

@@ -118,8 +118,9 @@ class Animation(object):
         if modulo == 0:
             modulo = None
         #
-        # Flag for whether this is a simple animation, i.e. it will reach its
-        # target by repeated application of the increment.
+        # Check whether this is a simple animation, i.e. one without a target or
+        # one that will reach its target by repeated application of the
+        # increment.
         simple = (
             (target is None)
             or (target > start and increment > 0)
@@ -133,11 +134,15 @@ class Animation(object):
         nowValue = start + increment
         #
         # Apply the target value, if any.
+        # Note that fmod is generally better but can return negative values,
+        # whcih aren't wanted here. Every fmod is followed by a check for that.
         if target is None:
             if modulo is not None:
                 nowValue = fmod(nowValue, modulo)
                 if nowValue < 0.0:
                     nowValue += modulo
+            # If target is None and modulo is None, the candidate value doesn't
+            # need adjustment.
         else:
             if simple or (modulo is None):
                 if (

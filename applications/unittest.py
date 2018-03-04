@@ -124,6 +124,8 @@ class Application(blender_driver.application.rest.Application):
     def tickNumber(self):
         return self._tickNumber
     
+    # TestStore is used for persistent storage of data in between unit test
+    # executions.
     class TestStore:
         def __init__(self):
             self.testObject = None

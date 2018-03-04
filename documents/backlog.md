@@ -38,3 +38,11 @@ Backlog
     https://docs.python.org/3.5/library/collections.html#collections.UserDict
 
 -   Fix problem that recording only works with --verbose.
+
+License
+=======
+This file is:  
+
+-   (c) 2018 Jim Hawkins.
+-   MIT licensed, see https://opensource.org/licenses/MIT
+-   Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver

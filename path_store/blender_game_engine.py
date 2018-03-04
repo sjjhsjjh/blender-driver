@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# (c) 2017 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
+# (c) 2018 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 """Path Store module for use with Blender Game Engine.
 

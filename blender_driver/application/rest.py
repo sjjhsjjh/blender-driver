@@ -73,6 +73,7 @@ class Application(thread.Application):
         self._emptyName = 'empty'
 
         self._restInterface = AnimatedRestInterface()
+        self._restInterface.rest_put(None, self._objectRootPath)
 
         self._GameObject = get_game_object_subclass(self.bge)
         self._Camera = get_camera_subclass(self.bge, self._GameObject)
@@ -96,10 +97,11 @@ class Application(thread.Application):
                 self._restInterface.set_now_times(self.tickPerf))
             #
             # Update all cursors, by updating all physics objects.
-            if self._restInterface.principal is not None:
-                gameObjects = self._restInterface.rest_get(self._objectRootPath)
-                for gameObject in gameObjects:
-                    gameObject.update()
+            def update(point, path, results):
+                if point is None:
+                    return
+                point.update()
+            self._restInterface.rest_walk(update, self._objectRootPath)
 
         finally:
             self.mainLock.release()

@@ -69,6 +69,14 @@ class TestCaseWithApplication(unittest.TestCase):
     def application(self):
         return self._application
     
+    @property
+    def restInterface(self):
+        return self._application.restInterface
+    
+    @property
+    def objectPath(self):
+        return ('root','objects', self.id())
+    
     def get_test_object(self):
         return self.application.get_test_object(self.id())
     
@@ -123,6 +131,10 @@ class Application(blender_driver.application.rest.Application):
     @property
     def tickNumber(self):
         return self._tickNumber
+    
+    @property
+    def restInterface(self):
+        return self._restInterface
     
     # TestStore is used for persistent storage of data in between unit test
     # executions.
@@ -199,9 +211,6 @@ class Application(blender_driver.application.rest.Application):
     # Override
     def game_tick_run(self):
         super().game_tick_run()
-        # Terrible hack to wait for text calibration to have been done.
-        if self.tickPerf < 0.2:
-            return
         self.mainLock.acquire()
         try:
             if self.terminatePerf is None:

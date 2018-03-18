@@ -13,7 +13,7 @@ if __name__ == '__main__':
 # Standard library imports, in alphabetic order.
 #
 # Module for mathematical operations needed to decompose a rotation matrix.
-# https://docs.python.org/3.5/library/math.html
+# https://docs.python.org/3/library/math.html
 from math import degrees, radians
 #
 # Local imports.
@@ -42,12 +42,7 @@ class TestGameObject(TestCaseWithApplication):
     def test_fundamentals(self):
         self.assertIsNotNone(self.application)
 
-        self.application.mainLock.acquire()
-        try:
-            if self.application.tickNumber > 0:
-                self.skipTest("Test only runs in first tick.")
-                return
-            
+        with self.application.mainLock:
             self.assertTrue(self.application.bge)
             self.assertTrue(self.application.bge.types.KX_GameObject)        
             GameObject, objectName = self.get_class_and_name()
@@ -57,32 +52,27 @@ class TestGameObject(TestCaseWithApplication):
                 self.application.game_add_object(objectName))
             name = 'worldPosition'
             #
-            # Grab the position before gravity has had a chance to move the object.
+            # Grab the position before gravity has had a chance to move the
+            # object.
             worldPositionNative = gameObject.worldPosition[:]
             worldPositionGot = pathstore.get(gameObject, name)[:]
             self.assertEqual(worldPositionGot, worldPositionNative)
             #
             # Test the intercept property works as expected.
-            self.assertEqual(worldPositionNative
-                             , self.application.templates[objectName]['location'])
-        finally:
-            self.application.mainLock.release()
+            self.assertEqual(
+                worldPositionNative
+                , self.application.templates[objectName]['location'])
 
     def test_path_store(self):
-        self.application.mainLock.acquire()
-        try:
-            if self.application.tickNumber > 0:
-                self.skipTest("Test only runs in first tick.")
-                return
-            
-            gameObject = self.get_test_object()[0]
-            self.status = None
+        with self.application.mainLock:
+            gameObject = self.add_test_object()
             GameObject = type(gameObject)
             name = 'worldPosition'
             #
-            # In general, an object other than a dictionary raises TypeError when
-            # an attempt to subscript it is made. A Blender KX_GameObject instance
-            # raises KeyError instead. Next couple of asserts re-prove that.
+            # In general, an object other than a dictionary raises TypeError
+            # when an attempt to subscript it is made. A Blender KX_GameObject
+            # instance raises KeyError instead. Next couple of asserts re-prove
+            # that.
             with self.assertRaises(KeyError) as context:
                 gameObject[name]
             class Principal:
@@ -134,54 +124,57 @@ class TestGameObject(TestCaseWithApplication):
             self.assertIs(gameObject0, gameObject1)
             self.assertIsInstance(gameObject1, GameObject)
             self.assertEqual(gameObject0[path], value)
-        finally:
-            self.application.mainLock.release()
-
+    
     def test_rotation(self):
-        self.application.mainLock.acquire()
-        try:
-            gameObject, created = self.get_test_object()
-            self.status = "Created"
-            if created:
-                gameObject.physics = False
-                #
-                # Initial rotation in all axes should be zero.
-                self.assertEqual(0, pathstore.get(gameObject, ('rotation', 0)))
-                self.assertEqual(gameObject.rotation[:], (0, 0, 0))
+        with self.application.mainLock:
+            gameObject = self.add_test_object()
+            self.show_status("Created")
+
+            gameObject.physics = False
+            #
+            # Initial rotation in all axes should be zero.
+            self.assertEqual(0, pathstore.get(gameObject, ('rotation', 0)))
+            self.assertEqual(gameObject.rotation[:], (0, 0, 0))
             
             xDegrees = degrees(gameObject.rotation.x)
             degreesMax = 720.0
-            if xDegrees < degreesMax:
-                # This runs quite lumpy. It isn't supposed to be smooth; it's
+
+        while xDegrees < degreesMax:
+            with self.tickLock:
+                # This can run quite lumpy. It isn't supposed to be smooth; it's
                 # supposed to test that setting the X rotation doesn't change
                 # the Y and Z rotations.
-                for _ in range(80):
-                    xDegrees += 1.0
-                    self.status = "{:.2f} {:.2f}".format(xDegrees, degreesMax)
-                    xRadians = radians(xDegrees)
-                    gameObject.rotation.x = xRadians
-                    self.assertEqual(xRadians, gameObject.rotation.x)
-                    self.assertEqual(
-                        xRadians, pathstore.get(gameObject, ('rotation', 0)))
-                    self.assertEqual(
-                        xRadians, pathstore.get(gameObject, ('rotation', 'x')))
-                    self.assertEqual(0, gameObject.rotation.y)
-                    self.assertEqual(0, pathstore.get(gameObject, ('rotation', 1)))
-                    self.assertEqual(
-                        0, pathstore.get(gameObject, ('rotation', 'y')))
-                    self.assertEqual(0, gameObject.rotation.z)
-                return
+                with self.application.mainLock:
+                    for _ in range(10):
+                        xDegrees += 1.0
+                        self.show_status(
+                            "{:.2f} {:.2f}".format(xDegrees, degreesMax))
+                        xRadians = radians(xDegrees)
+                        gameObject.rotation.x = xRadians
+                        self.assertEqual(xRadians, gameObject.rotation.x)
+                        self.assertEqual(
+                            xRadians, pathstore.get(gameObject, ('rotation', 0)))
+                        self.assertEqual(
+                            xRadians, pathstore.get(gameObject, ('rotation', 'x')))
+                        self.assertEqual(0, gameObject.rotation.y)
+                        self.assertEqual(0, pathstore.get(gameObject, ('rotation', 1)))
+                        self.assertEqual(
+                            0, pathstore.get(gameObject, ('rotation', 'y')))
+                        self.assertEqual(0, gameObject.rotation.z)
+
+        with self.application.mainLock:
             #
-            # Deleting all elements, or the property, actually doesn't delete it.
-            # You just get the rotation of the underlaying game object instead.
+            # Deleting all elements, or the property, actually doesn't delete
+            # it. You just get the rotation of the underlaying game object
+            # instead.
             del gameObject.rotation[:]
             self.assertEqual(len(gameObject.rotation), 3)
             del gameObject.rotation
             self.assertEqual(len(gameObject.rotation), 3)
             #
-            # Setting a rotation should set the underlaying game object rotation.
-            # This means that setting and then deleting the rotation should leave
-            # the game object rotated as before.
+            # Setting a rotation should set the underlaying game object
+            # rotation. This means that setting and then deleting the rotation
+            # should leave the game object rotated as before.
             rotation = (radians(1), radians(2), radians(3))
             gameObject.rotation = rotation
             self.assertSequenceEqual(
@@ -189,45 +182,38 @@ class TestGameObject(TestCaseWithApplication):
             del gameObject.rotation
             for index in range(len(rotation)):
                 self.assertAlmostEqual(
-                    rotation[index], pathstore.get(gameObject, ('rotation', index))
+                    rotation[index]
+                    , pathstore.get(gameObject, ('rotation', index))
                     , places=5)
-
+    
             # Next line makes the object fall away, which is nice.
             gameObject.physics = True
-            self.status = None
-            self.skipTest("Finished")
-        finally:
-            self.application.mainLock.release()
-
-    def test_physics(self):
-        self.application.mainLock.acquire()
-        try:
-            gameObject, created = self.get_test_object()
     
-            if created:
-                gameObject.physics = False
-                self.status = "Suspended..."
-                self.store['phases'] = (self.application.tickPerf + 1.0,
-                                        self.application.tickPerf + 2.0,
-                                        self.application.tickPerf + 3.0)
-                self.store['z'] = gameObject.worldPosition.z
+    def test_physics(self):
+        with self.application.mainLock:
+            gameObject = self.add_test_object()
+    
+            gameObject.physics = False
+            self.show_status("Suspended...")
+            phases = (self.application.tickPerf + 1.0,
+                      self.application.tickPerf + 2.0,
+                      self.application.tickPerf + 3.0)
+            zPosition = gameObject.worldPosition.z
+        
+        while(self.application.tickPerf < phases[0]):
+            with self.tickLock:
+                with self.application.mainLock:
+                    self.assertEqual(zPosition, gameObject.worldPosition.z)
+        
+        with self.application.mainLock:
+            gameObject.physics = True
+            self.show_status("Dropping...")
+            # No assertion; waiting for it to drop.
+        while(self.application.tickPerf < phases[1]):
+            with self.tickLock:
+                pass
             
-            if self.application.tickPerf < self.store['phases'][0]:
-                self.assertEqual(self.store['z'], gameObject.worldPosition.z)
-                return
-            
-            if self.application.tickPerf < self.store['phases'][1]:
-                if not gameObject.physics:
-                    gameObject.physics = True
-                    self.status = "Dropping..."
-                # No assertion; waiting for it to drop.
-                return
-            
-            if self.application.tickPerf < self.store['phases'][2]:
-                self.assertGreater(self.store['z'], gameObject.worldPosition.z)
-                return
-            
-            self.status = None
-            self.skipTest("Finished")
-        finally:
-            self.application.mainLock.release()
+        while(self.application.tickPerf < phases[2]):
+            with self.tickLock:
+                with self.application.mainLock:
+                    self.assertGreater(zPosition, gameObject.worldPosition.z)

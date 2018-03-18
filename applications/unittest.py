@@ -19,16 +19,20 @@ if __name__ == '__main__':
 # import argparse
 #
 # Module for mathematical operations.
-# https://docs.python.org/3.5/library/math.html
+# https://docs.python.org/3/library/math.html
 from math import radians
 #
 # Module for building paths, which is only used to build a unittest discover
 # path.
-# https://docs.python.org/3.5/library/os.path.html
+# https://docs.python.org/3/library/os.path.html
 import os.path
 #
+# Module for threads and locks.
+# https://docs.python.org/3/library/threading.html#thread-objects
+import threading
+#
 # Unit test module.
-# https://docs.python.org/3.5/library/unittest.html
+# https://docs.python.org/3/library/unittest.html
 import unittest
 #
 # Local imports.
@@ -77,38 +81,194 @@ class TestCaseWithApplication(unittest.TestCase):
     def objectPath(self):
         return ('root','objects', self.id())
     
-    def get_test_object(self):
-        return self.application.get_test_object(self.id())
+    def add_test_object(self):
+        return self.application.add_test_object(self.id())
     
-    @property
-    def status(self):
-        return self._status
-    @status.setter
-    def status(self, status):
-        self._status = status
-        self.application.set_test_text(self.id(), status)
-    
-    @property
-    def store(self):
-        return self.application.get_test_store(self.id()).store
-    
-    def setUp(self):
-        super().setUp()
-        try:
-            skipReason = self.application.skipReasons[self.id()]
-        except KeyError:
-            skipReason = None
-        if skipReason is not None:
-            self.skipTest(skipReason)
-    
-    def skipTest(self, reason):
-        self.application.skipReasons[self.id()] = reason
-        super().skipTest(reason)
+    def show_status(self, message):
+        self.application.show_test_status(self.id(), message)
 
+    @property
+    def tickLock(self):
+        '''Lock that is released every tick.'''
+        return self.application.tick_test_lock(self.id())
+    
+    def run(self, result=None):
+        self.show_status(None)
+        return super().run(result)
+    
     def __init__(self, testCaseName, application):
         self._application = application
-        self._skipReason = None
         super().__init__(testCaseName)
+
+class ThreadTestResult(unittest.TestResult):
+    
+    class TestState(object):
+        def __init__(self):
+            self.lock = threading.Lock()
+            self.stopped = False
+            self.thread = threading.current_thread()
+        
+        @property
+        def threadName(self):
+            if self.thread is None:
+                return None
+            return self.thread.name
+        
+        def __repr__(self):
+            locked = None
+            if self.lock is not None:
+                if self.lock.acquire(False):
+                    locked = False
+                    self.lock.release()
+                else:
+                    locked = True
+            repr = {'locked':locked,
+                    'stopped':self.stopped,
+                    'threadName':self.threadName}
+            return repr.__repr__()
+
+    # Next couple of method overrides do something.
+    def startTest(self, test):
+        with self._lock:
+            self._anyStarted = True
+            identifier = test.id()
+            self._testStates[identifier] = self.TestState()
+            #
+            # Acquire every tick lock before the test can run.
+            self.tick_test_lock(identifier).acquire()
+        return super().startTest(test)
+
+    def stopTest(self, test):
+        with self._lock:
+            self._testStates[test.id()].stopped = True
+        return super().stopTest(test)
+
+    # Remaining method overrides only add a status display and synchronisation.
+    def addError(self, test, err):
+        test.show_status("error")
+        with self._lock:
+            return super().addError(test, err)
+
+    def addFailure(self, test, err):
+        test.show_status("fail")
+        with self._lock:
+            return super().addFailure(test, err)
+
+    def addSuccess(self, test):
+        test.show_status("OK")
+        with self._lock:
+            return super().addSuccess(test)
+
+    def addSkip(self, test, reason):
+        test.show_status("skip")
+        with self._lock:
+            return super().addSkip(test, reason)
+
+    def addExpectedFailure(self, test, err):
+        with self._lock:
+            return super().addExpectedFailure(test, err)
+
+    def addUnexpectedSuccess(self, test):
+        with self._lock:
+            return super().addUnexpectedSuccess(test)
+
+    def addSubTest(self, test, subtest, outcome):
+        with self._lock:
+            return addSubTest(test, subtest, outcome)
+
+    def state(self):
+        with self._lock:
+            return self._testStates
+    
+    def __repr__(self):
+        with self._lock:
+            return super().__repr__()
+    
+    @property
+    def formatted(self):
+        with self._lock:
+            return '\n'.join(
+                ('Passed:{}'.format(
+                        self.testsRun - (len(self.errors)
+                                         + len(self.failures))),) +
+                tuple(
+                    'error[{}] {}\n{}'.format(
+                        index+1, error[0], error[1]
+                    ) for index, error in enumerate(self.errors)) +
+                tuple(
+                    'failure[{}] {}\n{}'.format(
+                        index+1, failure[0], failure[1]
+                    ) for index, failure in enumerate(self.failures)))
+    
+    @property
+    def allStopped(self):
+        with self._lock:
+            if not self._anyStarted:
+                return False
+            for testState in self._testStates.values():
+                if not testState.stopped:
+                    return False
+            return True
+    
+    def tick_test_lock(self, testIdentifier):
+        return self._testStates[testIdentifier].lock
+    
+    def tick_release(self):
+        for testState in self._testStates.values():
+            testState.lock.release()
+    
+    def tick_acquire(self):
+        for testState in self._testStates.values():
+            testState.lock.acquire()
+
+    def finish(self):
+        if not self.allStopped:
+            return False
+        with self._lock:
+            for testState in self._testStates.values():
+                if testState.thread is not None:
+                    testState.thread.join()
+                    testState.thread = None
+            return True
+
+    def __init__(self):
+        super().__init__()
+        self._anyStarted = False
+        self._lock = threading.Lock()
+        self._testStates = {}
+
+# Seems like a good idea to make this a subclass of TextTestRunner, although it
+# doesn't ever call super().
+class ThreadTestRunner(unittest.TextTestRunner):
+    def run(self, suites):
+        #
+        # The result object will manage the test case threads.
+        result = ThreadTestResult()
+        #
+        # Each test will register itself in the result object, in its startTest
+        # call. All this code needs to do is spawn a thread.
+        for suite in suites:
+            for test in suite:
+                for case in test:
+                    threading.Thread(
+                        target=case.run, args=(result,), name=case.id()
+                    ).start()
+
+        # Following code would merge a bunch of TestResult objects together. It
+        # seemed better to implement a TestResult subclass with a lock, i.e. a
+        # thread safe one, which is what's in ThreadTestResult, above.
+        #
+        # result = unittest.TestResult()
+        # for runningTest in runningTests:
+        #     for property_ in (
+        #         'errors', 'failures', 'skipped', 'expectedFailures',
+        #         'unexpectedSuccesses'
+        #     ):
+        #         getattr(result, property_).extend(
+        #             getattr(runningTest.result, property_))
+        #     result.testsRun += runningTest.result.testsRun
+
+        return result
 
 class Application(blender_driver.application.rest.Application):
     templates = {
@@ -121,76 +281,61 @@ class Application(blender_driver.application.rest.Application):
         'banner': {
             'text':"banner", 'location': (0, 0, 4)},
         'status': {
-            'text':"status", 'location': (0, 0, 4),
+            'text':"status", 'location': (0, 0, 0.3),
             'scale':(0.5, 0.5, 0.5)}
     }
     
     banner = None
     terminatePerf = None
-
-    @property
-    def tickNumber(self):
-        return self._tickNumber
     
+    # Proxy for getting the test lock from the TestCase method, which can't
+    # access the results object directly.
+    def tick_test_lock(self, testIdentifier):
+        return self._results.tick_test_lock(testIdentifier)
+
     @property
     def restInterface(self):
         return self._restInterface
     
-    # TestStore is used for persistent storage of data in between unit test
-    # executions.
-    class TestStore:
-        def __init__(self):
-            self.testObject = None
-            self.skipReason = None
-            self.testText = None
-            self.store = {}
-
-            self.offset = 0.0
+    def get_test_offset(self, testIdentifier):
+        path = self._testRootPath + (testIdentifier, 'offset')
+        try:
+            offset = self._restInterface.rest_get(path)
+        except KeyError:
+            offset = self._testObjectOffset
+            self._testObjectOffset += self._testObjectIncrement
+            self._restInterface.rest_put(offset, path)
+        return offset
     
-    def get_test_store(self, testID):
-        if testID not in self._testStore:
-            testStore = self.TestStore()
-            testStore.offset = self._testOffset
-            self._testOffset -= 0.5
-            self._testStore[testID] = testStore
-        return self._testStore[testID]
-    
-    def get_test_object(self, testID):
+    def add_test_object(self, testIdentifier):
         '''Only call after acquiring mainLock.'''
-        testStore = self.get_test_store(testID)
-        created = False
-        if testStore.testObject is None:
-            created = True
-            testObject = self.game_add_object('cube')
-            testObject.worldPosition.x = testStore.offset
-            testObject.worldPosition.y = 4.0
-            testStore.testObject = testObject
-
-        return testStore.testObject, created
+        testObject = self.game_add_object('cube')
+        testObject.worldPosition.x = self.get_test_offset(testIdentifier)
+        testObject.worldPosition.y = 4.0
+        return testObject
     
-    def set_test_text(self, testID, text):
-        statusText = testID if text is None else " ".join((testID, text))
-        testStore = self.get_test_store(testID)
-        if testStore.testText is None:
-            testText = self.game_add_text('status')
-            testText.rotation.x = 0.0
-            testText.worldPosition = (testStore.offset, 0.0, 0.3)
-            testStore.testText = testText
+    def show_test_status(self, testIdentifier, message):
+        path = self._testRootPath + (testIdentifier, 'status')
+        try:
+            status = self._restInterface.rest_get(path)
+        except KeyError:
+            status = self.game_add_text('status')
+            status.rotation.x = 0.0
+            status.worldPosition.x = self.get_test_offset(testIdentifier)
+            self._restInterface.rest_put(status, path)
+        
+        statusText = (testIdentifier if message is None else (
+            " ".join((testIdentifier, message))))
 
         textWidth = self.text_width(statusText) * self._textScale
-        testStore.testText.text = statusText[:]
-        testStore.testText.worldPosition.y = 3.5 - textWidth
+        status.text = statusText[:]
+        status.worldPosition.y = 3.5 - textWidth
     
-    @property
-    def skipReasons(self):
-        return self._skipReasons
-
     # Override.
     def game_initialise(self):
         super().game_initialise()
         
-        self.mainLock.acquire()
-        try:
+        with self.mainLock:
             self.banner = self.game_add_text('banner')
             self.banner.text = "Unit Tests"
             #
@@ -199,53 +344,45 @@ class Application(blender_driver.application.rest.Application):
             # get put in the path store.
             self.game_add_object('floor')
 
-            self._tickNumber = 0
-            self._testStore = {}
-            self._skipReasons = {}
             self._textScale = self.templates['status']['scale'][0]
 
-            self._testOffset = 5.0
-        finally:
-            self.mainLock.release()
+            self._testRootPath = ('root','test')
+
+            self._testObjectOffset = 5.0
+            self._testObjectIncrement = -0.5
+
+            loader = TestLoaderWithApplication(self)
+            suites = loader.discover(
+                os.path.join('applications', 'unittests'), "*.py")
+            self._results = ThreadTestRunner(
+                verbosity=(2 if self.settings['arguments']['verbose'] else 1)
+            ).run(suites)
 
     # Override
     def game_tick_run(self):
         super().game_tick_run()
-        self.mainLock.acquire()
-        try:
-            if self.terminatePerf is None:
-                loader = TestLoaderWithApplication(self)
-                suites = loader.discover(
-                    os.path.join('applications', 'unittests'), "*.py")
-                # for suite in suites:
-                #     for test in suite:
-                #         for case in test:
-                #             print(case, type(case))
-            else:
+        if self.terminatePerf is None:
+            self._results.tick_release()
+
+            with self.mainLock:
+                self.banner.text = (
+                    "Unit Tests\nNow:{:.2f}".format(self.tickPerf))
+
+            if self._results.allStopped:
+                print('Tests stopped at:{:.2f}'.format(self.tickPerf))
+                if self._results.finish():
+                    self.terminatePerf = self.tickPerf + 2.0
+                    print(self._results.formatted)
+                else:
+                    print("Tests couldn't finish"
+                          , self._results, self._results.state)
+
+            self._results.tick_acquire()
+        else:
+            with self.mainLock:
                 if self.tickPerf < self.terminatePerf:
                     self.banner.text = (
-                        "Unit Tests\nEnd:{:.2f} Now:{:.2f}".format(
+                        "Unit Tests End:{:.2f}\nNow:{:.2f}".format(
                             self.terminatePerf, self.tickPerf))
                 else:
                     self.game_terminate()
-        finally:
-            self.mainLock.release()
-
-        if self.terminatePerf is None:
-            results = unittest.TextTestRunner(
-                verbosity=(2 if self.settings['arguments']['verbose'] else 1)
-                # verbosity=2
-            ).run(suites)
-            self.mainLock.acquire()
-            try:
-                # Terminate if any test failed, or there were any errors, or if
-                # all tests skipped, which is how they indicate completion.
-                if (
-                    len(results.errors) + len(results.failures) > 0
-                    or len(results.skipped) >= results.testsRun
-                ):
-                    self.terminatePerf = self.tickPerf + 2.0
-
-                self._tickNumber += 1
-            finally:
-                self.mainLock.release()

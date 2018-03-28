@@ -34,8 +34,8 @@ try:
     # within the Blender Game Engine.
     import bge
 except ImportError as error:
-    print( __doc__ )
-    print( error )
+    print(__doc__)
+    print(error)
     raise
 #
 # Local imports.
@@ -166,5 +166,3 @@ try:
 except:
     terminate_engine()
     raise
-
-print("".join(('Controllers module "', __name__, '" ', str(context))))

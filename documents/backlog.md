@@ -37,8 +37,6 @@ Backlog
 
     https://docs.python.org/3.5/library/collections.html#collections.UserDict
 
--   Fix problem that recording only works with --verbose.
-
 License
 =======
 This file is:  

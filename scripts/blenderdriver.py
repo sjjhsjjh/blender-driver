@@ -58,6 +58,10 @@ import sys
 # https://docs.python.org/3/library/textwrap.html
 import textwrap
 #
+# Module for pretty printing exceptions.
+# https://docs.python.org/3/library/traceback.html#traceback-examples
+from traceback import print_exc
+#
 # Local imports.
 #
 # Window and screen geometry utilities.
@@ -139,8 +143,8 @@ class Main(object):
         self._screenGeometry = WindowGeometry.from_X_display()
         self._terminalGeometry, self._blenderGeometry = self.get_geometries()
         if self._arguments.verbose:
-            print('Screen geometry:', vars(self._screenGeometry))
-            print('Blender geometry:', vars(self._blenderGeometry))
+            print('Screen geometry: {}'.format(vars(self._screenGeometry)))
+            print('Blender geometry: {}'.format(vars(self._blenderGeometry)))
 
     def get_geometries(self):
         """Get sensible geometries for the terminal and blender.
@@ -306,7 +310,7 @@ class Main(object):
         if blenderPath is None:
             if self._arguments.verbose:
                 print(''.join((
-                    'Could not find Blender executable "', blender,
+                    "Couldn't find Blender executable \"", blender,
                     '" on path, nor in:\n\t"',
                     '"\n\t"'.join(directories),
                     '"\nWill rely on path environment.')))
@@ -366,22 +370,30 @@ class Main(object):
         # Start the recorder.
         try:
             if self._arguments.verbose:
-                print(self.argv0, 'Starting recorder:\n\t', '\n\t'.join((
-                    '"'.join(("", _, "")) for _ in recorderCommand)))
+                print(" ".join(
+                    self.argv0, 'Starting recorder:\n\t', '\n\t'.join((
+                    '"'.join(("", _, "")) for _ in recorderCommand))))
                 recorder = subprocess.Popen(recorderCommand)
             else:
+                #
+                # Blender Python doesn't seem to have the subprocess.DEVNULL
+                # constant.
+                # TOTH: https://stackoverflow.com/a/8529412/7657675
+                try:
+                    devnull = subprocess.DEVNULL
+                except AttributeError:
+                    devnull = open(os.devnull, 'wb')
                 #
                 # Not verbose so discard all the recordmydesktop output. It
                 # prints encoding progress to stdout, and messages to
                 # stderr, so both get discarded.
-                recorder = subprocess.Popen(recorderCommand
-                                            , stdout=subprocess.DEVNULL
-                                            , stderr=subprocess.DEVNULL)
+                recorder = subprocess.Popen(
+                    recorderCommand, stdout=devnull, stderr=devnull)
         except Exception as exception:
             print(''.join(("Failed to start recorder."
                            , ' Command line was:\n\t"'
-                           , '"\n\t"'.join(recorderCommand), '"\n'
-                           , str(exception), ".")))
+                           , '"\n\t"'.join(recorderCommand)
+                           , '"')))
             raise
         return recorder
     
@@ -396,8 +408,8 @@ class Main(object):
             popen = subprocess.Popen(command)
         except Exception as exception:
             print(''.join(('Failed to start Blender. Command line was:\n\t"'
-                           , '"\n\t"'.join(command), '"\n'
-                           , str(exception), ".")))
+                           , '"\n\t"'.join(command), '"')))
+            print_exc(file=sys.stderr)
             if self._arguments.blender is None:
                 print("Try specifying an explicit path to the Blender"
                       " executable, with the -B switch.")
@@ -408,7 +420,7 @@ class Main(object):
             recorder = self._start_recorder(popen)
         except Exception as exception:
             popen.terminate()
-            print(exception)
+            print_exc(file=sys.stderr)
             return 1
         #
         # Wait for Blender to finish, so that we can get a return code, and so
@@ -424,11 +436,8 @@ class Main(object):
             print("Stopping recorder and waiting for it to encode...")
             recorder.terminate()
             recorder.wait()
-            recorderMessage = "OK"
-            if recorder.returncode != 0:
-                recorderMessage = "".join((
-                    "Failed: ", str(recorder.returncode), "."))
-            print("Recorder finished.", recorderMessage)
+            print("Recorder finished OK." if recorder.returncode == 0 else
+                  "Recorder failed: {}.".format(recorder.returncode))
         #
         # Return the Blender return code.
         return return_
@@ -451,7 +460,7 @@ class Main(object):
         #
         # Append the Blender command.
         try:
-            call.extend( self._blender_command() )
+            call.extend(self._blender_command())
         except EnvironmentError as error:
             print(error)
             return 2
@@ -472,7 +481,7 @@ class Main(object):
         self._commandLine = commandLine[:]
 
 def main(commandLine):
-    sys.exit( Main(commandLine).main() )
+    sys.exit(Main(commandLine).main())
     
 if __name__ == '__main__':
     main(sys.argv)

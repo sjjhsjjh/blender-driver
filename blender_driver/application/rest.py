@@ -82,7 +82,7 @@ class Application(thread.Application):
     def _process_complete_animations(self, completions):
         '''\
         Override this with custom processing for animations that complete in the
-        game_tick_run(). Input paramter is return value from set_now_times().
+        game_tick_run(). Input parameter is return value from set_now_times().
         Call super to replace completed animation objects with None in the path
         store, for optimisation.
         '''

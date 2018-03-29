@@ -239,7 +239,7 @@ class Application(restanimation.Application):
                 del subject.rotation
         #
         # Chain to the base class implementation which will replace completed
-        # animation objects with None..
+        # animation objects with None.
         super()._process_complete_animations(completions)
 
     # Override.

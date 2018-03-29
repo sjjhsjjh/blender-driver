@@ -165,10 +165,12 @@ class ThreadTestResult(unittest.TestResult):
             return super().addSkip(test, reason)
 
     def addExpectedFailure(self, test, err):
+        test.show_status("expected fail")
         with self._lock:
             return super().addExpectedFailure(test, err)
 
     def addUnexpectedSuccess(self, test):
+        test.show_status("unexpected success")
         with self._lock:
             return super().addUnexpectedSuccess(test)
 

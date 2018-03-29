@@ -167,7 +167,7 @@ class Application(demonstration.Application
             else:
                 animation = PathAnimation()
                 animation.store = self._restInterface.principal
-                animation.path = (objectNumber, 'worldPosition', 2)
+                animation.valuePath = (objectNumber, 'worldPosition', 2)
                 animation.startTime = self.tickPerf
                 
             animation.speed = self.arguments.speed

@@ -160,7 +160,7 @@ class Application(demonstration.Application
             return False
         return True
         
-    def _prepare_animation(self, animation):
+    def _prepare_animation(self, animationDict):
         """Override this."""
         pass
         
@@ -176,32 +176,32 @@ class Application(demonstration.Application
         # Assemble the animation in a dictionary, starting with these.
         animation = {
             'modulo': 0,
-            'path': valuePath,
+            'valuePath': valuePath,
+            'subjectPath': self._objectRootPath + (objectNumber,),
             'speed': 1.0,
-            'userData': {
-                # The userData dictionary is used to manage completed
-                # animations. There can be multiple current animations on an
-                # object, which could complete at different times.
-                #
-                # When the first animation is applied to an object, its physics
-                # must be suspended.
-                # When the last animation on an object has completed, its
-                # physics must be resumed.
-                #
-                # This happens in the _prepare_animation and
-                # _process_complete_animations methods, which are each a pass in
-                # this class, but which are overriden in the cursorphysics
-                # Application class.
-                #
-                # There are two elements in the dictionary.
-                # ['number'] gets the object number. It's used to identify the
-                # target of the animation, and can be compared to other object
-                # numbers quickly.
-                # ['path'] gets the path to the object, which is an input
-                # parameter to the physics suspension and resumption calls.
-                'number': objectNumber,
-                'path': self._objectRootPath + (objectNumber,)
-            }
+            # There can be multiple current animations on an object, which could
+            # complete at different times.
+            #
+            # When the first animation is applied to an object, its physics must
+            # be suspended.
+            # When the last animation on an object has completed, its physics
+            # must be resumed.
+            #
+            # This happens in the _prepare_animation and
+            # _process_complete_animations methods, which are each a pass in
+            # this class, but which are overriden in the cursorphysics
+            # Application class.
+
+            #     #
+            #     # There are two elements in the dictionary.
+            #     # ['number'] gets the object number. It's used to identify the
+            #     # target of the animation, and can be compared to other object
+            #     # numbers quickly.
+            #     # ['path'] gets the path to the object, which is an input
+            #     # parameter to the physics suspension and resumption calls.
+            #     'number': objectNumber,
+            #     'valuePath': self._objectRootPath + (objectNumber,)
+            # }
         }
         #
         # Get the current value.
@@ -246,12 +246,13 @@ class Application(demonstration.Application
         # Assemble the animation in a dictionary, starting with these.
         animation = {
             'modulo': 0,
-            'path': valuePath,
+            'valuePath': valuePath,
+            'subjectPath': self._objectRootPath + (objectNumber,),
             'speed': self.arguments.speed,
-            'userData': {
-                'number': objectNumber,
-                'path': self._objectRootPath + (objectNumber,)
-            }
+            # 'userData': {
+            #     'number': objectNumber,
+            #     'path': self._objectRootPath + (objectNumber,)
+            # }
         }
         #
         # Get the current value.
@@ -298,12 +299,13 @@ class Application(demonstration.Application
         # Assemble the animation in a dictionary, starting with these.
         animation = {
             'modulo': radians(360),
-            'path': valuePath,
+            'valuePath': valuePath,
+            'subjectPath': self._objectRootPath + (objectNumber,),
             'speed': radians(45),
-            'userData': {
-                'number': objectNumber,
-                'path': self._objectRootPath + (objectNumber,)
-            }
+            # 'userData': {
+            #     'number': objectNumber,
+            #     'path': self._objectRootPath + (objectNumber,)
+            # }
         }
         #
         # Get the current value, which will be in radians.

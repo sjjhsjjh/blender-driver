@@ -41,4 +41,4 @@ class TestThread(TestCaseWithApplication):
             pass
         with self.tickLock:
             empty = tuple()
-            indexError = empty[1]
+            indexError = empty[1] # Intended error.

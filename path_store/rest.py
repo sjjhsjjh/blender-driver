@@ -107,28 +107,43 @@ class PathAnimation(Animation):
         self._store = store
     
     @property
-    def path(self):
-        return self._path
-    @path.setter
-    def path(self, path):
-        self._path = path
+    def valuePath(self):
+        return self._valuePath
+    @valuePath.setter
+    def valuePath(self, valuePath):
+        self._valuePath = valuePath
+    
+    @property
+    def subjectPath(self):
+        return self._subjectPath
+    @subjectPath.setter
+    def subjectPath(self, subjectPath):
+        self._subjectPath = subjectPath
+        
+    @property
+    def subject(self):
+        return self._subject
 
     # Override the setter for startTime to get the startValue.
     def _startTimeSetter(self, startTime):
-        self.startValue = pathstore.get(self.store, self.path)
+        self.startValue = pathstore.get(self.store, self.valuePath)
+        if self.subjectPath is not None:
+            self._subject = pathstore.get(self.store, self.subjectPath)
         Animation.startTime.fset(self, startTime)
     startTime = property(Animation.startTime.fget, _startTimeSetter)
 
     # Override the setter for nowTime to apply the animation.
     def _nowTimeSetter(self, nowTime):
         Animation.nowTime.fset(self, nowTime)
-        pathstore.replace(self.store, self.get_value(), self.path)
+        pathstore.replace(self.store, self.get_value(), self.valuePath)
     nowTime = property(Animation.nowTime.fget, _nowTimeSetter)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._store = None
-        self._path = None
+        self._valuePath = None
+        self._subjectPath = None
+        self._subject = None
 
     # It could be handy to cache the parent of the animated point, in order to
     # minimise the number of path descents. However, it might be the case that

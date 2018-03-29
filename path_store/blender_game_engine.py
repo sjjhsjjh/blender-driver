@@ -540,6 +540,7 @@ def get_camera_subclass(bge, GameObject):
             
         @property
         def animationPath(self):
+            '''Where the camera will put tracking animations that it creates.'''
             return self._animationPath
         @animationPath.setter
         def animationPath(self, animationPath):
@@ -567,7 +568,7 @@ def get_camera_subclass(bge, GameObject):
             if (self._subject is None
                 and self._subjectPath is not None
                 and self._restInterface is not None
-                ):
+            ):
                 self._subject = self.restInterface.rest_get(self.subjectPath)
             
             return self._subject
@@ -735,7 +736,7 @@ def get_camera_subclass(bge, GameObject):
                         #
                         # Assemble the animation in a dictionary.
                         animation = {
-                            'path': tuple(self.selfPath) + ('rotation', index),
+                            'valuePath': tuple(self.selfPath) + ('rotation', index),
                             'targetValue': target, 'speed': speed,
                             'modulo': radians(360)
                         }

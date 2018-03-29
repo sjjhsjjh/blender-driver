@@ -12,7 +12,7 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
-# Module for mathematical operations needed to decompose a rotation matrix.
+# Module for mathematical operations, only used for degree to radian conversion.
 # https://docs.python.org/3/library/math.html
 from math import degrees, radians
 #
@@ -45,7 +45,7 @@ class TestAnimation(TestCaseWithApplication):
             # Assemble the animation in a dictionary.
             animation = {
                 'modulo': 0,
-                'path': valuePath,
+                'valuePath': valuePath,
                 'speed': speed,
                 'targetValue': target}
             #
@@ -63,14 +63,27 @@ class TestAnimation(TestCaseWithApplication):
             animationPath.append('startTime')
             self.restInterface.rest_put(
                 self.application.tickPerf, animationPath)
+            del animationPath[-1]
         
         while(self.application.tickPerf < phases[1]):
             with self.tickLock:
                 with self.application.mainLock:
                     if self.application.tickPerf < phases[0]:
+                        #
+                        # Check object hasn't reached its destination.
                         self.assertLess(gameObject.worldPosition.z, target)
+                        #
+                        # Check animation is still in progress.
+                        self.assertIsNotNone(
+                            self.restInterface.rest_get(animationPath))
                     else:
+                        #
+                        # Check object has reached its destination.
                         self.assertAlmostEqual(gameObject.worldPosition.z, target)
+                        #
+                        # Check animation has been discarded.
+                        self.assertIsNone(
+                            self.restInterface.rest_get(animationPath))
         
         with self.application.mainLock:
             # Next line makes the object fall away, which is nice.

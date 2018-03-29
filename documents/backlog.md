@@ -1,12 +1,15 @@
 Backlog
 =======
 
+-   Move animation prepare into the point maker maybe.
+
 -   Unit tests for animation in blender driver applications. Including:
 
-    -   Animation works.
-    -   Animation objects get set to None in the path store.
     -   Physics gets suspended and resumed.
     -   Get rid of the logging.
+
+-   Add a unit test for Blender Python not having the subprocess.DEVNULL
+    constant.
 
 -   See about moving prepare animation and suspend restore into the core
     application classes. Maybe a physics.py server on top of rest.py

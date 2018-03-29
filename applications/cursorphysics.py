@@ -192,8 +192,13 @@ class Application(restanimation.Application):
     
     def _process_complete_animations(self, completions):
         for path, completed in completions:
-            userData = completed.userData
-            log(DEBUG, 'Complete "{}" {}', path, userData)
+            subject = completed.subject
+
+            if subject is None:
+                continue
+            
+            # userData = completed.userData
+            # log(DEBUG, 'Complete "{}" {}', path, userData)
             #
             # Check if there are still other animations going on for this
             # object.
@@ -203,16 +208,18 @@ class Application(restanimation.Application):
                 pass
             checkResults = Results()
             checkResults.still = False
-            checkResults.userData = userData
+            # checkResults.userData = userData
+            checkResults.subject = subject
             #
             # Checking subroutine that can be passed to walk().
             def check(point, path, results):
                 if point is None:
                     return
-                otherData = point.userData
+                # otherData = point.userData
                 if (
-                    otherData is not None and results.userData is not None
-                    and otherData['number'] == results.userData['number']
+                    # otherData is not None and results.userData is not None
+                    # and otherData['number'] == results.userData['number']
+                    point.subject is results.subject
                     and not point.complete
                 ):
                     results.still = True
@@ -222,16 +229,18 @@ class Application(restanimation.Application):
             #
             # If there are no other animations: restore physics to the
             # object and reset its rotation overrides.
-            if not checkResults.still and userData is not None:
-                objectPath = list(userData['path'])
-                objectPath.append('physics')
-                self._restInterface.rest_put(True, objectPath)
-                objectPath[-1] = 'rotation'
-                self._restInterface.rest_put(None, objectPath)
-            #
-            # Discard the completed animation object, so that the above and
-            # other loops can run faster.
-            self._restInterface.rest_put(None, path)
+            if not checkResults.still: # and userData is not None:
+                # objectPath = list(userData['path'])
+                # objectPath.append('physics')
+                # self._restInterface.rest_put(True, objectPath)
+                # objectPath[-1] = 'rotation'
+                # self._restInterface.rest_put(None, objectPath)
+                subject.physics = True
+                del subject.rotation
+        #
+        # Chain to the base class implementation which will replace completed
+        # animation objects with None..
+        super()._process_complete_animations(completions)
 
     # Override.
     def game_tick_run(self):
@@ -322,7 +331,8 @@ class Application(restanimation.Application):
             raise ValueError()
         #
         # Assemble the animation in a dictionary, starting with this.
-        animation = {'path': valuePath}
+        # There is no subjectPath because the camera doesn't get physics.
+        animation = {'valuePath': valuePath}
         #
         # Set a target value, if needed.
         if direction == 0:
@@ -371,9 +381,11 @@ class Application(restanimation.Application):
         # subject has moved every tick anyway.
     
     # Override.
-    def _prepare_animation(self, animation):
+    def _prepare_animation(self, animationDict):
         # Override the animation preparation to do things needed when there is
         # Physics.
-        path = list(animation['userData']['path'])
-        path.append('physics')
-        self._restInterface.rest_put(False, path)
+        subjectPath = animationDict['subjectPath']
+        if subjectPath is not None:
+            path = list(subjectPath)
+            path.append('physics')
+            self._restInterface.rest_put(False, path)

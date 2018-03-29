@@ -10,7 +10,11 @@ if __name__ == '__main__':
     print(__doc__)
     raise SystemExit(1)
 
-# Standard library imports would go here, in alphabetic order.
+# Standard library imports, in alphabetic order.
+#
+# Unit test module.
+# https://docs.python.org/3/library/unittest.html
+import unittest
 #
 # Local imports.
 #
@@ -23,4 +27,4 @@ class TestThreadClass(TestCaseWithApplication):
         with self.application.mainLock:
             pass
         with self.tickLock:
-            self.assertTrue(False)
+            self.assertTrue(False) # Intended fail.

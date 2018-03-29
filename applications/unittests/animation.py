@@ -46,6 +46,7 @@ class TestAnimation(TestCaseWithApplication):
             animation = {
                 'modulo': 0,
                 'valuePath': valuePath,
+                # 'subjectPath': self.objectPath,
                 'speed': speed,
                 'targetValue': target}
             #

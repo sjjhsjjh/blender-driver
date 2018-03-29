@@ -129,6 +129,9 @@ class PathAnimation(Animation):
         self.startValue = pathstore.get(self.store, self.valuePath)
         if self.subjectPath is not None:
             self._subject = pathstore.get(self.store, self.subjectPath)
+            #
+            # Next line will switch off physics.
+            self._subject.beingAnimated = True
         Animation.startTime.fset(self, startTime)
     startTime = property(Animation.startTime.fget, _startTimeSetter)
 
@@ -184,6 +187,42 @@ class AnimatedRestInterface(RestInterface):
 
         return super().point_maker(path, index, point)
     
+    def _process_completed_animations(self, completions):
+        # Empty class for results.
+        class Results:
+            pass
+
+        for path, completed in completions:
+            #
+            # Replace completed animation objects with None in the path
+            # store, for optimisation.
+            self.rest_put(None, path)
+            
+            subject = completed.subject
+            if subject is None:
+                continue
+            #
+            # Check if there are still other animations going on for this
+            # object.
+            #
+            checkResults = Results()
+            checkResults.still = False
+            checkResults.subject = subject
+            #
+            # Checking subroutine that can be passed to walk().
+            def check(point, path, results):
+                if point is None:
+                    return
+                if point.subject is results.subject and not point.complete:
+                    results.still = True
+                    raise StopIteration
+            self.rest_walk(check, 'animations', checkResults)
+            #
+            # If there are no other animations: restore physics to the subject
+            # and reset its rotation overrides.
+            if not checkResults.still:
+                subject.beingAnimated = False
+
     def set_now_times(self, nowTime):
         '''\
         Applies nowTime to everything under the 'animations' path.
@@ -229,6 +268,11 @@ class AnimatedRestInterface(RestInterface):
         if setResults.anyCompletions:
             log(INFO, "Animations:{} {}.", error, setResults.completionsLog)
         
+        # In theory, the processing in the following could be done in the
+        # previous walk. However, it seemed a bit hazardous to kick off a walk
+        # within a walk.
+        self._process_completed_animations(setResults.completions)
+
         return setResults.completions
 
 # Do:

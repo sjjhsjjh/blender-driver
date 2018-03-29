@@ -79,17 +79,6 @@ class Application(thread.Application):
         self._Camera = get_camera_subclass(self.bge, self._GameObject)
         self._GameText = get_game_text_subclass(self.bge, self._GameObject)
 
-    def _process_complete_animations(self, completions):
-        '''\
-        Override this with custom processing for animations that complete in the
-        game_tick_run(). Input parameter is return value from set_now_times().
-        Call super to replace completed animation objects with None in the path
-        store, for optimisation.
-        '''
-        for path, completed in completions:
-            self._restInterface.rest_put(None, path)
-
-
     # Override.
     def game_tick_run(self):
         super().game_tick_run()
@@ -97,14 +86,12 @@ class Application(thread.Application):
         try:
             # Call the shortcut to set current time into all the current
             # animations, which makes them animate in the scene.
-            self._process_complete_animations(
-                self._restInterface.set_now_times(self.tickPerf))
+            self._restInterface.set_now_times(self.tickPerf)
             #
             # Update all cursors, by updating all physics objects.
             def update(point, path, results):
-                if point is None:
-                    return
-                point.update()
+                if point is not None:
+                    point.update()
             self._restInterface.rest_walk(update, self._objectRootPath)
 
         finally:

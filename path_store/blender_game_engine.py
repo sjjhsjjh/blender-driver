@@ -118,6 +118,27 @@ def get_game_object_subclass(bge):
                 self.restoreDynamics()
             else:
                 self.suspendDynamics(True)
+        
+        # There can be multiple current animations on an object, which could
+        # complete at different times.
+        #
+        # When the first animation is applied to an object, its physics must be
+        # suspended.
+        # When the last animation on an object has completed, its physics must
+        # be resumed.
+
+        @property
+        def beingAnimated(self):
+            return self._beingAnimated
+        @beingAnimated.setter
+        def beingAnimated(self, beingAnimated):
+            wasAnimated = self._beingAnimated
+            if beingAnimated and not wasAnimated:
+                self.physics = False
+            elif wasAnimated and not beingAnimated:
+                self.physics = True
+                del self.rotation[:]
+            self._beingAnimated = beingAnimated
 
         @property
         def rotation(self):
@@ -147,6 +168,7 @@ def get_game_object_subclass(bge):
         def __init__(self, oldOwner):
             self._rotation = Rotation(self)
             self._tether = None
+            self._beingAnimated = False
 
     return GameObject
         

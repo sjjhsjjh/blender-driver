@@ -209,7 +209,7 @@ class TestGameObject(TestCaseWithApplication):
             gameObject.physics = True
             self.show_status("Dropping...")
             # No assertion; waiting for it to drop.
-        while(self.application.tickPerf < phases[1]):
+        while(self.application.tickPerf <= phases[1]):
             with self.tickLock:
                 pass
             

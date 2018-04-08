@@ -15,6 +15,12 @@ if __name__ == '__main__':
 # Module for mathematical operations needed to decompose a rotation matrix.
 # https://docs.python.org/3/library/math.html
 from math import degrees, radians
+
+
+# https://docs.python.org/3/library/threading.html
+import threading
+
+
 #
 # Local imports.
 #
@@ -140,7 +146,7 @@ class TestGameObject(TestCaseWithApplication):
             degreesMax = 720.0
 
         while xDegrees < degreesMax:
-            with self.tickLock:
+            with self.tick:
                 # This can run quite lumpy. It isn't supposed to be smooth; it's
                 # supposed to test that setting the X rotation doesn't change
                 # the Y and Z rotations.
@@ -190,6 +196,7 @@ class TestGameObject(TestCaseWithApplication):
             gameObject.physics = True
     
     def test_physics(self):
+        lastTick = None
         with self.application.mainLock:
             gameObject = self.add_test_object()
     
@@ -200,20 +207,36 @@ class TestGameObject(TestCaseWithApplication):
                       self.application.tickPerf + 3.0)
             zPosition = gameObject.worldPosition.z
         
-        while(self.application.tickPerf < phases[0]):
-            with self.tickLock:
+        while self.application.tickPerf < phases[0]:
+            with self.tick:
                 with self.application.mainLock:
                     self.assertEqual(zPosition, gameObject.worldPosition.z)
         
-        with self.application.mainLock:
-            gameObject.physics = True
-            self.show_status("Dropping...")
-            # No assertion; waiting for it to drop.
-        while(self.application.tickPerf <= phases[1]):
-            with self.tickLock:
+        with self.tick:
+            with self.application.mainLock:
+                gameObject.physics = True
+                self.show_status("Dropping...")
+                # No assertion; waiting for it to drop.
+        while self.application.tickPerf <= phases[1]:
+            with self.tick:
                 pass
-            
-        while(self.application.tickPerf < phases[2]):
-            with self.tickLock:
-                with self.application.mainLock:
-                    self.assertGreater(zPosition, gameObject.worldPosition.z)
+
+        with self.tick:
+            lastTick = self.application.tickPerf
+        while self.application.tickPerf < phases[2]:
+            with self.tick:
+                if self.application.tickPerf - lastTick >= 0.05:
+                    with self.application.mainLock:
+                        # print(gameObject.worldPosition.z, tickTime
+                        #       , self.application.tickPerf
+                        #       , threading.currentThread().name
+                        #       , threading.get_ident())
+                        # Check that its z position is falling every tick.
+                        self.assertLess(
+                            gameObject.worldPosition.z, zPosition
+                            , "{:.4f} {:.4f} {:.4f}".format(
+                                lastTick, self.application.tickPerf
+                                , self.application.tickPerf - lastTick))
+                        zPosition = gameObject.worldPosition.z
+                        self.assertGreater(self.application.tickPerf, lastTick)
+                    lastTick = self.application.tickPerf

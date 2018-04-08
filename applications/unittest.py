@@ -28,8 +28,12 @@ from math import radians
 import os.path
 #
 # Module for threads and locks.
-# https://docs.python.org/3/library/threading.html#thread-objects
+# https://docs.python.org/3/library/threading.html
 import threading
+#
+# Module for pretty printing exceptions.
+# https://docs.python.org/3/library/traceback.html
+import traceback
 #
 # Unit test module.
 # https://docs.python.org/3/library/unittest.html
@@ -88,11 +92,12 @@ class TestCaseWithApplication(unittest.TestCase):
         self.application.show_test_status(self.id(), message)
 
     @property
-    def tickLock(self):
-        '''Lock that is released every tick.'''
-        return self.application.tick_test_lock(self.id())
+    def tick(self):
+        '''Context manager for each game tick.'''
+        return self.application.worker(self.id())
     
     def run(self, result=None):
+        # mainLock cannot be acquired here.
         self.show_status(None)
         return super().run(result)
     
@@ -102,51 +107,152 @@ class TestCaseWithApplication(unittest.TestCase):
 
 class ThreadTestResult(unittest.TestResult):
     
-    class TestState(object):
-        def __init__(self):
-            self.lock = threading.Lock()
-            self.stopped = False
-            self.thread = threading.current_thread()
+    class Worker:
+        def __init__(self, scheduler):
+            self._scheduler = scheduler
+            self._state = True
+            self._lock = threading.Lock()
+            self._thread = threading.current_thread()
         
         @property
-        def threadName(self):
-            if self.thread is None:
-                return None
-            return self.thread.name
+        def state(self):
+            return self._state
+        @state.setter
+        def state(self, state):
+            self._state = state
+            
+        @property
+        def thread(self):
+            return self._thread
+        @thread.setter
+        def thread(self, thread):
+            self._thread = thread
+        
+        @property
+        def lock(self):
+            return self._lock
         
         def __repr__(self):
             locked = None
-            if self.lock is not None:
-                if self.lock.acquire(False):
+            if self._lock is not None:
+                if self._lock.acquire(False):
                     locked = False
-                    self.lock.release()
+                    self._lock.release()
                 else:
                     locked = True
             repr = {'locked':locked,
-                    'stopped':self.stopped,
+                    'state':self._state,
                     'threadName':self.threadName}
             return repr.__repr__()
+        
+        # Context Manager implementation
+        # https://docs.python.org/3/reference/datamodel.html#object.__enter__
+        def __enter__(self):
+            # print("Worker", self.thread, "Enter", 0)
+            self._lock.release()
+            # print("Worker", self.thread, "Enter", 1)
+            self._scheduler.event.wait()
+            # print("Worker", self.thread, "Enter", 2)
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            # print("Worker", self.thread, "Exit", 0)
+            self._lock.acquire()
+            # print("Worker", self.thread, "Exit", 1)
+            self._scheduler.barrier.wait()
+            # print("Worker", self.thread, "Exit", 2)
+            return False
+    
+        @property
+        def threadName(self):
+            if self._thread is None:
+                return None
+            return self._thread.name
+    
+    class Scheduler:
+        def __init__(self, lock, workers):
+            self._workers = workers
+            self._lock = lock
+            
+            self._barrier = threading.Barrier(1)
+            # Next line should prevent any worker from waiting before the
+            # barrier has been set up with the correct number of parties.
+            self._barrier.abort()
+            
+            self._event = threading.Event()
+            self._event.clear()
+
+        @property
+        def event(self):
+            return self._event
+        
+        @property
+        def barrier(self):
+            return self._barrier
+        
+        def start_barrier(self, tests):
+            if self._barrier.parties == tests + 1:
+                self._barrier.reset()
+            else:
+                self._barrier = threading.Barrier(tests + 1)
+            return self._barrier
+        
+        def abort(self):
+            self._barrier.abort()
+            self._event.set()
+        
+        # Context Manager implementation
+        # https://docs.python.org/3/reference/datamodel.html#object.__enter__
+        def __enter__(self):
+            # print("Scheduler", "Enter", 0)
+            running = 0
+            # print("Scheduler", "Enter", 1)
+            for worker in self._workers.values():
+                worker.lock.acquire()
+                if worker.state:
+                    running += 1
+                else:
+                    if worker.thread is not None:
+                        worker.thread.join()
+                        worker.thread = None
+            # print("Scheduler", "Enter", 2, running)
+            self.start_barrier(running)
+            self._event.set()
+            for worker in self._workers.values():
+                worker.lock.release()
+            self._event.clear()
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            # print("Scheduler", "Exit", 0)
+            self._barrier.wait()
+            # print("Scheduler", "Exit", 1)
+            return False
 
     # Next couple of method overrides do something.
     def startTest(self, test):
         with self._lock:
             self._anyStarted = True
-            identifier = test.id()
-            self._testStates[identifier] = self.TestState()
-            #
-            # Acquire every tick lock before the test can run.
-            self.tick_test_lock(identifier).acquire()
-        return super().startTest(test)
+            worker = self.Worker(self._scheduler)
+            worker.lock.acquire()
+            self._workers[test.id()] = worker
+        self._scheduler.barrier.wait()
+        with self._lock:
+            return super().startTest(test)
 
     def stopTest(self, test):
+        # print(test.id(), "stopTest")
         with self._lock:
-            self._testStates[test.id()].stopped = True
-        return super().stopTest(test)
+            worker = self._workers[test.id()]
+            worker.state = False
+            worker.lock.release()
+            return super().stopTest(test)
 
     # Remaining method overrides only add a status display and synchronisation.
     def addError(self, test, err):
         test.show_status("error")
         with self._lock:
+            # traceback.print_exception(*err)
             return super().addError(test, err)
 
     def addFailure(self, test, err):
@@ -180,7 +286,7 @@ class ThreadTestResult(unittest.TestResult):
 
     def state(self):
         with self._lock:
-            return self._testStates
+            return self._workers
     
     def __repr__(self):
         with self._lock:
@@ -203,41 +309,28 @@ class ThreadTestResult(unittest.TestResult):
                     ) for index, failure in enumerate(self.failures)))
     
     @property
+    def scheduler(self):
+        return self._scheduler
+    
+    @property
     def allStopped(self):
         with self._lock:
             if not self._anyStarted:
                 return False
-            for testState in self._testStates.values():
-                if not testState.stopped:
+            for worker in self._workers.values():
+                if worker.state:
                     return False
             return True
     
-    def tick_test_lock(self, testIdentifier):
-        return self._testStates[testIdentifier].lock
+    def worker(self, testIdentifier):
+        return self._workers[testIdentifier]
     
-    def tick_release(self):
-        for testState in self._testStates.values():
-            testState.lock.release()
-    
-    def tick_acquire(self):
-        for testState in self._testStates.values():
-            testState.lock.acquire()
-
-    def finish(self):
-        if not self.allStopped:
-            return False
-        with self._lock:
-            for testState in self._testStates.values():
-                if testState.thread is not None:
-                    testState.thread.join()
-                    testState.thread = None
-            return True
-
     def __init__(self):
         super().__init__()
         self._anyStarted = False
         self._lock = threading.Lock()
-        self._testStates = {}
+        self._workers = {}
+        self._scheduler = self.Scheduler(self._lock, self._workers)
 
 # Seems like a good idea to make this a subclass of TextTestRunner, although it
 # doesn't ever call super().
@@ -249,12 +342,20 @@ class ThreadTestRunner(unittest.TextTestRunner):
         #
         # Each test will register itself in the result object, in its startTest
         # call. All this code needs to do is spawn a thread.
+        threads = []
         for suite in suites:
             for test in suite:
                 for case in test:
-                    threading.Thread(
-                        target=case.run, args=(result,), name=case.id()
-                    ).start()
+                    threads.append(threading.Thread(
+                        target=case.run, args=(result,), name=case.id()))
+        # print("ThreadTestRunner", len(threads))
+        barrier = result.scheduler.start_barrier(len(threads))
+        for index, thread in enumerate(threads):
+            # print("ThreadTestRunner", index)
+            thread.start()
+        # print("ThreadTestRunner", "Waiting...")
+        barrier.wait()
+        # print("ThreadTestRunner", "Waited")
 
         # Following code would merge a bunch of TestResult objects together. It
         # seemed better to implement a TestResult subclass with a lock, i.e. a
@@ -277,9 +378,6 @@ class Application(blender_driver.application.rest.Application):
         'cube': {
             'subtype':'Cube', 'physicsType':'RIGID_BODY',
             'location': (-4.0, -4.0, 4), 'scale':(0.25, 0.25, 0.25)},
-        'floor': {
-            'subtype':'Cube', 'physicsType':'STATIC',
-            'location': (0, 0, 0), 'scale': (10, 10, 0.1)},
         'banner': {
             'text':"banner", 'location': (0, 0, 4)},
         'status': {
@@ -288,12 +386,11 @@ class Application(blender_driver.application.rest.Application):
     }
     
     banner = None
-    terminatePerf = None
     
     # Proxy for getting the test lock from the TestCase method, which can't
     # access the results object directly.
-    def tick_test_lock(self, testIdentifier):
-        return self._results.tick_test_lock(testIdentifier)
+    def worker(self, testIdentifier):
+        return self._results.worker(testIdentifier)
 
     @property
     def restInterface(self):
@@ -317,6 +414,7 @@ class Application(blender_driver.application.rest.Application):
         return testObject
     
     def show_test_status(self, testIdentifier, message):
+        '''Only call if mainLock has been acquired.'''
         path = self._testRootPath + (testIdentifier, 'status')
         try:
             status = self._restInterface.rest_get(path)
@@ -335,16 +433,13 @@ class Application(blender_driver.application.rest.Application):
     
     # Override.
     def game_initialise(self):
+        self._results = None
+        self._terminatePerf = None
         super().game_initialise()
         
         with self.mainLock:
             self.banner = self.game_add_text('banner')
             self.banner.text = "Unit Tests"
-            #
-            # Add the floor object, which is handy to stop objects dropping out
-            # of sight due to gravity. No need to access it later, so it doesn't
-            # get put in the path store.
-            self.game_add_object('floor')
 
             self._textScale = self.templates['status']['scale'][0]
 
@@ -359,32 +454,37 @@ class Application(blender_driver.application.rest.Application):
             self._results = ThreadTestRunner(
                 verbosity=(2 if self.settings['arguments']['verbose'] else 1)
             ).run(suites)
+            print("Number of threads:{}.".format(threading.active_count()))
+
+    # Override
+    def game_terminate(self):
+        if self._terminatePerf is None and self._results is not None:
+            # An error must have occurred.
+            self._results.scheduler.abort()
+        if self._results is not None:
+            print(self._results.formatted)
+        super().game_terminate()
 
     # Override
     def game_tick_run(self):
         super().game_tick_run()
-        if self.terminatePerf is None:
-            self._results.tick_release()
-
-            with self.mainLock:
-                self.banner.text = (
-                    "Unit Tests\nNow:{:.2f}".format(self.tickPerf))
-
-            if self._results.allStopped:
-                print('Tests stopped at:{:.2f}'.format(self.tickPerf))
-                if self._results.finish():
-                    self.terminatePerf = self.tickPerf + 2.0
-                    print(self._results.formatted)
-                else:
-                    print("Tests couldn't finish"
-                          , self._results, self._results.state)
-
-            self._results.tick_acquire()
+        if self._terminatePerf is None:
+            with self._results.scheduler:
+                with self.mainLock:
+                    self.banner.text = (
+                        "Unit Tests\nNow:{:.2f}".format(self.tickPerf))
+                if self._results.allStopped:
+                    print('Tests stopped at:{:.2f}'.format(self.tickPerf))
+                    self._terminatePerf = self.tickPerf + 2.0
         else:
             with self.mainLock:
-                if self.tickPerf < self.terminatePerf:
+                if self.tickPerf < self._terminatePerf:
                     self.banner.text = (
                         "Unit Tests End:{:.2f}\nNow:{:.2f}".format(
-                            self.terminatePerf, self.tickPerf))
+                            self._terminatePerf, self.tickPerf))
                 else:
                     self.game_terminate()
+
+    def tick_skipped(self):
+        if self.skippedTicks > 10:
+            print("Skipped ticks:{:d}.".format(self.skippedTicks))

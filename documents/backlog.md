@@ -1,22 +1,17 @@
 Backlog
 =======
 
--   Move animation prepare into the point maker maybe.
-
 -   Unit tests for animation in blender driver applications. Including:
 
-    -   Physics gets suspended and resumed.
     -   Get rid of the logging.
+
+-   Boost phases to a property of the custom TestCase subclass.
+
+-   Boost elapsed time between ticks to be in the custom TestCase subclass.
 
 -   Add a unit test for Blender Python not having the subprocess.DEVNULL
     constant.
 
--   See about moving prepare animation and suspend restore into the core
-    application classes. Maybe a physics.py server on top of rest.py
-    
-    Replace the userData number matching with a reference to the object, in
-    rest.py PathAnimation class. It could be set by the startTime setter.
-    
 -   Uplift path store blender game engine into a sub-package.
 
 -   Check if suspend and restore Physics works and can be called on non-physics

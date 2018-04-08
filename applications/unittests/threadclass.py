@@ -26,5 +26,5 @@ class TestThreadClass(TestCaseWithApplication):
     def test_thread_fail(self):
         with self.application.mainLock:
             pass
-        with self.tickLock:
-            self.assertTrue(False) # Intended fail.
+        with self.tick:
+            self.assertTrue(False, "Intended fail.")

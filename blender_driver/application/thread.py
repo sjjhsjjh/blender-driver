@@ -13,22 +13,22 @@ if __name__ == '__main__':
 # Standard library imports, in alphabetic order.
 #
 # Module for command line switches.
-# https://docs.python.org/3.5/library/argparse.html
+# https://docs.python.org/3/library/argparse.html
 # The import isn't needed because this class uses the base class to get an
 # object.
 # import argparse
 #
 # Module for levelled logging messages.
-# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
-# Reference is here: https://docs.python.org/3.5/library/logging.html
+# Tutorial is here: https://docs.python.org/3/howto/logging.html
+# Reference is here: https://docs.python.org/3/library/logging.html
 from logging import DEBUG, INFO, WARNING, ERROR, log
 #
 # This module uses Thread and Lock classes.
-# https://docs.python.org/3.4/library/threading.html#thread-objects
+# https://docs.python.org/3/library/threading.html
 import threading
 #
 # Module for perf_counter.
-# https://docs.python.org/3.5/library/time.html
+# https://docs.python.org/3/library/time.html
 import time
 #
 # Local imports.
@@ -43,7 +43,7 @@ class Application(base.Application):
         return self._mainLock
     
     def terminating(self):
-        """
+        """\
         Check whether the application is being terminated. To be super-safe,
         only call this after acquiring mainLock.
         """
@@ -86,7 +86,8 @@ class Application(base.Application):
 
     # Override.
     def game_tick(self):
-        """Method that is invoked on every tick in the Blender Game Engine.
+        """\
+        Method that is invoked on every tick in the Blender Game Engine.
         Don't override; implement game_tick_run() instead.
         """
         #
@@ -111,8 +112,7 @@ class Application(base.Application):
         if self._tickLock.acquire(False):
             try:
                 self._skippedTicks = 0
-                try:
-                    self.mainLock.acquire()
+                with self.mainLock:
                     if self.terminating():
                         log(INFO, "_run_with_tick_lock terminating.")
                         return
@@ -120,8 +120,6 @@ class Application(base.Application):
                     # Reference time for this tick.
                     self._tickPerf = (
                         time.perf_counter() - self._gameInitialisePerf)
-                finally:
-                    self.mainLock.release()
                 run()
             except Exception as exception:
                 # Catch the exception here and put it into a shared place.
@@ -134,10 +132,17 @@ class Application(base.Application):
                     "Non-Exception raised in _run_with_tick_lock")
             finally:
                 self._tickLock.release()
-            return
-            
-        self._skippedTicks += 1
-        self.tick_skipped()
+        else:
+            try:
+                self._skippedTicks += 1
+                self.tick_skipped()
+            except Exception as exception:
+                with self._tickLock:
+                    self._tickRaise = exception
+            except:
+                with self._tickLock:
+                    self._tickRaise = Exception(
+                        "Non-Exception raised in tick_skipped")
         
     def game_tick_run(self):
         """\

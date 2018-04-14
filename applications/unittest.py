@@ -348,8 +348,15 @@ class ThreadTestRunner(unittest.TextTestRunner):
                 for case in test:
                     threads.append(threading.Thread(
                         target=case.run, args=(result,), name=case.id()))
-        # print("ThreadTestRunner", len(threads))
+        
+        # It might be better to initialise the barrier based on:
+        # suites.countTestCases()
+        # However, at the point that I realised that, it was working as it is
+        # now and I didn't want to touch it. If the barrier was initialised
+        # before the loop, the start() calls could be in the loop instead of
+        # below.
         barrier = result.scheduler.start_barrier(len(threads))
+
         for index, thread in enumerate(threads):
             # print("ThreadTestRunner", index)
             thread.start()

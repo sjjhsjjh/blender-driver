@@ -159,11 +159,14 @@ class TestGameObject(TestCaseWithApplication):
                         gameObject.rotation.x = xRadians
                         self.assertEqual(xRadians, gameObject.rotation.x)
                         self.assertEqual(
-                            xRadians, pathstore.get(gameObject, ('rotation', 0)))
+                            xRadians
+                            , pathstore.get(gameObject, ('rotation', 0)))
                         self.assertEqual(
-                            xRadians, pathstore.get(gameObject, ('rotation', 'x')))
+                            xRadians
+                            , pathstore.get(gameObject, ('rotation', 'x')))
                         self.assertEqual(0, gameObject.rotation.y)
-                        self.assertEqual(0, pathstore.get(gameObject, ('rotation', 1)))
+                        self.assertEqual(
+                            0, pathstore.get(gameObject, ('rotation', 1)))
                         self.assertEqual(
                             0, pathstore.get(gameObject, ('rotation', 'y')))
                         self.assertEqual(0, gameObject.rotation.z)

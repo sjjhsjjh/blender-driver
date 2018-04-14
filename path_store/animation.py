@@ -12,10 +12,6 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
-# Module for enum type.
-# https://docs.python.org/3.5/library/enum.html
-from enum import Enum
-#
 # Module for mathematical operations, used by angular animation.
 # https://docs.python.org/3.5/library/math.html
 from math import fmod

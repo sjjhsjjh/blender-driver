@@ -25,7 +25,7 @@ class Animation(object):
     @startTime.setter
     def startTime(self, startTime):
         self._startTime = startTime
-        self._complete = False
+        self._completeTime = None
     
     @property
     def startValue(self):
@@ -33,7 +33,7 @@ class Animation(object):
     @startValue.setter
     def startValue(self, startValue):
         self._startValue = startValue
-        self._complete = False
+        self._completeTime = None
     
     @property
     def nowTime(self):
@@ -55,7 +55,7 @@ class Animation(object):
     @targetValue.setter
     def targetValue(self, targetValue):
         self._targetValue = targetValue
-        self._complete = False
+        self._completeTime = None
         
     @property
     def userData(self):
@@ -77,12 +77,19 @@ class Animation(object):
     @modulo.setter
     def modulo(self, modulo):
         self._modulo = modulo
-        self._complete = False
+        self._completeTime = None
     
     @property
     def complete(self):
         """True if the animation has reached its target, or False otherwise."""
-        return self._complete
+        return self._completeTime is not None
+        
+    @property
+    def completionTime(self):
+        """\
+        The nowTime value from when the animation reached its target, or None.
+        """
+        return self._completeTime
         
     # This is unused in the current programming interface, and hence commented
     # out.
@@ -91,7 +98,7 @@ class Animation(object):
     #     return (self.nowTime - self.startTime) * self._speed
     
     # Next thing isn't a property because getting its value has a side effect:
-    # the complete flag could be set.
+    # the completion time could be set.
     def get_value(self):
         """\
         Get the animated value be, based on all the following.
@@ -102,8 +109,8 @@ class Animation(object):
         -   Speed.
         -   Target value, if specified.
         
-        If there is a target value, and it has been reached, sets the complete
-        flag.
+        If there is a target value, and it has been reached, sets the completion
+        time.
         """
         #
         # Convenience variables.
@@ -146,7 +153,7 @@ class Animation(object):
                     or (start >= target and nowValue <= target)
                 ):
                     nowValue = target
-                    self._complete = True
+                    self._completeTime = self.nowTime
             else:
                 adjustedStart = fmod(start - target, modulo)
                 if adjustedStart < 0.0:
@@ -161,7 +168,7 @@ class Animation(object):
                     or (increment < 0.0 and adjustedNow >= adjustedStart)
                 ):
                     nowValue = target
-                    self._complete = True
+                    self._completeTime = self.nowTime
         return nowValue
 
     def __init__(self):
@@ -174,4 +181,4 @@ class Animation(object):
         self._nowTime = None
         self._targetValue = None
 
-        self._complete = False
+        self._completeTime = None

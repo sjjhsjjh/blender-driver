@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# (c) 2017 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
+# (c) 2018 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 """Utility layer on the main Blender Python programming interface. This isn't
 the utilities for the Blender Game Engine.
@@ -89,7 +89,7 @@ starts.
             driver, controllersPackage, arguments.controllersModule,
             ('initialise', 'tick', 'keyboard'))
     log(DEBUG, 'controllers {}.', vars(controllers))
-    configure_gateway(driverGateway, controllers)
+    configure_gateway(driverGateway, controllers, driver.tickInterval)
     #
     # Put a collection of configuration settings into one or more game
     # properties. The collection gets read from there by the
@@ -208,7 +208,7 @@ def get_controllers(driver, packageName, moduleName, controllers):
     driver.diagnostic_remove_controllers(return_)
     return return_
 
-def configure_gateway(driver, controllers):
+def configure_gateway(driverGateway, controllers, tickInterval):
     """Set various configurations that make the driver gateway work or are
     convenient."""
     #
@@ -217,24 +217,24 @@ def configure_gateway(driver, controllers):
     #
     # Controller and sensor for initialisation.
     if controllers.initialise is not None:
-        sensor = add_sensor(driver, controllers.initialise)
+        sensor = add_sensor(driverGateway, controllers.initialise)
     #
     # Controller and sensor for every tick.
     if controllers.tick is not None:
-        sensor = add_sensor(driver, controllers.tick)
+        sensor = add_sensor(driverGateway, controllers.tick)
         sensor.use_pulse_true_level = True
         #
         # Set the tick frequency using whatever API the current version of
         # Blender has.
         if hasattr(sensor, 'frequency'):
-            sensor.frequency = 0
+            sensor.frequency = tickInterval
         else:
-            sensor.tick_skip = 0
+            sensor.tick_skip = tickInterval
     #
     # Controller and sensor for the keyboard. This allows, for example, a back
     # door to be added to terminate the engine.
     if controllers.keyboard is not None:
-        sensor = add_sensor(driver, controllers.keyboard, 'KEYBOARD')
+        sensor = add_sensor(driverGateway, controllers.keyboard, 'KEYBOARD')
         sensor.use_all_keys = True
 
 def add_sensor(driver, subroutine, sensorType='ALWAYS'):

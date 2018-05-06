@@ -13,17 +13,17 @@ if __name__ == '__main__':
 # Standard library imports, in alphabetic order.
 #
 # Module for command line switches.
-# https://docs.python.org/3.5/library/argparse.html
+# https://docs.python.org/3/library/argparse.html
 import argparse
 #
 # Python module for dynamic import, which is used so that this module can be
 # loaded in the bpy context and in the bge context. It is not possible to import
 # bge in the bpy context.
-# https://docs.python.org/3.5/library/importlib.html
+# https://docs.python.org/3/library/importlib.html
 import importlib
 #
 # Module for degrees to radians conversion.
-# https://docs.python.org/3.5/library/math.html#math.radians
+# https://docs.python.org/3/library/math.html#math.radians
 from math import radians
 #
 # Blender library imports, in alphabetic order.
@@ -124,6 +124,17 @@ class Application(object):
     def dataScene(self):
         """Reference to the data Scene object."""
         return self._dataScene
+    
+    @property
+    def tickInterval(self):
+        """\
+        Interval in logic ticks aka frames between successive triggering of the
+        tick controller.
+        """
+        # Documentation is here:
+        # https://docs.blender.org/manual/en/dev/game_engine/logic/sensors/introduction.html#game-engine-logic-sensors-common-options
+        # See under the Freq heading.
+        return 15
     
     def diagnostic_remove_controllers(self, controllers):
         """\
@@ -332,7 +343,8 @@ class Application(object):
         self._argumentParser = self.get_argument_parser()
         self._arguments, \
         unknownArguments = self.argumentParser.parse_known_args(
-            self.settings['arguments']['applicationSwitches'] )
+            self.settings['arguments']['applicationSwitches'])
         if len(unknownArguments) > 0:
+            self._argumentParser.print_help()
             raise ValueError(''.join((
                 'Unknown arguments "', '" "'.join(unknownArguments), '".')))

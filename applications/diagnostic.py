@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# (c) 2017 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
+# (c) 2018 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 """Python module for Blender Driver diagnostic application.
 This application doesn't make anything happen in the 3D scene. It demonstrates
@@ -32,6 +32,10 @@ if __name__ == '__main__':
 # Reference is here: https://docs.python.org/3.5/library/logging.html
 from logging import DEBUG, INFO, WARNING, ERROR, log, getLogger
 #
+# Module for column widths.
+# https://docs.python.org/3/library/math.html
+from math import log10
+#
 # Module for the version of Python.
 # https://docs.python.org/3.5/library/sys.html#sys.version
 from sys import version as pythonVersion
@@ -60,11 +64,17 @@ class Application(blender_driver.application.thread.Application):
             controllers.initialise = None
         if self.arguments.removeTickController:
             controllers.tick = None
-        
+
+    # Override.
+    @property
+    def tickInterval(self):
+        return self.arguments.tickInterval
+    
     # Override.
     def game_initialise(self):
         super().game_initialise()
         self._counter = 0
+        self._tickTimes = []
         if not getLogger().isEnabledFor(DEBUG):
             log(WARNING, "Diagnostic application should be run verbose.")
 
@@ -110,15 +120,20 @@ class Application(blender_driver.application.thread.Application):
         
         if self.arguments.tickLock and self.arguments.thread:
             super().game_tick()
+            # Above would set the _tickPerf. Other branches don't execute it so
+            # set it "manually".
         elif self.arguments.thread:
             # Threads without locking.
+            self._tickPerf = time.perf_counter() - self._gameInitialisePerf
             threading.Thread(target=self.game_tick_run).start()
         else:
+            self._tickPerf = time.perf_counter() - self._gameInitialisePerf
             self.game_tick_run()
         # Case of tickLock but not threading is treated as not tickLock.
 
     # Override.
     def game_tick_run(self):
+        self._tickTimes.append(self.tickPerf)
         self._dummy_action(
             self.arguments.sleepTick, " ".join(('tick', str(self._counter))))
 
@@ -140,6 +155,25 @@ class Application(blender_driver.application.thread.Application):
             # Go up two class inheritance levels and call the method there.
             super(blender_driver.application.thread.Application, self
                   ).game_terminate()
+        
+        tickAnalysis = []
+        indexWidth = int(log10(len(self._tickTimes) - 1)) + 1
+        timePrecision = 4
+        timeWidth = int(log10(self._tickTimes[-1])) + 2 + timePrecision
+        for index, tickTime in enumerate(self._tickTimes):
+            base = '{:{indexWidth}d} {:{timeWidth}.{timePrecision}f}'.format(
+                index, tickTime, indexWidth=indexWidth, timeWidth=timeWidth
+                , timePrecision=timePrecision)
+            analysis = ""
+            if index > 0:
+                elapsed = tickTime - self._tickTimes[index - 1]
+                analysis = ' {:.{timePrecision}f} 1/{:.0f}'.format(
+                    elapsed, 0.0 if elapsed <= 0 else 1.0 / elapsed
+                    , timePrecision=timePrecision)
+            tickAnalysis.append(''.join((base, analysis)))
+                
+        log(INFO, 'Ticks:{:d}\n{}'
+            , len(self._tickTimes), '\n'.join(tickAnalysis))
     
     def _dummy_action(self, duration, name=None):
         if self.arguments.mainLock:
@@ -233,6 +267,9 @@ class Application(blender_driver.application.thread.Application):
         parser.add_argument(
             '--thread', action='store_true', help=
             'Start a thread in every tick, and in the initialise.')
+        parser.add_argument(
+            '--tickInterval', type=int, default=0, help=
+            'Value for Freq of the tick sensor. Default is zero.')
         parser.add_argument(
             '--ticks', type=int, default=10, help=
             "Terminate after a number of ticks, or 0 for never. Default is to"

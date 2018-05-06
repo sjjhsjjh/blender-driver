@@ -31,7 +31,7 @@ def timing_analysis(times):
             analysis = ' {:.{timePrecision}f} 1/{:.0f}'.format(
                 elapsed, 0.0 if elapsed <= 0 else 1.0 / elapsed
                 , timePrecision=timePrecision)
-            analyses.append(''.join((base, analysis)))
+        analyses.append(''.join((base, analysis)))
     return analyses
 
 def timing_analysis_dump(times):

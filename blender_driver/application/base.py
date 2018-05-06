@@ -134,7 +134,7 @@ class Application(object):
         # Documentation is here:
         # https://docs.blender.org/manual/en/dev/game_engine/logic/sensors/introduction.html#game-engine-logic-sensors-common-options
         # See under the Freq heading.
-        return 15
+        return self.arguments.tickInterval
     
     def diagnostic_remove_controllers(self, controllers):
         """\
@@ -297,6 +297,9 @@ class Application(object):
         """
         parser = argparse.ArgumentParser()
         parser.prog = ".".join((__name__, self.__class__.__name__))
+        parser.add_argument(
+            '--tickInterval', type=int, default=0, help=
+            'Value for Freq of the tick sensor. Default is zero.')
         return parser
     
     def game_constructor(self, scene, gateway):

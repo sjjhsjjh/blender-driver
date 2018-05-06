@@ -305,7 +305,7 @@ class Main(object):
         # Get a class object for the application and pass it to the next stage.
         applicationClass = getattr(self._applicationModule,
                                    self._arguments.applicationClass)
-        self._bpyutils.load_driver(applicationClass, self._arguments )
+        self._bpyutils.load_driver(applicationClass, self._arguments)
         log(DEBUG, "Blender Driver launch script finished.")
         
     def __init__(self, commandLine):

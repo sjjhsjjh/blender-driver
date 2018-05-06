@@ -82,6 +82,9 @@ starts.
     driver.data_initialise()
     #
     # Attach the controllers for BGE to the gateway object.
+    # Default is that the controllers module is in the same package as this
+    # file. This can be overriden on the launch script command line, in case a
+    # diagnostic controllers package is to be run instead.
     controllersPackage = __package__
     if arguments.controllersPackage is not None:
         controllersPackage = arguments.controllersPackage

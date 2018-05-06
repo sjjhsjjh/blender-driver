@@ -54,6 +54,7 @@ class Application(base.Application):
     
     @property
     def skippedTicks(self):
+        """Number of ticks skipped, reset every time a tick isn't skipped."""
         return self._skippedTicks
     
     @property
@@ -181,5 +182,8 @@ class Application(base.Application):
                 log(INFO, "Not joining main: {}.", thread)
             else:
                 log(INFO, "Joining: {} ...", thread)
-                thread.join()
-                log(INFO, "Joined.")
+                try:
+                    thread.join()
+                    log(INFO, "Joined.")
+                except RuntimeError as error:
+                    log(INFO, "Couldn't join: {}", error)

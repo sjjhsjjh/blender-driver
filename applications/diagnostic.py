@@ -50,7 +50,7 @@ import time
 import blender_driver.application.thread
 #
 # Tick time dumper.
-from diagnostic.analysis import timing_analysis_dump
+from diagnostic.analysis import timing_summary, timing_analysis_dump
 
 # Diagnostic print to show when it's imported, if all its own imports run OK.
 print("".join(('Application module "', __name__, '" ')))
@@ -133,8 +133,7 @@ class Application(blender_driver.application.thread.Application):
 
     # Override.
     def tick_skipped(self):
-        log(WARNING, "Tick skipped:{}. Total:{}."
-            , self._counter, self.skippedTicks)
+        self._tickTimes.append(None)
 
     # Override.
     def game_terminate(self):
@@ -150,8 +149,8 @@ class Application(blender_driver.application.thread.Application):
             super(blender_driver.application.thread.Application, self
                   ).game_terminate()
        
-        log(INFO, 'Ticks:{:d} interval:{:d}\n{}'
-            , len(self._tickTimes), self.arguments.tickInterval
+        log(INFO, 'Tick time analysis: interval:{:d} {}\n{}'
+            , self.tickInterval, timing_summary(self._tickTimes)
             , timing_analysis_dump(self._tickTimes))
     
     def _dummy_action(self, duration, name=None):

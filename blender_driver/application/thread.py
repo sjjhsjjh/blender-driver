@@ -95,21 +95,16 @@ class Application(base.Application):
         # If a previous _run_with_tick_lock raised an exception, raise it now,
         # on the main thread so that the whole thing terminates.
         if self._tickRaise is not None:
-            self._tickLock.acquire()
-            try:
+            with self._tickLock:
                 exception = self._tickRaise
                 self._tickRaise = None
                 raise exception
-            finally:
-                self._tickLock.release()
 
         threading.Thread(
-            target=self._run_with_tick_lock,
-            args=(self.game_tick_run,),
-            name="game_tick"
+            target=self._run_with_tick_lock, name="game_tick"
         ).start()
 
-    def _run_with_tick_lock(self, run):
+    def _run_with_tick_lock(self):
         if self._tickLock.acquire(False):
             try:
                 self._skippedTicks = 0
@@ -121,7 +116,7 @@ class Application(base.Application):
                     # Reference time for this tick.
                     self._tickPerf = (
                         time.perf_counter() - self._gameInitialisePerf)
-                run()
+                self.game_tick_run()
             except Exception as exception:
                 # Catch the exception here and put it into a shared place.
                 # (It's OK while this code has acquired tickLock.) This thread

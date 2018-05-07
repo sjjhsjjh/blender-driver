@@ -9,6 +9,9 @@ Backlog
 
 -   Boost elapsed time between ticks to be in the custom TestCase subclass.
 
+-   Uplift timing analysis to be a class, and to have an option for whether to
+    retain the whole list or just increment on every record.
+
 -   Add a unit test for Blender Python not having the subprocess.DEVNULL
     constant.
 

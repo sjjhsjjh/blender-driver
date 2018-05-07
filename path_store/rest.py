@@ -147,15 +147,11 @@ class PathAnimation(Animation):
         self._valuePath = None
         self._subjectPath = None
         self._subject = None
-
+    
     # It could be handy to cache the parent of the animated point, in order to
     # minimise the number of path descents. However, it might be the case that
     # an object in the path has been replaced in between iterations of the
     # animation. That would stymie caching.
-
-
-
-
 
 class AnimatedRestInterface(RestInterface):
     """RestInterface with the following items at the top level.
@@ -187,27 +183,32 @@ class AnimatedRestInterface(RestInterface):
 
         return super().point_maker(path, index, point)
     
-    def _process_completed_animations(self, completions):
-        # Empty class for results.
-        class Results:
-            pass
+    # Empty class for results of walk().
+    class WalkResults:
+        pass
 
+    def _process_completed_animations(self, completions):
         for path, completed in completions:
             #
-            # Replace completed animation objects with None in the path
-            # store, for optimisation.
+            # Replace completed animation objects with None in the path store,
+            # for optimisation.
             self.rest_put(None, path)
-            
+            #
+            # Check if there are still other animations going on for the same
+            # subject.
+            #
+            # Check that there even is a subject.
             subject = completed.subject
             if subject is None:
                 continue
             #
-            # Check if there are still other animations going on for this
-            # object.
-            #
-            checkResults = Results()
-            checkResults.still = False
-            checkResults.subject = subject
+            # There is a subject. The code will walk the animations to see if
+            # there are any more for the same subject. Whatever is discovered
+            # will be set in a results object. (The other attributes of the walk
+            # results object will still be set from the set_now_times first
+            # walk.)
+            self._walkResults.still = False
+            self._walkResults.subject = subject
             #
             # Checking subroutine that can be passed to walk().
             def check(point, path, results):
@@ -216,38 +217,46 @@ class AnimatedRestInterface(RestInterface):
                 if point.subject is results.subject and not point.complete:
                     results.still = True
                     raise StopIteration
-            self.rest_walk(check, 'animations', checkResults)
+            self.rest_walk(check, self._animationPath, self._walkResults)
             #
             # If there are no other animations: restore physics to the subject
             # and reset its rotation overrides.
-            if not checkResults.still:
+            if not self._walkResults.still:
                 subject.beingAnimated = False
 
     def set_now_times(self, nowTime):
         '''\
-        Applies nowTime to everything under the 'animations' path.
+        Applies nowTime to everything under the 'animations' path. Returns a
+        tuple of:
         
-        Returns a list of tuples representing animations that completed due to
-        the application. In each tuple:
-        
-        -   First element is the path, as a list.
-        -   Second element is the Animation instance.
+        -   Boolean for whether there were any completions this time.
+        -   A copy of the animation path store structure with either None,
+            "Complete", or "Incomplete" at each node.
         '''
-        if self.principal is None:
-            return
-
-        class Results:
-            pass
-        setResults = Results()
-        setResults.completionsLog = None
-        setResults.anyCompletions = False
-        setResults.completions = []
-            
+        #
+        # The code will walk the animations store twice. First to set the now
+        # time, second to remove any completed animations. The walk results
+        # object is used to collect the outcome.
+        #
+        # `completions` will be a list of tuples representing animations that
+        # completed due to setting the now time. In each tuple:
+        #
+        # -   First element is the path, as a list.
+        # -   Second element is the Animation instance.
+        self._walkResults.completions = []
+        #
+        # `completionsLog` will be a copy of the animation path store structure
+        # with either None, "Complete", or "Incomplete" at each node.
+        self._walkResults.completionsLog = None
+        #
+        self._walkResults.anyCompletions = False
+        #
+        # Checking subroutine that will be passed to walk().
         def set_now(point, path, results):
             if point is not None and not point.complete:
-                # Setting nowTime has the side effect of applying the animation,
-                # which could have the further side effect of completing the
-                # animation.
+                # Setting nowTime in a PathAnimation has the side effect of
+                # applying the animation, which could have the further side
+                # effect of completing the animation.
                 point.nowTime = nowTime
                 if point.complete:
                     results.anyCompletions = True
@@ -256,24 +265,23 @@ class AnimatedRestInterface(RestInterface):
                 "Complete" if point.complete else "Incomplete")
             results.completionsLog = pathstore.merge(
                 results.completionsLog, logValue, path)
-        
-        error = None
-        try:
-            self.rest_walk(set_now, 'animations', setResults)
-        except KeyError as keyError:
-            # This error is raised if there isn't even an animations path, which
-            # can be true during initialisation.
-            error = keyError
-
-        if setResults.anyCompletions:
-            log(INFO, "Animations:{} {}.", error, setResults.completionsLog)
-        
+        self.rest_walk(set_now, self._animationPath, self._walkResults)
+        #
         # In theory, the processing in the following could be done in the
-        # previous walk. However, it seemed a bit hazardous to kick off a walk
-        # within a walk.
-        self._process_completed_animations(setResults.completions)
+        # previous walk. However, it uses walk() to check for other animations
+        # of the same subject, and it seemed a bit hazardous to kick off other
+        # walks within a walk. Anyway, this is the second walk.
+        self._process_completed_animations(self._walkResults.completions)
+        
+        return (
+            self._walkResults.anyCompletions, self._walkResults.completionsLog)
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._animationPath = ('animations',)
+        self.rest_put(None, self._animationPath)
+        self._walkResults = self.WalkResults()
 
-        return setResults.completions
 
 # Do:
 #

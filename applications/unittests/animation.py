@@ -64,6 +64,7 @@ class TestAnimation(TestCaseWithApplication):
             self.restInterface.rest_put(animation, animationPath)
             #
             # Set the start time, which has the following side effects:
+            #
             # -   Retrieves the start value.
             # -   Clears the complete state.
             animationPath.append('startTime')
@@ -72,43 +73,40 @@ class TestAnimation(TestCaseWithApplication):
             del animationPath[-1]
         
         while self.application.tickPerf < phases[1]:
-            with self.tick:
-                with self.application.mainLock:
-                    if self.application.tickPerf < phases[0]:
-                        #
-                        # Check object hasn't reached its destination.
-                        self.assertLess(gameObject.worldPosition.z, target)
-                        #
-                        # Check animation is still in progress.
-                        self.assertIsNotNone(
-                            self.restInterface.rest_get(animationPath))
-                    else:
-                        #
-                        # Check object has reached its destination.
-                        self.assertAlmostEqual(
-                            gameObject.worldPosition.z, target)
-                        #
-                        # Check animation has been discarded.
-                        self.assertIsNone(
-                            self.restInterface.rest_get(animationPath))
+            with self.tick, self.application.mainLock:
+                if self.application.tickPerf < phases[0]:
+                    #
+                    # Check object hasn't reached its destination.
+                    self.assertLess(gameObject.worldPosition.z, target)
+                    #
+                    # Check animation is still in progress.
+                    self.assertIsNotNone(
+                        self.restInterface.rest_get(animationPath))
+                else:
+                    #
+                    # Check object has reached its destination.
+                    self.assertAlmostEqual(gameObject.worldPosition.z, target)
+                    #
+                    # Check animation has been discarded.
+                    self.assertIsNone(
+                        self.restInterface.rest_get(animationPath))
         
-        with self.application.mainLock:
+        with self.tick, self.application.mainLock:
             # Next line makes the object fall away, which is nice.
             gameObject.physics = True
 
     def test_physics(self):
         '''Test that physics gets suspended during animation.'''
-        lastTick = None
         zPosition = None
-        interval = 0.05
         gameObject = None
-        phases = (1.0, 5.0, 5 + interval, 6.0)
+        phases = (1.0, 5.0, 10.0)
         turn = radians(135.0)
         animation = None
         animationPath = None
         tickStart = None
         
         with self.tick:
+            lastTick = self.application.tickPerf
             with self.application.mainLock:
                 gameObject = self.add_test_object()
                 gameObject.physics = False
@@ -139,83 +137,95 @@ class TestAnimation(TestCaseWithApplication):
                 zPosition = gameObject.worldPosition.z
                 gameObject.physics = True
                 self.show_status("Falling")
-            lastTick = self.application.tickPerf
 
         while self.application.tickPerf <= tickStart + phases[0]:
-            with self.tick:
-                if self.application.tickPerf - lastTick >= interval:
-                    with self.application.mainLock:
-                        # Check that its z position is falling every tick.
-                        self.assertLess(
-                            gameObject.worldPosition.z, zPosition
-                            , "{:.4f} {:.4f} {:.4f}".format(
-                                lastTick, self.application.tickPerf
-                                , self.application.tickPerf - lastTick))
-                        zPosition = gameObject.worldPosition.z
-                    lastTick = self.application.tickPerf
-
-        with self.tick:
-            # print(self.application.tickPerf)
-            with self.application.mainLock:
-                self.show_status("Animating")
-                #
-                # Insert the animation. The point maker will set the store
-                # attribute.
-                self.restInterface.rest_put(animation, animationPath)
-                #
-                # Set the start time, which has the following side effects:
-                # -   Retrieves the start value.
-                # -   Clears the complete state.
-                animationPath.append('startTime')
-                self.restInterface.rest_put(
-                    self.application.tickPerf, animationPath)
-                del animationPath[-1]
+            with self.tick, self.application.mainLock:
+                # Check that its z position is falling every tick.
+                # Next is LessEqual because sometimes it doesn't fall.
+                self.assertLessEqual(gameObject.worldPosition.z, zPosition)
                 zPosition = gameObject.worldPosition.z
+                lastTick = self.application.tickPerf
+
+        with self.tick, self.application.mainLock:
+            self.show_status("Animating")
+            #
+            # Insert the animation. The point maker will set the store
+            # attribute and suspend physics.
+            self.restInterface.rest_put(animation, animationPath)
+            #
+            # Set the start time, which has the following side effects:
+            # -   Retrieves the start value.
+            # -   Clears the complete state.
+            animationPath.append('startTime')
+            self.restInterface.rest_put(
+                self.application.tickPerf, animationPath)
+            del animationPath[-1]
+            zPosition = gameObject.worldPosition.z
 
         while self.application.tickPerf <= tickStart + phases[1]:
-            with self.tick:
-                with self.application.mainLock:
-                    #
-                    # Check physics is suspended, literally, and in effect.
-                    self.assertFalse(gameObject.physics)
-                    self.assertAlmostEqual(
-                        gameObject.worldPosition.z, zPosition)
-                    #
-                    # Check animation is still in progress.
-                    self.assertIsNotNone(
-                        self.restInterface.rest_get(animationPath))
-        with self.tick:
-            lastTick = self.application.tickPerf
-
+            with self.tick, self.application.mainLock:
+                #
+                # Check that time marches on.
+                self.assertGreater(self.application.tickPerf, lastTick)
+                lastTick = self.application.tickPerf
+                #
+                # Check physics is suspended, literally, and in effect.
+                self.assertFalse(gameObject.physics)
+                self.assertAlmostEqual(
+                    gameObject.worldPosition.z, zPosition)
+                #
+                # Check animation is still in progress.
+                self.assertIsNotNone(
+                    self.restInterface.rest_get(animationPath))
+        #
+        # There now follows a short intermission.
+        #
+        # Wait for some ticks. In theory maybe it should only ever have to wait
+        # for one tick but in practice this test is sometimes ahead of the
+        # application thread.
+        for waitTick in range(3):
+            with self.tick, self.application.mainLock:
+                self.show_status("Waiting {}".format(waitTick))
+                #
+                # Check that time marches on.
+                self.assertGreater(self.application.tickPerf, lastTick)
+                lastTick = self.application.tickPerf
+                #
+                animationNow = self.restInterface.rest_get(animationPath)
+                print("waitTick:{:d} {:.4f} {} {} {}".format(
+                    waitTick, self.application.tickPerf, self.id()
+                    , self.application.lastCompletion
+                    , (None if animationNow is None else animationNow.complete)
+                    ))
+                #
+                # Check if completions have been processed.
+                lastCompletionTick = self.application.lastCompletionTick
+                if lastCompletionTick is None:
+                    continue
+                if lastCompletionTick < self.application.tickPerf:
+                    continue
+                if animationNow is None:
+                    break
+        #
+        # Intermission over. Resume checking.
+        with self.tick, self.application.mainLock:
+            #
+            # Check animation has been discarded.
+            self.assertIsNone(self.restInterface.rest_get(animationPath))
+            #
+            # Check physics has resumed, literally.
+            self.assertTrue(gameObject.physics)
+            self.show_status("Finishing")
         while self.application.tickPerf <= tickStart + phases[2]:
-            with self.tick:
-                pass
-
-        with self.tick:
-            with self.application.mainLock:
-                self.show_status("Finishing")
+            #
+            # Check physics has resumed, in effect.
+            with self.tick, self.application.mainLock:
+                self.assertGreater(self.application.tickPerf, lastTick)
+                lastTick = self.application.tickPerf
                 #
-                # Check physics has resumed, literally.
-                self.assertTrue(
-                    gameObject.physics
-                    , "phase:{:.4f} last:{:.4f} current:{:.4f} {:.4f}".format(
-                        tickStart + phases[2]
-                        , lastTick, self.application.tickPerf
-                        , self.application.tickPerf - lastTick))
-                #
-                # Check animation has been discarded.
-                self.assertIsNone(self.restInterface.rest_get(animationPath))
-
-        while self.application.tickPerf <= tickStart + phases[3]:
-            with self.tick:
-                if self.application.tickPerf - lastTick >= interval:
-                    with self.application.mainLock:
-                        #
-                        # Check physics has resumed, in effect.
-                        self.assertLess(
-                            gameObject.worldPosition.z, zPosition
-                            , "{:.4f} {:.4f} {:.4f}".format(
-                                lastTick, self.application.tickPerf
-                                , self.application.tickPerf - lastTick))
-                        zPosition = gameObject.worldPosition.z
-                    lastTick = self.application.tickPerf
+                # Check that its z position is falling every tick.
+                # Next is LessEqual because sometimes it doesn't fall. These are
+                # called fall errors. They are scrutinised in a different unit
+                # test: TestGameObject.test_physics
+                self.assertLessEqual(gameObject.worldPosition.z, zPosition)
+                zPosition = gameObject.worldPosition.z

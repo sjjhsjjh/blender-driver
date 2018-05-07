@@ -81,12 +81,13 @@ class Application(thread.Application):
 
     # Override.
     def game_tick_run(self):
+        # Formally, call the base class although it is a pass.
         super().game_tick_run()
-        self.mainLock.acquire()
-        try:
+        with self.mainLock:
             # Call the shortcut to set current time into all the current
             # animations, which makes them animate in the scene.
-            self._restInterface.set_now_times(self.tickPerf)
+            self.print_completions_log(
+                *self._restInterface.set_now_times(self.tickPerf))
             #
             # Update all cursors, by updating all physics objects.
             def update(point, path, results):
@@ -94,5 +95,10 @@ class Application(thread.Application):
                     point.update()
             self._restInterface.rest_walk(update, self._objectRootPath)
 
-        finally:
-            self.mainLock.release()
+    def print_completions_log(self, anyCompletions, logStore):
+        '''\
+        Called every tick and passed the AnimatedRestInterface.set_now_times
+        return value. Override the application requires these results for any
+        reason. See the unittest application for an example.
+        '''
+        pass

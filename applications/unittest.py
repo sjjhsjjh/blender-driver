@@ -13,7 +13,7 @@ if __name__ == '__main__':
 # Standard library imports, in alphabetic order.
 #
 # Module for command line switches.
-# https://docs.python.org/3.5/library/argparse.html
+# https://docs.python.org/3/library/argparse.html
 # The import isn't needed because this class uses the base class to get an
 # object.
 # import argparse
@@ -43,6 +43,9 @@ import unittest
 #
 # Application base class module.
 import blender_driver.application.rest
+#
+# Tick time dumper.
+from diagnostic.analysis import timing_summary
 
 # Diagnostic print to show when it's imported, if all its own imports run OK.
 print("".join(('Application module "', __name__, '" ')))
@@ -438,11 +441,45 @@ class Application(blender_driver.application.rest.Application):
         status.text = statusText[:]
         status.worldPosition.y = 3.5 - textWidth
     
+    def _discover_test_suites(self):
+        loader = TestLoaderWithApplication(self)
+        discoveredSuites = loader.discover(
+            os.path.join('applications', 'unittests'), "*.py")
+
+        if len(self.arguments.tests) <= 0:
+            return discoveredSuites
+
+        # Couldn't see any way to remove tests from a TestSuite. The following
+        # code creates a new empty suite and then adds only the tests that match
+        # the specification.
+        suites = unittest.TestSuite()
+        knownTests = []
+        for suite in discoveredSuites:
+            add = False
+            for test in suite:
+                for case in test:
+                    className = case.__class__.__name__
+                    if className not in knownTests:
+                        knownTests.append(className)
+                    if className in self.arguments.tests:
+                        add = True
+            if add:
+                suites.addTest(suite)
+
+        if suites.countTestCases() <= 0:
+            raise ValueError(
+                'No tests match specification:{}. Known tests:{}.'.format(
+                self.arguments.tests, knownTests))
+        return suites
+    
     # Override.
     def game_initialise(self):
+        super().game_initialise()
         self._results = None
         self._terminatePerf = None
-        super().game_initialise()
+        self._tickTimes = []
+        self._lastCompletion = None
+        self._lastCompletionTick = None
         
         with self.mainLock:
             self.banner = self.game_add_text('banner')
@@ -454,13 +491,9 @@ class Application(blender_driver.application.rest.Application):
 
             self._testObjectOffset = 5.0
             self._testObjectIncrement = -0.5
-
-            loader = TestLoaderWithApplication(self)
-            suites = loader.discover(
-                os.path.join('applications', 'unittests'), "*.py")
             self._results = ThreadTestRunner(
-                verbosity=(2 if self.settings['arguments']['verbose'] else 1)
-            ).run(suites)
+                verbosity=2 if self.settings['arguments']['verbose'] else 1
+            ).run(self._discover_test_suites())
             print("Number of threads:{}.".format(threading.active_count()))
 
     # Override
@@ -468,18 +501,22 @@ class Application(blender_driver.application.rest.Application):
         if self._terminatePerf is None and self._results is not None:
             # An error must have occurred.
             self._results.scheduler.abort()
+        super().game_terminate()
         if self._results is not None:
             print(self._results.formatted)
-        super().game_terminate()
+            print('Tick time analysis: interval:{:d} {}.'.format(
+                self.tickInterval, timing_summary(self._tickTimes)))
 
     # Override
     def game_tick_run(self):
         super().game_tick_run()
+        self._tickTimes.append(self.tickPerf)
         if self._terminatePerf is None:
             with self._results.scheduler:
                 with self.mainLock:
                     self.banner.text = (
-                        "Unit Tests\nNow:{:.2f}".format(self.tickPerf))
+                        "Unit Tests tickInterval:{:d}\nNow:{:.2f}".format(
+                            self.tickInterval, self.tickPerf))
                 if self._results.allStopped:
                     print('Tests stopped at:{:.2f}'.format(self.tickPerf))
                     self._terminatePerf = self.tickPerf + 2.0
@@ -493,5 +530,26 @@ class Application(blender_driver.application.rest.Application):
                     self.game_terminate()
 
     def tick_skipped(self):
-        if self.skippedTicks > 10:
-            print("Skipped ticks:{:d}.".format(self.skippedTicks))
+        self._tickTimes.append(None)
+
+    def get_argument_parser(self):
+        """Method that returns an ArgumentParser. Overriden."""
+        parser = super().get_argument_parser()
+        parser.add_argument(
+            'tests', nargs='*', type=str, help=
+            "Tests to run. Default is to run all.")
+        return parser
+
+    @property
+    def lastCompletion(self):
+        return self._lastCompletion
+    @property
+    def lastCompletionTick(self):
+        return self._lastCompletionTick
+
+    # Override.
+    def print_completions_log(self, anyCompletions, logStore):
+        if anyCompletions:
+            self._lastCompletionTick = self.tickPerf
+            self._lastCompletion = "{:.4f} completions:{}".format(
+                self.tickPerf, logStore)

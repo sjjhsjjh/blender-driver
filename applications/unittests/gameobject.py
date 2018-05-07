@@ -17,8 +17,8 @@ if __name__ == '__main__':
 from math import degrees, radians
 
 
-# https://docs.python.org/3/library/threading.html
-import threading
+# # https://docs.python.org/3/library/threading.html
+# import threading
 
 
 #
@@ -29,6 +29,8 @@ from applications.unittest import TestCaseWithApplication
 #
 # Modules under test: 
 from path_store import pathstore, blender_game_engine
+
+from diagnostic.analysis import fall_analysis
 
 class TestGameObject(TestCaseWithApplication):
     def get_class_and_name(self):
@@ -144,17 +146,22 @@ class TestGameObject(TestCaseWithApplication):
             
             xDegrees = degrees(gameObject.rotation.x)
             degreesMax = 720.0
+        
+        with self.tick:
+            lastTick = self.application.tickPerf
 
         while xDegrees < degreesMax:
             with self.tick:
+                elapsed = self.application.tickPerf - lastTick
+                addDegrees = int(elapsed * 120.0)
                 # This can run quite lumpy. It isn't supposed to be smooth; it's
                 # supposed to test that setting the X rotation doesn't change
                 # the Y and Z rotations.
                 with self.application.mainLock:
-                    for _ in range(10):
+                    for _ in range(1 if addDegrees < 1 else addDegrees):
                         xDegrees += 1.0
-                        self.show_status(
-                            "{:.2f} {:.2f}".format(xDegrees, degreesMax))
+                        self.show_status("{:d} {:.2f} {:.2f}".format(
+                            addDegrees, xDegrees, degreesMax))
                         xRadians = radians(xDegrees)
                         gameObject.rotation.x = xRadians
                         self.assertEqual(xRadians, gameObject.rotation.x)
@@ -170,8 +177,9 @@ class TestGameObject(TestCaseWithApplication):
                         self.assertEqual(
                             0, pathstore.get(gameObject, ('rotation', 'y')))
                         self.assertEqual(0, gameObject.rotation.z)
+                lastTick = self.application.tickPerf
 
-        with self.application.mainLock:
+        with self.tick, self.application.mainLock:
             #
             # Deleting all elements, or the property, actually doesn't delete
             # it. You just get the rotation of the underlaying game object
@@ -199,7 +207,6 @@ class TestGameObject(TestCaseWithApplication):
             gameObject.physics = True
     
     def test_physics(self):
-        lastTick = None
         with self.application.mainLock:
             gameObject = self.add_test_object()
     
@@ -207,39 +214,40 @@ class TestGameObject(TestCaseWithApplication):
             self.show_status("Suspended...")
             phases = (self.application.tickPerf + 1.0,
                       self.application.tickPerf + 2.0,
-                      self.application.tickPerf + 3.0)
+                      self.application.tickPerf + 5.0)
             zPosition = gameObject.worldPosition.z
-        
-        while self.application.tickPerf < phases[0]:
-            with self.tick:
-                with self.application.mainLock:
-                    self.assertEqual(zPosition, gameObject.worldPosition.z)
-        
-        with self.tick:
-            with self.application.mainLock:
-                gameObject.physics = True
-                self.show_status("Dropping...")
-                # No assertion; waiting for it to drop.
-        while self.application.tickPerf <= phases[1]:
-            with self.tick:
-                pass
 
         with self.tick:
             lastTick = self.application.tickPerf
-        while self.application.tickPerf < phases[2]:
+        
+        while self.application.tickPerf < phases[0]:
+            with self.tick, self.application.mainLock:
+                self.assertEqual(zPosition, gameObject.worldPosition.z)
+                self.assertGreater(self.application.tickPerf, lastTick)
+                lastTick = self.application.tickPerf
+
+        with self.tick, self.application.mainLock:
+            gameObject.physics = True
+            self.show_status("Dropping...")
+            # No assertion; waiting for it to drop.
+
+        while self.application.tickPerf < phases[1]:
             with self.tick:
-                if self.application.tickPerf - lastTick >= 0.05:
-                    with self.application.mainLock:
-                        # print(gameObject.worldPosition.z, tickTime
-                        #       , self.application.tickPerf
-                        #       , threading.currentThread().name
-                        #       , threading.get_ident())
-                        # Check that its z position is falling every tick.
-                        self.assertLess(
-                            gameObject.worldPosition.z, zPosition
-                            , "{:.4f} {:.4f} {:.4f}".format(
-                                lastTick, self.application.tickPerf
-                                , self.application.tickPerf - lastTick))
-                        zPosition = gameObject.worldPosition.z
-                        self.assertGreater(self.application.tickPerf, lastTick)
-                    lastTick = self.application.tickPerf
+                self.assertGreater(self.application.tickPerf, lastTick)
+                lastTick = self.application.tickPerf
+
+        with self.tick, self.application.mainLock:
+            zPositions = []
+            zPosition = gameObject.worldPosition.z
+        while self.application.tickPerf < phases[2]:
+            with self.tick, self.application.mainLock:
+                self.assertGreater(self.application.tickPerf, lastTick)
+                # Next is LessEqual because sometimes it doesn't fall.
+                self.assertLessEqual(gameObject.worldPosition.z, zPosition)
+                lastTick = self.application.tickPerf
+                zPosition = gameObject.worldPosition.z
+                zPositions.append((zPosition, lastTick))
+        
+        fallErrors, fallDump = fall_analysis(zPositions)
+        if fallErrors > 0:
+            print("Fall errors:{:d}\n{}".format(fallErrors, fallDump))

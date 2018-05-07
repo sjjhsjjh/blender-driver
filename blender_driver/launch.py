@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# (c) 2017 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
+# (c) 2018 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 """Blender Driver launch script.
 
@@ -29,24 +29,24 @@ Tip: Use the blenderdriver.py script to create and run the command line.
 # Standard library imports, in alphabetic order.
 #
 # Module for command line switches.
-# https://docs.python.org/3.5/library/argparse.html
+# https://docs.python.org/3/library/argparse.html
 import argparse
 #
 # Module for dynamic import.
-# https://docs.python.org/3.5/library/importlib.html
+# https://docs.python.org/3/library/importlib.html
 import importlib
 #
 # Module for levelled logging messages.
-# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
-# Reference is here: https://docs.python.org/3.5/library/logging.html
+# Tutorial is here: https://docs.python.org/3/howto/logging.html
+# Reference is here: https://docs.python.org/3/library/logging.html
 from logging import DEBUG, INFO, WARNING, ERROR, log
 #
 # Module for file and directory paths.
-# https://docs.python.org/3.5/library/os.path.html
+# https://docs.python.org/3/library/os.path.html
 import os.path
 #
 # Module for extending the search path and for access to the command line.
-# https://docs.python.org/3.5/library/sys.html
+# https://docs.python.org/3/library/sys.html
 import sys
 #
 # Module for text dedentation.
@@ -82,7 +82,7 @@ class Main(object):
             help=
             "Module that contains the driver application class."
             " Default if a <path>/<filename>.blend file was specified is the "
-            " <path>/<filename>.py file, or blender_driver/application.py"
+            " <path>/<filename>.py file, or blender_driver/application/base.py"
             " otherwise." )
         self._argumentParser.add_argument(
             '--controllersModule', default="controllers",

@@ -18,11 +18,6 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
-# Module for levelled logging messages.
-# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
-# Reference is here: https://docs.python.org/3.5/library/logging.html
-from logging import DEBUG, INFO, WARNING, ERROR, log
-#
 # Local imports.
 #
 # Application base class module.

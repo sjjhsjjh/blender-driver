@@ -21,11 +21,6 @@ if __name__ == '__main__':
 # object.
 # import argparse
 #
-# Module for levelled logging messages.
-# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
-# Reference is here: https://docs.python.org/3.5/library/logging.html
-from logging import DEBUG, INFO, WARNING, ERROR, log
-#
 # Module for degrees to radian conversion.
 # https://docs.python.org/3.5/library/math.html
 from math import degrees, radians
@@ -113,7 +108,7 @@ class Application(restanimation.Application):
             # Add tethers and cursors to game objects.
             #
             # Working paths.
-            path = list(self._objectRootPath)
+            path = list(self.gameObjectPath)
             #
             # Loop for each object, by number.
             for index in range(self._objectCount):
@@ -183,9 +178,6 @@ class Application(restanimation.Application):
             path.append('subjectPath')
             self._restInterface.rest_put(self._cursorPath, path)
             # Note that path now points to the camera subjectPath.
-            
-            log(INFO, "Objects, cursors, floor, camera: {}"
-                , self._restInterface.rest_get())
             
         finally:
             self.mainLock.release()
@@ -258,7 +250,7 @@ class Application(restanimation.Application):
         restInterface = self._restInterface
         #
         # Path to the camera's position in the specified dimension.
-        valuePath = self._objectRootPath[:-1]
+        valuePath = self.gameObjectPath[:-1]
         #
         # Set the value path and stop any incompatible movement.
         # X, Y, and Z (dimensions 0, 1, and 2) are incompatible with 3.
@@ -313,13 +305,9 @@ class Application(restanimation.Application):
         # -   Clears the complete state.
         animationPath.append('startTime')
         restInterface.rest_put(self.tickPerf, animationPath)
-        log(INFO, "Animations {}"
-            , self._restInterface.rest_get(('animations',)))
     
     def move_cursor(self):
         self._cursorPath.append('subjectPath')
-        log(DEBUG, '{} {}'
-            , self._cursorPath, self._restInterface.rest_get(self._cursorPath))
         subjectPath = list(self._restInterface.rest_get(self._cursorPath))
         subjectPath[-1] = (subjectPath[-1] + 1) % self._objectCount
         self._restInterface.rest_put(subjectPath, self._cursorPath)

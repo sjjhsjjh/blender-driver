@@ -73,7 +73,6 @@ class Application(demonstration.Application
         "\nplus Ctrl to move right object. Middle object doesn't move.")
 
     _objectCount = 3
-    _objectRootPath = ('root',)
 
     # Overriden.
     def game_initialise(self):
@@ -87,7 +86,7 @@ class Application(demonstration.Application
             # Insert game objects.
             #
             # Working path.
-            path = list(self._objectRootPath)
+            path = list(self.gameObjectPath)
             for index in range(self._objectCount):
                 object_ = self.game_add_object(objectName)
                 path.append(index)
@@ -166,14 +165,14 @@ class Application(demonstration.Application
         restInterface = self._restInterface
         #
         # Path to the object's Z size.
-        valuePath = list(self._objectRootPath) + [
+        valuePath = list(self.gameObjectPath) + [
             objectNumber, 'worldScale', 2]
         #
         # Assemble the animation in a dictionary, starting with these.
         animation = {
             'modulo': 0,
             'valuePath': valuePath,
-            'subjectPath': self._objectRootPath + (objectNumber,),
+            'subjectPath': self.gameObjectPath + (objectNumber,),
             'speed': 1.0
         }
         #
@@ -189,15 +188,12 @@ class Application(demonstration.Application
                 animation['targetValue'] = value + (1.0 * direction)
             else:
                 animation['targetValue'] = value / 2.0
-        log(INFO, 'Value:{} Values:{}',
-            value, tuple(restInterface.rest_get(valuePath[:-1])))
         #
         # There is up to one size animation per object.
         animationPath = ['animations', 'size', objectNumber]
         #
         # Insert the animation. The point maker will set the store
         # attribute.
-        log(INFO, 'Patching {} {}', animationPath, animation)
         restInterface.rest_put(animation, animationPath)
         #
         # Set the start time, which has the following side effects:
@@ -212,14 +208,14 @@ class Application(demonstration.Application
         restInterface = self._restInterface
         #
         # Path to the object's Z value.
-        valuePath = list(self._objectRootPath) + [
+        valuePath = list(self.gameObjectPath) + [
             objectNumber, 'worldPosition', 2]
         #
         # Assemble the animation in a dictionary, starting with these.
         animation = {
             'modulo': 0,
             'valuePath': valuePath,
-            'subjectPath': self._objectRootPath + (objectNumber,),
+            'subjectPath': self.gameObjectPath + (objectNumber,),
             'speed': self.arguments.speed
         }
         #
@@ -245,7 +241,6 @@ class Application(demonstration.Application
         #
         # Insert the animation. The point maker will set the store
         # attribute.
-        log(INFO, 'Patching {} {}', animationPath, animation)
         restInterface.rest_put(animation, animationPath)
         #
         # Set the start time, which has the following side effects:
@@ -260,14 +255,14 @@ class Application(demonstration.Application
         restInterface = self._restInterface
         #
         # Path to the object's Z rotation.
-        valuePath = list(self._objectRootPath) + [
+        valuePath = list(self.gameObjectPath) + [
             objectNumber, 'rotation', 2]
         #
         # Assemble the animation in a dictionary, starting with these.
         animation = {
             'modulo': radians(360),
             'valuePath': valuePath,
-            'subjectPath': self._objectRootPath + (objectNumber,),
+            'subjectPath': self.gameObjectPath + (objectNumber,),
             'speed': radians(45),
         }
         #
@@ -288,7 +283,6 @@ class Application(demonstration.Application
         #
         # Insert the animation. The point maker will set the store
         # attribute.
-        log(INFO, 'Patching {} {}', animationPath, animation)
         self._restInterface.rest_put(animation, animationPath)
         #
         # Set the start time, which has the following side effects:

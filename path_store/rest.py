@@ -164,8 +164,12 @@ class AnimatedRestInterface(RestInterface):
     |       +-- STRING or NUMBER
     |           Individual animation.
     |
-    +-- 'root'
-        Conventional item under which all the principal data sits.
+    +-- 'root' Conventional item under which all the principal data sits.
+        |
+        +-- 'gameObjects'
+            |
+            +-- STRING or NUMBER
+                Individual game objects.
     """
     
     # Override
@@ -276,11 +280,23 @@ class AnimatedRestInterface(RestInterface):
         return (
             self._walkResults.anyCompletions, self._walkResults.completionsLog)
     
+    @property
+    def animationPath(self):
+        return self._animationPath
+    
+    @property
+    def gameObjectPath(self):
+        return self._gameObjectPath
+    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._animationPath = ('animations',)
-        self.rest_put(None, self._animationPath)
         self._walkResults = self.WalkResults()
+        #
+        # Set and populate conventional paths.
+        self._animationPath = ('animations',)
+        self._gameObjectPath = ('root', 'gameObjects')
+        for path in (self.animationPath, self.gameObjectPath):
+            self.rest_put(None, path)
 
 
 # Do:

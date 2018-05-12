@@ -61,14 +61,16 @@ class Application(thread.Application):
         cursor.restInterface = self._restInterface
         return cursor
     
+    @property
+    def gameObjectPath(self):
+        return self._restInterface.gameObjectPath
+    
     def game_initialise(self):
         super().game_initialise()
-        self._objectRootPath = ('root','objects')
         self._visualiserName = 'visualiser'
         self._emptyName = 'empty'
 
         self._restInterface = AnimatedRestInterface()
-        self._restInterface.rest_put(None, self._objectRootPath)
 
         self._GameObject = get_game_object_subclass(self.bge)
         self._Camera = get_camera_subclass(self.bge, self._GameObject)
@@ -88,7 +90,7 @@ class Application(thread.Application):
             def update(point, path, results):
                 if point is not None:
                     point.update()
-            self._restInterface.rest_walk(update, self._objectRootPath)
+            self._restInterface.rest_walk(update, self.gameObjectPath)
 
     def print_completions_log(self, anyCompletions, logStore):
         '''\

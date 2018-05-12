@@ -99,6 +99,23 @@ class TestCaseWithApplication(unittest.TestCase):
         '''Context manager for each game tick.'''
         return self.application.worker(self.id())
     
+    @property
+    def phases(self):
+        return self._phases
+    
+    def add_phase_starts(self, *args):
+        for start in args:
+            self._phases.append(self.application.tickPerf + float(start))
+            
+    def add_phase_offsets(self, *args):
+        start = self._phases[-1]
+        for offset in args:
+            start += float(offset)
+            self._phases.append(start)
+            
+    def up_to_phase(self, phase):
+        return self.application.tickPerf < self._phases[phase]
+    
     def run(self, result=None):
         # mainLock cannot be acquired here.
         self.show_status(None)
@@ -106,6 +123,7 @@ class TestCaseWithApplication(unittest.TestCase):
     
     def __init__(self, testCaseName, application):
         self._application = application
+        self._phases = []
         super().__init__(testCaseName)
 
 class ThreadTestResult(unittest.TestResult):

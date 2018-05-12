@@ -5,9 +5,8 @@ Backlog
 
     -   Get rid of the logging.
 
--   Boost phases to a property of the custom TestCase subclass.
-
--   Boost elapsed time between ticks to be in the custom TestCase subclass.
+-   Move the classes out of the unittest application into a sub-directory, and
+    move the unit tests themselves into a sub-sub-directory probably.
 
 -   Uplift timing analysis to be a class, and to have an option for whether to
     retain the whole list or just increment on every record.

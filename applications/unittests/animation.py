@@ -43,9 +43,8 @@ class TestAnimation(TestCaseWithApplication):
             addition = 2.0
             speed = 1.0
             target = value + addition
-            phases = (
-                self.application.tickPerf + (addition / speed),
-                self.application.tickPerf + (addition / speed) + 1.0)
+            self.add_phase_starts(addition / speed)
+            self.add_phase_offsets(1.0)
             #
             # Assemble the animation in a dictionary. Note there is no
             # subjectPath so that physics don't get resumed.
@@ -72,9 +71,9 @@ class TestAnimation(TestCaseWithApplication):
                 self.application.tickPerf, animationPath)
             del animationPath[-1]
         
-        while self.application.tickPerf < phases[1]:
+        while self.up_to_phase(1):
             with self.tick, self.application.mainLock:
-                if self.application.tickPerf < phases[0]:
+                if self.up_to_phase(0):
                     #
                     # Check object hasn't reached its destination.
                     self.assertLess(gameObject.worldPosition.z, target)
@@ -99,11 +98,10 @@ class TestAnimation(TestCaseWithApplication):
         '''Test that physics gets suspended during animation.'''
         zPosition = None
         gameObject = None
-        phases = (1.0, 5.0, 10.0)
+        self.add_phase_starts(1.0, 5.0, 10.0)
         turn = radians(135.0)
         animation = None
         animationPath = None
-        tickStart = None
         
         with self.tick:
             lastTick = self.application.tickPerf
@@ -115,8 +113,6 @@ class TestAnimation(TestCaseWithApplication):
     
                 self.restInterface.rest_put(gameObject, self.objectPath)
     
-                tickStart = self.application.tickPerf 
-    
                 valuePath = tuple(self.objectPath) + ('rotation', 'z')
                 value = self.restInterface.rest_get(valuePath)
     
@@ -127,7 +123,7 @@ class TestAnimation(TestCaseWithApplication):
                     'modulo': radians(360.0),
                     'valuePath': valuePath,
                     'subjectPath': self.objectPath,
-                    'speed': turn / (phases[1] - phases[0]),
+                    'speed': turn / (self.phases[1] - self.phases[0]),
                     'targetValue': value + turn}
                 #
                 # There is up to one animation for this test. It has to have a
@@ -138,7 +134,7 @@ class TestAnimation(TestCaseWithApplication):
                 gameObject.physics = True
                 self.show_status("Falling")
 
-        while self.application.tickPerf <= tickStart + phases[0]:
+        while self.up_to_phase(0):
             with self.tick, self.application.mainLock:
                 # Check that its z position is falling every tick.
                 # Next is LessEqual because sometimes it doesn't fall.
@@ -162,7 +158,7 @@ class TestAnimation(TestCaseWithApplication):
             del animationPath[-1]
             zPosition = gameObject.worldPosition.z
 
-        while self.application.tickPerf <= tickStart + phases[1]:
+        while self.up_to_phase(1):
             with self.tick, self.application.mainLock:
                 #
                 # Check that time marches on.
@@ -216,7 +212,7 @@ class TestAnimation(TestCaseWithApplication):
             # Check physics has resumed, literally.
             self.assertTrue(gameObject.physics)
             self.show_status("Finishing")
-        while self.application.tickPerf <= tickStart + phases[2]:
+        while self.up_to_phase(2):
             #
             # Check physics has resumed, in effect.
             with self.tick, self.application.mainLock:

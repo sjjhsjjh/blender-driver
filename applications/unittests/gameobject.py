@@ -15,12 +15,6 @@ if __name__ == '__main__':
 # Module for mathematical operations needed to decompose a rotation matrix.
 # https://docs.python.org/3/library/math.html
 from math import degrees, radians
-
-
-# # https://docs.python.org/3/library/threading.html
-# import threading
-
-
 #
 # Local imports.
 #
@@ -212,15 +206,13 @@ class TestGameObject(TestCaseWithApplication):
     
             gameObject.physics = False
             self.show_status("Suspended...")
-            phases = (self.application.tickPerf + 1.0,
-                      self.application.tickPerf + 2.0,
-                      self.application.tickPerf + 5.0)
+            self.add_phase_starts(1, 2, 5)
             zPosition = gameObject.worldPosition.z
 
         with self.tick:
             lastTick = self.application.tickPerf
         
-        while self.application.tickPerf < phases[0]:
+        while self.up_to_phase(0):
             with self.tick, self.application.mainLock:
                 self.assertEqual(zPosition, gameObject.worldPosition.z)
                 self.assertGreater(self.application.tickPerf, lastTick)
@@ -231,7 +223,7 @@ class TestGameObject(TestCaseWithApplication):
             self.show_status("Dropping...")
             # No assertion; waiting for it to drop.
 
-        while self.application.tickPerf < phases[1]:
+        while self.up_to_phase(1):
             with self.tick:
                 self.assertGreater(self.application.tickPerf, lastTick)
                 lastTick = self.application.tickPerf
@@ -239,7 +231,7 @@ class TestGameObject(TestCaseWithApplication):
         with self.tick, self.application.mainLock:
             zPositions = []
             zPosition = gameObject.worldPosition.z
-        while self.application.tickPerf < phases[2]:
+        while self.up_to_phase(2):
             with self.tick, self.application.mainLock:
                 self.assertGreater(self.application.tickPerf, lastTick)
                 # Next is LessEqual because sometimes it doesn't fall.

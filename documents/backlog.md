@@ -10,8 +10,6 @@ Backlog
 -   Add a unit test for Blender Python not having the subprocess.DEVNULL
     constant.
 
--   Uplift path store blender game engine into a sub-package.
-
 -   Check if suspend and restore Physics works and can be called on non-physics
     objects.
 

@@ -24,9 +24,10 @@ if __name__ == '__main__':
 from . import thread
 #
 # Wrapper for Blender game object and camera that is easy to make RESTful.
-from path_store.blender_game_engine import \
-    get_game_object_subclass, get_camera_subclass, Cursor, \
-    get_game_text_subclass
+from path_store.blender_game_engine.camera import get_camera_subclass
+from path_store.blender_game_engine.cursor import Cursor
+from path_store.blender_game_engine.gameobject import \
+    get_game_object_subclass, get_game_text_subclass
 #
 # RESTful interface base class and Animation subclass for pathstore.
 from path_store.rest import AnimatedRestInterface

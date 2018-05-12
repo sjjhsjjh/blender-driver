@@ -26,14 +26,14 @@ from math import degrees, radians
 from applications.unittest import TestCaseWithApplication
 #
 # Modules under test: 
-from path_store import pathstore, blender_game_engine
+from path_store import pathstore
+from path_store.blender_game_engine.gameobject import get_game_object_subclass
 
 from diagnostic.analysis import fall_analysis
 
 class TestGameObject(TestCaseWithApplication):
     def get_class_and_name(self):
-        GameObject = blender_game_engine.get_game_object_subclass(
-            self.application.bge)
+        GameObject = get_game_object_subclass(self.application.bge)
         try:
             objectName = self.application.testObjectName
         except AttributeError:
@@ -300,7 +300,10 @@ class TestGameObject(TestCaseWithApplication):
             count -= 2
             self.assertEqual(len(gameObjects), count)
             self.show_status("Deleted len:{}".format(len(gameObjects)))
-        # Wait for one tick, then check the game objects are gone.
+        # Wait for two ticks, then check the game objects are gone.
+        for waitTick in range(2):
+            with self.tick:
+                pass
         with self.tick, self.application.mainLock:
             with self.assertRaises(RuntimeError) as context:
                 physicsID = paraList[2].getPhysicsId()

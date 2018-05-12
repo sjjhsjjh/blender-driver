@@ -12,6 +12,10 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
+# Module that facilitates container subclasses.
+# https://docs.python.org/3/library/collections.html#collections.UserList
+import collections
+#
 # Module for mathematical operations needed to decompose a rotation matrix.
 # https://docs.python.org/3/library/math.html
 from math import degrees, radians
@@ -243,3 +247,68 @@ class TestGameObject(TestCaseWithApplication):
         fallErrors, fallDump = fall_analysis(zPositions)
         if fallErrors > 0:
             print("Fall errors:{:d}\n{}".format(fallErrors, fallDump))
+
+    class GameObjectList(collections.UserList):
+        def __delitem__(self, specifier):
+            list_ = self.data
+            if isinstance(specifier, slice):
+                for index in range(*specifier.indices(len(list_))):
+                    list_[index].endObject()
+            else:
+                list_[specifier].endObject()
+        
+            list.__delitem__(list_, specifier)
+
+    def test_delete(self):
+        self.add_phase_starts(3, 4, 5)
+        count = 4
+        paraList = []
+        error = RuntimeError(
+            "KX_GameObject.GetPhysicsId() - Blender Game Engine data has been"
+            " freed, cannot use this python variable")
+
+        with self.application.mainLock:
+            gameObjects = self.GameObjectList()
+            for index in range(count):
+                gameObject = self.add_test_object()
+                gameObject.physics = False
+                gameObject.rotation.y = radians(20 * index)
+                gameObject.worldPosition.z = 2 + index
+                gameObjects.append(gameObject)
+                paraList.append(gameObject)
+            self.assertEqual(gameObjects, paraList)
+            self.show_status("Created {}...".format(len(gameObjects)))
+        while self.up_to_phase(0):
+            with self.tick:
+                pass
+        with self.tick, self.application.mainLock:
+            # Delete first item.
+            del gameObjects[0]
+            count -= 1
+            self.assertEqual(len(gameObjects), count)
+            self.show_status("Deleted len:{}".format(len(gameObjects)))
+        while self.up_to_phase(1):
+            with self.tick:
+                pass
+        with self.tick, self.application.mainLock:
+            # Check that the game object is gone.
+            with self.assertRaises(RuntimeError) as context:
+                physicsID = paraList[0].getPhysicsId()
+            self.assertEqual(str(context.exception), str(error))
+            # Delete second and third items.
+            del gameObjects[1:3]
+            count -= 2
+            self.assertEqual(len(gameObjects), count)
+            self.show_status("Deleted len:{}".format(len(gameObjects)))
+        # Wait for one tick, then check the game objects are gone.
+        with self.tick, self.application.mainLock:
+            with self.assertRaises(RuntimeError) as context:
+                physicsID = paraList[2].getPhysicsId()
+            self.assertEqual(str(context.exception), str(error))
+            with self.assertRaises(RuntimeError) as context:
+                physicsID = paraList[3].getPhysicsId()
+            self.assertEqual(str(context.exception), str(error))
+            paraList[1].physics = True
+        while self.up_to_phase(2):
+            with self.tick:
+                pass

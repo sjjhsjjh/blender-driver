@@ -12,10 +12,6 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
-# Module that facilitates container subclasses.
-# https://docs.python.org/3/library/collections.html#collections.UserList
-import collections
-#
 # Module for mathematical operations needed to decompose a rotation matrix.
 # https://docs.python.org/3/library/math.html
 from math import degrees, radians
@@ -27,13 +23,13 @@ from applications.unittest import TestCaseWithApplication
 #
 # Modules under test: 
 from path_store import pathstore
-from path_store.blender_game_engine.gameobject import get_game_object_subclass
+from path_store.blender_game_engine import gameobject
 
 from diagnostic.analysis import fall_analysis
 
 class TestGameObject(TestCaseWithApplication):
     def get_class_and_name(self):
-        GameObject = get_game_object_subclass(self.application.bge)
+        GameObject = gameobject.get_game_object_subclass(self.application.bge)
         try:
             objectName = self.application.testObjectName
         except AttributeError:
@@ -248,18 +244,7 @@ class TestGameObject(TestCaseWithApplication):
         if fallErrors > 0:
             print("Fall errors:{:d}\n{}".format(fallErrors, fallDump))
 
-    class GameObjectList(collections.UserList):
-        def __delitem__(self, specifier):
-            list_ = self.data
-            if isinstance(specifier, slice):
-                for index in range(*specifier.indices(len(list_))):
-                    list_[index].endObject()
-            else:
-                list_[specifier].endObject()
-        
-            list.__delitem__(list_, specifier)
-
-    def test_delete(self):
+    def test_list(self):
         self.add_phase_starts(3, 4, 5)
         count = 4
         paraList = []
@@ -268,7 +253,7 @@ class TestGameObject(TestCaseWithApplication):
             " freed, cannot use this python variable")
 
         with self.application.mainLock:
-            gameObjects = self.GameObjectList()
+            gameObjects = gameobject.GameObjectList()
             for index in range(count):
                 gameObject = self.add_test_object()
                 gameObject.physics = False
@@ -313,5 +298,49 @@ class TestGameObject(TestCaseWithApplication):
             self.assertEqual(str(context.exception), str(error))
             paraList[1].physics = True
         while self.up_to_phase(2):
+            with self.tick:
+                pass
+
+    def test_dict(self):
+        self.add_phase_starts(2, 4)
+        keys = ('first', 'second', 'third')
+        paraDict = {}
+        error = RuntimeError(
+            "KX_GameObject.RestoreDynamics() - Blender Game Engine data has"
+            " been freed, cannot use this python variable")
+
+        with self.application.mainLock:
+            gameObjects = gameobject.GameObjectDict()
+            for index, key in enumerate(keys):
+                gameObject = self.add_test_object()
+                gameObject.physics = False
+                gameObject.rotation.z = radians(20 * index)
+                gameObject.worldPosition.y -= float(index) * 1.5
+                gameObjects[key] = gameObject
+                paraDict[key] = gameObject
+            self.assertEqual(gameObjects, paraDict)
+            self.show_status("Created {}...".format(
+                ",".join(gameObjects.keys())))
+        while self.up_to_phase(0):
+            with self.tick:
+                pass
+        with self.tick, self.application.mainLock:
+            # Delete an item.
+            del gameObjects[keys[0]]
+            self.assertEqual(len(gameObjects) + 1, len(paraDict))
+            self.show_status("Deleted except {}".format(
+                ",".join(gameObjects.keys())))
+        while self.up_to_phase(1):
+            with self.tick:
+                pass
+        with self.tick, self.application.mainLock:
+            # Check that the deleted game object is gone.
+            with self.assertRaises(RuntimeError) as context:
+                paraDict[keys[0]].physics = True
+            self.assertEqual(str(context.exception), str(error))
+            # Check that the other objects are still OK to access.
+            for key in gameObjects.keys():
+                paraDict[key].physics = True
+        while self.up_to_phase(1):
             with self.tick:
                 pass

@@ -211,7 +211,7 @@ class TestAnimation(TestCaseWithApplication):
             #
             # Check physics has resumed, literally.
             self.assertTrue(gameObject.physics)
-            self.show_status("Finishing")
+            self.show_status("Falling")
         while self.up_to_phase(2):
             #
             # Check physics has resumed, in effect.

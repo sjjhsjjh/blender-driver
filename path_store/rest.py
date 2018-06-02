@@ -192,7 +192,7 @@ class AnimatedRestInterface(RestInterface):
         # Next line has index == 3, which is one more than the level at which
         # the animation object is to be created. The index < 3 levels can get a
         # None in order to build the array or dictionary.
-        if path[0] == 'animations' and index == 3:
+        if index == 3 and path[0] == 'animations':
             if not isinstance(point, PathAnimation):
                 point = PathAnimation()
             point.store = self.principal
@@ -202,24 +202,29 @@ class AnimatedRestInterface(RestInterface):
         #     if not isinstance(point, self.GameObject):
         #         point = self.GameObject()
 
-        # Next check is for all the following conditions.
+        # Next code checks all the following conditions.
         #
         # -   We are creating a point for the root of the game object tree.
         # -   We know what type of path specifiers will be used at the next
         #     level down: strings or numbers.
+        #
+        # It is intended to do the quickest checks first.
         depth = self._gameObjectPathLen + self.levels
-        if index == depth and len(path) > depth:
-            # ToDo: Change this to access path[depth] and catch IndexError.
-            check = True
-            for checkIndex, checkPath in enumerate(self._gameObjectPath):
-                if path[checkIndex] != checkPath:
-                    check = False
-                    break
-            if check:
+        if index == depth:
+            try:
                 pointType = (GameObjectDict if isinstance(path[depth], str)
                              else GameObjectList)
-                if not isinstance(point, pointType):
-                    point = pointType()
+                if isinstance(point, pointType):
+                    pointType = None
+            except IndexError:
+                pointType = None
+            if pointType is not None:
+                for checkIndex, checkPath in enumerate(self._gameObjectPath):
+                    if path[checkIndex] != checkPath:
+                        pointType = None
+                        break
+            if pointType is not None:
+                point = pointType()
             # Don't return here, so that the super point_maker can populate the
             # collection with None placeholders if necessary.
 

@@ -20,13 +20,17 @@ class GameObjectList(collections.UserList):
         list_ = self.data
         if isinstance(specifier, slice):
             for index in range(*specifier.indices(len(list_))):
-                list_[index].endObject()
+                if list_[index] is not None:
+                    list_[index].endObject()
         else:
-            list_[specifier].endObject()
+            if list_[specifier] is not None:
+                list_[specifier].endObject()
     
         list.__delitem__(list_, specifier)
 
 class GameObjectDict(collections.UserDict):
     def __delitem__(self, key):
-        self.data[key].endObject()
+        object_ = self.data[key]
+        if object_ is not None:
+            object_.endObject()
         dict.__delitem__(self.data, key)

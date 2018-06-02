@@ -30,6 +30,8 @@ except ImportError:
     import pathstore
 
 from path_store.animation import Animation
+from path_store.blender_game_engine.gameobjectcollection import \
+    GameObjectDict, GameObjectList
 
 class RestMethod(Enum):
     DELETE = 1
@@ -166,7 +168,7 @@ class AnimatedRestInterface(RestInterface):
     |
     +-- 'root' Conventional item under which all the principal data sits.
         |
-        +-- 'gameObjects'
+        +-- 'gameObjects' GameObjectList or GameObjectDict
             |
             +-- STRING or NUMBER
                 Individual game objects.
@@ -184,6 +186,19 @@ class AnimatedRestInterface(RestInterface):
                 point = PathAnimation()
             point.store = self.principal
             return point
+        
+        if index == self._gameObjectPathLen - 1:
+            check = True
+            for checkIndex, checkPath in enumerate(self._gameObjectPath):
+                if path[checkIndex] != checkPath:
+                    check = False
+                    break
+            if check:
+                pointType = (GameObjectDict if isinstance(path[index], str)
+                             else GameObjectList)
+                if not isinstance(point, pointType):
+                    point = pointType()
+                return point
 
         return super().point_maker(path, index, point)
     
@@ -295,7 +310,8 @@ class AnimatedRestInterface(RestInterface):
         # Set and populate conventional paths.
         self._animationPath = ('animations',)
         self._gameObjectPath = ('root', 'gameObjects')
-        for path in (self.animationPath, self.gameObjectPath):
+        self._gameObjectPathLen = len(self._gameObjectPath)
+        for path in (self.animationPath, ): #self.gameObjectPath):
             self.rest_put(None, path)
 
 

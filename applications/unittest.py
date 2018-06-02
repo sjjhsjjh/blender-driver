@@ -85,8 +85,12 @@ class TestCaseWithApplication(unittest.TestCase):
         return self._application.restInterface
     
     @property
-    def objectPath(self):
+    def objectRoot(self):
         return self.application.gameObjectPath + (self.id(),)
+    
+    @property
+    def objectPath(self):
+        return self.objectRoot + ('default',)
     
     def add_test_object(self):
         return self.application.add_test_object(self.id())
@@ -506,6 +510,7 @@ class Application(blender_driver.application.rest.Application):
             self._textScale = self.templates['status']['scale'][0]
 
             self._testRootPath = ('root', 'test')
+            self._restInterface.levels = 1
 
             self._testObjectOffset = 5.0
             self._testObjectIncrement = -0.5

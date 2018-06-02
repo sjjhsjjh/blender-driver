@@ -12,6 +12,10 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
+# Module that facilitates container subclasses.
+# https://docs.python.org/3/library/collections.html#collections.UserList
+import collections
+#
 # Unit test module.
 # https://docs.python.org/3.5/library/unittest.html
 import unittest
@@ -54,6 +58,27 @@ class TestMakePoint(unittest.TestCase):
         point1 = pathstore.make_point(1, point0)
         self.assertIsNot(point1, point0)
         self.assertEqual(point1, [None, None])
+
+    def test_collections_subclasses(self):
+        class SubList(collections.UserList):
+            pass
+        point0 = SubList([None])
+        self.assertFalse(isinstance(point0, (tuple, list)))
+        self.assertTrue(isinstance(point0, (tuple, list, collections.UserList)))
+        point1 = pathstore.make_point(1, point0)
+        self.assertIs(point1, point0)
+        self.assertEqual(point0, [None, None])
+
+        class SubDict(collections.UserDict):
+            pass
+        point0 = SubDict({'a':"b"})
+        self.assertFalse(isinstance(point0, dict))
+        self.assertTrue(isinstance(point0, (dict, collections.UserDict)))
+        point1 = pathstore.make_point('c', point0)
+        self.assertIs(point1, point0)
+        self.assertEqual(point0, {'a':"b"})
+        point0['c'] = "d"
+        self.assertEqual(point0, {'a':"b", 'c':"d"})
 
     def test_string(self):
         specifier = 'memzero'

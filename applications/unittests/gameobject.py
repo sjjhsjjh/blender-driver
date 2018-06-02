@@ -23,7 +23,7 @@ from applications.unittest import TestCaseWithApplication
 #
 # Modules under test: 
 from path_store import pathstore
-from path_store.blender_game_engine import gameobject
+from path_store.blender_game_engine import gameobject, gameobjectcollection
 
 from diagnostic.analysis import fall_analysis
 
@@ -253,7 +253,7 @@ class TestGameObject(TestCaseWithApplication):
             " freed, cannot use this python variable")
 
         with self.application.mainLock:
-            gameObjects = gameobject.GameObjectList()
+            gameObjects = gameobjectcollection.GameObjectList()
             for index in range(count):
                 gameObject = self.add_test_object()
                 gameObject.physics = False
@@ -302,7 +302,7 @@ class TestGameObject(TestCaseWithApplication):
                 pass
 
     def test_dict(self):
-        self.add_phase_starts(2, 4)
+        self.add_phase_starts(2, 4, 5)
         keys = ('first', 'second', 'third')
         paraDict = {}
         error = RuntimeError(
@@ -310,7 +310,7 @@ class TestGameObject(TestCaseWithApplication):
             " been freed, cannot use this python variable")
 
         with self.application.mainLock:
-            gameObjects = gameobject.GameObjectDict()
+            gameObjects = gameobjectcollection.GameObjectDict()
             for index, key in enumerate(keys):
                 gameObject = self.add_test_object()
                 gameObject.physics = False
@@ -338,9 +338,67 @@ class TestGameObject(TestCaseWithApplication):
             with self.assertRaises(RuntimeError) as context:
                 paraDict[keys[0]].physics = True
             self.assertEqual(str(context.exception), str(error))
-            # Check that the other objects are still OK to access.
+            # Make the remaining objects fall, which is an implicit check that
+            # they are still OK to access.
             for key in gameObjects.keys():
                 paraDict[key].physics = True
+        while self.up_to_phase(2):
+            with self.tick:
+                pass
+
+    def test_rest_dict(self):
+        self.add_phase_starts(6, 7, 8)
+        keys = ('third', 'fourth', 'fifth')
+        paraDict = {}
+        error = RuntimeError(
+            "KX_GameObject.RestoreDynamics() - Blender Game Engine data has"
+            " been freed, cannot use this python variable")
+
+        with self.application.mainLock:
+            objectPath = list(self.objectRoot) + [None]
+            for index, key in enumerate(keys):
+                gameObject = self.add_test_object()
+                gameObject.physics = False
+                gameObject.rotation.z = radians(20 * (index + 5))
+                gameObject.worldPosition.y -= 3 + (float(index) * 1.5)
+                objectPath[-1] = key
+                self.restInterface.rest_put(gameObject, objectPath)
+                paraDict[objectPath[-1]] = gameObject
+            gameObjects = self.restInterface.rest_get(self.objectRoot)
+            self.assertIsInstance(
+                gameObjects, gameobjectcollection.GameObjectDict, gameObjects)
+            self.assertEqual(gameObjects, paraDict)
+            self.show_status("Created {}...".format(
+                ",".join(gameObjects.keys())))
+        while self.up_to_phase(0):
+            with self.tick:
+                pass
+        with self.tick, self.application.mainLock:
+            # Delete an item.
+            objectPath[-1] = keys[0]
+            gameObject = self.restInterface.rest_delete(objectPath)
+            self.assertIs(gameObject, paraDict[keys[0]])
+            self.assertEqual(
+                len(self.restInterface.rest_get(self.objectRoot)) + 1
+                , len(paraDict))
+            gameObjects = self.restInterface.rest_get(self.objectRoot)
+            self.show_status("Deleted except {}...".format(
+                ",".join(gameObjects.keys())))
         while self.up_to_phase(1):
             with self.tick:
                 pass
+        with self.tick, self.application.mainLock:
+            # Check that the deleted game object is gone.
+            with self.assertRaises(RuntimeError) as context:
+                gameObject.physics = True
+            self.assertEqual(str(context.exception), str(error))
+            # Make the remaining objects fall, by switching on physics in a
+            # walk, which is an implicit check that they are still OK to access.
+            def set_physics(point, path, results):
+                point.physics = True
+            self.restInterface.rest_walk(set_physics, self.objectRoot)
+
+        while self.up_to_phase(2):
+            with self.tick:
+                pass
+

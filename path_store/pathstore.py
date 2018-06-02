@@ -15,6 +15,10 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
+# Module that facilitates container subclasses.
+# https://docs.python.org/3/library/collections.html#collections.UserList
+import collections
+#
 # Module for enum type.
 # https://docs.python.org/3.5/library/enum.html
 from enum import Enum
@@ -129,8 +133,9 @@ def descend(parent, specifier):
     return pointType, point, returnError
 
 def get(parent, path=None):
-    """Descend from the parent along the path. Returns the point descended to,
-    or raises:
+    """\
+    Descend from the parent along the path. Returns the point descended to, or
+    raises:
     
     -   IndexError if there was a missing point in a list or tuple.
     -   KeyError if there was a missing point in a dictionary.
@@ -138,22 +143,60 @@ def get(parent, path=None):
     
     If path is None or empty, returns the parent.
     """
+    return parent if path is None else _get(parent, path, False)
+
+def delete(parent, path):
+    """\
+    Descend from the parent along the path. Deletes and returns the point
+    descended to.
+    
+    If descent isn't possible before the deletion point is reached, this
+    subroutine raises the same error as get(), above.
+    
+    If the holder of the specified point is None, returns the error that get()
+    would have raised.
+    """
+    return _get(parent, path, True)
+
+def _get(parent, path, delete):
     error = None
-    for leg in pathify(path):
+    pathified = pathify(path)
+    if delete:
+        pathified = tuple(pathified)
+        stop = len(pathified) - 1
+        if stop < 0:
+            raise ValueError('Path for deletion is empty but should have at'
+                             ' least one element.')
+    
+    for index, leg in enumerate(pathified):
         if error is not None:
             raise error
         pointType, point, descendError = descend(parent, leg)
         if pointType is None:
             message = " ".join(("Couldn't get point for", str_quote(leg), "in"
                                 , str(parent)))
-            raise type(descendError)(message)
+            error = type(descendError)(message)
+        
+        if delete and index >= stop:
+            if pointType is None:
+                return error
+            if pointType is PointType.ATTR:
+                delattr(parent, leg)
+            else:
+                # Same syntax for deleting from dictionary or list.
+                del parent[leg]
+            return point
+
+        if pointType is None:
+            raise error
+
         if point is None:
             # Won't be able to descend from here, which only matters if this
             # isn't the last iteration. Create the error here, because the code
             # has the details for the message. It gets raised at the top of the
             # next iteration, if there's another go-around.
             message = " ".join((
-                "No point for", str_quote(leg), "in", str(parent)))
+                "Point was None for", str_quote(leg), "in", str(parent)))
             error = (IndexError(message) if pointType is PointType.LIST
                      else KeyError(message))
         parent = point
@@ -307,7 +350,7 @@ def make_point(specifier, point=None):
         # iterables are OK for len(), so string and dictionary values don't
         # generate the exception.
         length = 0
-        if isinstance(point, (tuple, list)):
+        if isinstance(point, (tuple, list, collections.UserList)):
             length = len(point)
             if length > specifier:
                 return point

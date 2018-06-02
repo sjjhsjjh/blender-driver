@@ -95,6 +95,10 @@ class RestInterface(object):
     def rest_walk(self, editor, path=None, results=None):
         return pathstore.walk(self.principal, editor, path, results)
     
+    def rest_delete(self, path):
+        pathstore.delete(self._generic, path)
+        return pathstore.delete(self.principal, path)
+    
     def __init__(self):
         self._principal = None
         self._generic = None
@@ -174,6 +178,13 @@ class AnimatedRestInterface(RestInterface):
                 Individual game objects.
     """
     
+    @property
+    def levels(self):
+        return self._levels
+    @levels.setter
+    def levels(self, levels):
+        self._levels = levels
+    
     # Override
     def point_maker(self, path, index, point):
         log(DEBUG, "({}, {}, {}) AnimatedRestInterface", path, index, point)
@@ -186,19 +197,31 @@ class AnimatedRestInterface(RestInterface):
                 point = PathAnimation()
             point.store = self.principal
             return point
-        
-        if index == self._gameObjectPathLen - 1:
+
+        # if path[0] == self._gameObjectPath[0] and index == 3:
+        #     if not isinstance(point, self.GameObject):
+        #         point = self.GameObject()
+
+        # Next check is for all the following conditions.
+        #
+        # -   We are creating a point for the root of the game object tree.
+        # -   We know what type of path specifiers will be used at the next
+        #     level down: strings or numbers.
+        depth = self._gameObjectPathLen + self.levels
+        if index == depth and len(path) > depth:
+            # ToDo: Change this to access path[depth] and catch IndexError.
             check = True
             for checkIndex, checkPath in enumerate(self._gameObjectPath):
                 if path[checkIndex] != checkPath:
                     check = False
                     break
             if check:
-                pointType = (GameObjectDict if isinstance(path[index], str)
+                pointType = (GameObjectDict if isinstance(path[depth], str)
                              else GameObjectList)
                 if not isinstance(point, pointType):
                     point = pointType()
-                return point
+            # Don't return here, so that the super point_maker can populate the
+            # collection with None placeholders if necessary.
 
         return super().point_maker(path, index, point)
     
@@ -298,6 +321,15 @@ class AnimatedRestInterface(RestInterface):
     @property
     def animationPath(self):
         return self._animationPath
+
+    # No point having a class here actually because a GameObject can only be
+    # constructed with a bge.types.KX_GameObject instance.
+    #
+    # @property def GameObject(self):
+    #     return self._GameObject
+    # @GameObject.setter
+    # def GameObject(self, GameObject):
+    #     self._GameObject = GameObject
     
     @property
     def gameObjectPath(self):
@@ -305,6 +337,9 @@ class AnimatedRestInterface(RestInterface):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # self._GameObject = None
+        self._levels = 0
+        
         self._walkResults = self.WalkResults()
         #
         # Set and populate conventional paths.

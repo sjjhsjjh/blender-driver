@@ -1,6 +1,8 @@
 Backlog
 =======
 
+-   Add a unit test like TestGameObject test_rest_list.
+
 -   Move the classes out of the unittest application into a sub-directory, and
     move the unit tests themselves into a sub-sub-directory probably.
 

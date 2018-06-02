@@ -27,10 +27,6 @@ Backlog
 
 -   Replace parts of the diagnostic server with unit tests.
 
--   Maybe change some implementations to inherit from UserDict or UserList.
-
-    https://docs.python.org/3.5/library/collections.html#collections.UserDict
-
 License
 =======
 This file is:  

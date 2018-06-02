@@ -142,7 +142,8 @@ class TestGet(unittest.TestCase):
         
     def test_descend_through_none(self):
         parent = [{'ele': "ment"}, None, {'al': "fire"}]
-        expected = IndexError(" ".join(("No point for 1 in", str(parent))))
+        expected = IndexError(
+            " ".join(("Point was None for 1 in", str(parent))))
         with self.assertRaises(type(expected)) as context:
             pathstore.get(parent, (1, 'ele'))
         self.assertEqual(str(context.exception), str(expected))

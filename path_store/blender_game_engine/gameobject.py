@@ -11,10 +11,6 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
-# Module that facilitates container subclasses.
-# https://docs.python.org/3/library/collections.html#collections.UserList
-import collections
-#
 # Module for levelled logging messages.
 # Tutorial is here: https://docs.python.org/3.5/howto/logging.html
 # Reference is here: https://docs.python.org/3.5/library/logging.html
@@ -343,22 +339,6 @@ def get_game_text_subclass(bge, GameObject):
     # code.
     
     return GameText
-
-class GameObjectList(collections.UserList):
-    def __delitem__(self, specifier):
-        list_ = self.data
-        if isinstance(specifier, slice):
-            for index in range(*specifier.indices(len(list_))):
-                list_[index].endObject()
-        else:
-            list_[specifier].endObject()
-    
-        list.__delitem__(list_, specifier)
-
-class GameObjectDict(collections.UserDict):
-    def __delitem__(self, key):
-        self.data[key].endObject()
-        dict.__delitem__(self.data, key)
 
 # 
 # class RestBGEObject(RestInterface):

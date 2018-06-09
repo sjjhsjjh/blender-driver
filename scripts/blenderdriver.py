@@ -409,7 +409,7 @@ class Main(object):
         except:
             print(''.join(('Failed to start Blender. Command line was:\n\t"'
                            , '"\n\t"'.join(command), '"')))
-            print_exc(file=sys.stderr)
+            print_exc()
             if self._arguments.blender is None:
                 print("Try specifying an explicit path to the Blender"
                       " executable, with the -B switch.")
@@ -420,7 +420,7 @@ class Main(object):
             recorder = self._start_recorder(popen)
         except:
             popen.terminate()
-            print_exc(file=sys.stderr)
+            print_exc()
             return 1
         #
         # Wait for Blender to finish, so that we can get a return code, and so

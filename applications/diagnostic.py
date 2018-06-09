@@ -32,10 +32,6 @@ if __name__ == '__main__':
 # Reference is here: https://docs.python.org/3.5/library/logging.html
 from logging import DEBUG, INFO, WARNING, ERROR, log, getLogger
 #
-# Module for the version of Python.
-# https://docs.python.org/3.5/library/sys.html#sys.version
-from sys import version as pythonVersion
-#
 # This module prints diagnostic information about threads.
 # https://docs.python.org/3.5/library/threading.html#thread-objects
 import threading
@@ -78,9 +74,7 @@ class Application(blender_driver.application.thread.Application):
             log(DEBUG, "acquired main lock.")
         log(DEBUG
             , "counter:{}.\nPython: {}\nArguments: {}\nGame scene objects: {}"
-            , self._counter
-            , " ".join(_.rstrip() for _ in pythonVersion.splitlines())
-            , vars(self.arguments)
+            , self._counter, self.pythonVersion, vars(self.arguments)
             , self.gameScene.objects)
         if self.arguments.removeTickController:
             print("Tick controller has been removed. Terminate BGE by"

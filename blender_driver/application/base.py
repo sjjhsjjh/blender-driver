@@ -26,6 +26,10 @@ import importlib
 # https://docs.python.org/3/library/math.html#math.radians
 from math import radians
 #
+# Module for the version of Python.
+# https://docs.python.org/3.5/library/sys.html#sys.version
+from sys import version as pythonVersion
+#
 # Blender library imports, in alphabetic order.
 #
 # These modules can only be imported if running from within Blender.
@@ -71,6 +75,10 @@ class Application(object):
     """\
     Dictionary of template objects, used in both the data and game contexts.
     """
+    
+    @property
+    def pythonVersion(self):
+        return self._pythonVersion
 
     @property
     def dontDeletes(self):
@@ -338,6 +346,8 @@ class Application(object):
         Constructor common to both Blender data and Blender Game Engine
         contexts. Call super() if overriden.
         """
+        self._pythonVersion = " ".join(tuple(
+            line.rstrip() for line in pythonVersion.splitlines()))
         #
         # Store the settings collection
         self._settings = settings.copy()

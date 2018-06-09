@@ -31,6 +31,10 @@ import threading
 # https://docs.python.org/3/library/time.html
 import time
 #
+# Module for pretty printing exceptions.
+# https://docs.python.org/3/library/traceback.html#traceback-examples
+from traceback import print_exc
+#
 # Local imports.
 #
 # Application base class module.
@@ -171,14 +175,25 @@ class Application(base.Application):
     def game_terminate_threads(self):
         log(INFO, "Number of threads: {}.", threading.active_count())
         for thread in threading.enumerate():
-            if thread is threading.current_thread():
-                log(INFO, "Not joining current: {}.", thread)
-            elif thread is threading.main_thread():
-                log(INFO, "Not joining main: {}.", thread)
-            else:
+            try:
+                reason = self.dont_join_reason(thread)
+            except:
+                print_exc()
+                reason = 'Exception raised.'
+
+            if reason is None:
                 log(INFO, "Joining: {} ...", thread)
                 try:
                     thread.join()
                     log(INFO, "Joined.")
                 except RuntimeError as error:
                     log(INFO, "Couldn't join: {}", error)
+            else:
+                log(INFO, 'Not joining "{}". {}', thread.name, reason)
+
+    def dont_join_reason(self, thread):
+        if thread is threading.main_thread():
+            return "Main thread."
+        if thread is threading.current_thread():
+            return "Current thread."
+        return None

@@ -51,14 +51,15 @@ from mathutils import Vector, Matrix, Quaternion
 # Blender Driver application with background banner.
 from . import restanimation
 #
-# Blender Driver application with REST.
-import blender_driver.application.rest
+# Blender Driver application with HTTP server.
+import blender_driver.application.http
 
 # Diagnostic print to show when it's imported. Only printed if all its own
 # imports run OK.
 print('"'.join(('Application module ', __name__, '.')))
 
-class Application(restanimation.Application):
+class Application(
+    blender_driver.application.http.Application, restanimation.Application):
     
     templates = {
         'cube': {
@@ -102,8 +103,7 @@ class Application(restanimation.Application):
         # game objects.
         super().game_initialise()
         
-        self.mainLock.acquire()
-        try:
+        with self.mainLock:
             #
             # Add tethers and cursors to game objects.
             #
@@ -178,9 +178,12 @@ class Application(restanimation.Application):
             path.append('subjectPath')
             self._restInterface.rest_put(self._cursorPath, path)
             # Note that path now points to the camera subjectPath.
-            
-        finally:
-            self.mainLock.release()
+        
+    # Override.
+    # Only point of the override is to force the method resolution order to
+    # start with the http application.
+    def game_terminate(self):
+        super().game_terminate()
 
     # Override.
     def game_tick_run(self):

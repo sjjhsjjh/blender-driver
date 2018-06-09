@@ -21,9 +21,9 @@ if __name__ == '__main__':
 # HTTP server module
 # https://docs.python.org/3/library/http.server.html#module-http.server
 # https://docs.python.org/3/library/socketserver.html#module-socketserver
-import http.server
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 #
-# The ThreadingMixIn is needed because of a defect in Python, see these:
+# The ThreadingMixIn is needed because of an apparent defect in Python, see:
 # https://github.com/Microsoft/WSL/issues/1906
 # https://bugs.python.org/issue31639
 # The defect is fixed in 3.7 Python but Blender has the 3.5 version at time of
@@ -61,28 +61,11 @@ class Application(rest.Application):
         return self._httpPort
     
     def _http_server(self):
-        print('_http_server 0')
-        self.continueServing = True
-        while self.continueServing and not self.terminating():
-            print('_http_server 1', self._httpServer.timeout)
+        while not self.terminating():
             self._httpServer.handle_request()
-                
-    #     try:
-    #         self._httpServer.serve_forever()
-    #     except:
-    #         print('_http_server exception')
-        print('_http_server 2', self.continueServing)
-    
-    @property
-    def continueServing(self):        
-        return self._continueServing
-    @continueServing.setter
-    def continueServing(self, continueServing):
-        self._continueServing = continueServing
     
     def game_initialise(self):
         super().game_initialise()
-        print(self.pythonVersion)
         website = self.arguments.directory
         if website is None:
             website = os.path.abspath(os.path.join(
@@ -97,6 +80,9 @@ class Application(rest.Application):
         # here. That will happen on the http_server thread.
         self._httpServer = HTTPServer(
             ("localhost", self.arguments.port), Handler)
+        #
+        # Seems necessary to set a timeout in the HTTP server to avoid the
+        # request thread hanging.
         self._httpServer.timeout = 0.5
         #
         # Set a reference to the owner object into the server object for later
@@ -104,35 +90,26 @@ class Application(rest.Application):
         self._httpServer.application = self
         #
         # Get the actual port number and server address.
-        sockname = self._httpServer.server_address
+        address = self._httpServer.server_address
         self._httpServerAddress = (
-            'localhost' if sockname[0] == '127.0.0.1' else sockname[0])
-        self._httpPort = int(sockname[1])
-        log(INFO, 'Started HTTP server on {}:{}.'
+            'localhost' if address[0] == '127.0.0.1' else address[0][:])
+        self._httpPort = int(address[1])
+        log(INFO, 'Started server at http://{}:{}'
             , self._httpServerAddress, self._httpPort)
-        #
-        # Create the http_server thread object but don't start the thread yet.
-        self._httpServerThread = threading.Thread(
-            target=self._http_server, name="http_server")
         
-        log(INFO, 'Starting HTTP server ...')
-        self._httpServerThread.start()
+        log(INFO, 'Starting HTTP server.')
+        threading.Thread(target=self._http_server, name="http_server").start()
 
     def game_terminate(self):
-        super().game_terminate()
-
-        # log(INFO, 'Stop HTTP service ...')
-        # self._httpServer.shutdown()
         log(INFO, 'Closing HTTP server ...')
         self._httpServer.server_close()
-        #
-        # It seems necessary to do both of the above before the following. If
-        # the thread join is before the server_close, it hangs if any error has
-        # been returned.
-        # log(INFO, 'Joining HTTP server thread ...')
-        # self._httpServerThread.join()
         log(INFO, 'HTTP server shut down.')
-        # super().game_terminate()
+        super().game_terminate()
+
+    def dont_join_reason(self, thread):
+        if thread.name == 'http_server':
+            return "HTTP server thread, which might be hung."
+        return super().dont_join_reason(thread)
 
     # Override.
     def get_argument_parser(self):
@@ -153,36 +130,29 @@ class Application(rest.Application):
         url = urllib.parse.urlsplit(handler.path)
         api = url.path.startswith('/api/') or url.path == '/api'
         if (not api) and handler.command == 'GET':
-            return False
+            return url
 
         print('rest_api(,{},{})'.format(handler, url))
         handler.send_error(501)
-        return True
+        return None
 
 # HTTP Server subclass. This class holds a reference to the Application object
 # so that any handlers that are spawned have a route to it.
-class HTTPServer(ThreadingMixIn, http.server.HTTPServer):
+class HTTPServer(ThreadingMixIn, HTTPServer):
     @property
     def application(self):
         return self._application
     @application.setter
     def application(self, application):
         self._application = application
-        
-    # # Override
-    # def handle_error(self, request, clientAddress):
-    #     # super().handle_error(request, clientAddress)
-    #     print('Custom handle_error raise.')
-    #     raise
 
-class Handler(http.server.SimpleHTTPRequestHandler):
+class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         try:
-            handled = self.server.application.rest_api(self)
+            url = self.server.application.rest_api(self)
         except:
             self.send_error(500)
-            # self.server.application.continueServing = False
             raise
-        if not handled:
-            super().do_GET()
- 
+        if url is None:
+            return
+        return super().do_GET()

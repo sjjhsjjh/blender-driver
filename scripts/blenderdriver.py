@@ -319,7 +319,7 @@ class Main(object):
         return blenderPath
     
     def _start_recorder(self, blenderPopen, blenderWindowName="Blender"):
-        """
+        """\
         Start a screen recorder, if specified. Returns a Popen for the screen
         recorder process.
         """
@@ -406,7 +406,7 @@ class Main(object):
         return_ = 0
         try:
             popen = subprocess.Popen(command)
-        except Exception as exception:
+        except:
             print(''.join(('Failed to start Blender. Command line was:\n\t"'
                            , '"\n\t"'.join(command), '"')))
             print_exc(file=sys.stderr)
@@ -418,7 +418,7 @@ class Main(object):
         # Start the screen recorder, if specified.
         try:
             recorder = self._start_recorder(popen)
-        except Exception as exception:
+        except:
             popen.terminate()
             print_exc(file=sys.stderr)
             return 1

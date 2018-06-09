@@ -3,6 +3,29 @@ Backlog
 
 -   Add a unit test like TestGameObject test_rest_list.
 
+-   Maybe have a structure in the AnimatedRestInterface like:
+
+        'root'
+          |
+          +----'gameObjects'
+                 |
+                 + <name of template object, T>
+                     |
+                     + <collection of game objects>
+                       Put'ing a dict here would create a KXGameObject based on
+                       the object named T in the .blend file.
+
+    -   Separate the game engine and path animation parts of
+        AnimatedRestInterface, and move the game engine parts into the
+        sub-directory.
+
+-   Maybe change the thread application class to be like the unittest
+    application:
+    
+    -   Spawn a small number of threads at the start, instead of one per tick.
+    -   Use a barrier and other thread scheduling gubbins to share execution
+        between them.
+
 -   Move the classes out of the unittest application into a sub-directory, and
     move the unit tests themselves into a sub-sub-directory probably.
 

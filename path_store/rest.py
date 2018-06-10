@@ -81,6 +81,8 @@ class RestInterface(object):
     def rest_patch(self, value, path=None):
         self._principal = pathstore.merge(
             self._principal, value, path, point_maker=self.point_maker)
+        self._generic = pathstore.merge(
+            self._generic, _generic_value(value), path)
 
     def rest_put(self, value, path=None):
         self._principal = pathstore.replace(

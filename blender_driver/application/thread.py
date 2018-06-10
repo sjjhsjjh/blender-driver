@@ -184,8 +184,8 @@ class Application(base.Application):
             if reason is None:
                 log(INFO, "Joining: {} ...", thread)
                 try:
-                    thread.join()
-                    log(INFO, "Joined.")
+                    thread.join(1.0)
+                    log(INFO, "Time out." if thread.is_alive() else "Joined.")
                 except RuntimeError as error:
                     log(INFO, "Couldn't join: {}", error)
             else:

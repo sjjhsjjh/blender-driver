@@ -19,16 +19,17 @@ if __name__ == '__main__':
 # import argparse
 #
 # HTTP server module
-# https://docs.python.org/3/library/http.server.html#module-http.server
-# https://docs.python.org/3/library/socketserver.html#module-socketserver
+# https://docs.python.org/3/library/http.server.html
+# Extra documentation:
+# The handler rfile attribute uses the StreamReader API:
+# https://docs.python.org/3/library/asyncio-stream.html?highlight=write#streamreader
+# The handler wfile attribute uses the StreamWriter API:
+# https://docs.python.org/3/library/asyncio-stream.html?highlight=write#streamwriter
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 #
-# The ThreadingMixIn is needed because of an apparent defect in Python, see:
-# https://github.com/Microsoft/WSL/issues/1906
-# https://bugs.python.org/issue31639
-# The defect is fixed in 3.7 Python but Blender has the 3.5 version at time of
-# writing.
-from socketserver import ThreadingMixIn
+# Module for JavaScript Object Notation (JSON) strings.
+# https://docs.python.org/3.5/library/json.html
+import json
 #
 # Module for levelled logging messages.
 # Tutorial is here: https://docs.python.org/3/howto/logging.html
@@ -41,9 +42,22 @@ from logging import DEBUG, INFO, WARNING, ERROR, log
 from os import chdir
 import os.path
 #
+# Module to create an HTTP server that spawns a thread for each request.
+# https://docs.python.org/3/library/socketserver.html#module-socketserver
+# The ThreadingMixIn is needed because of an apparent defect in Python, see:
+# https://github.com/Microsoft/WSL/issues/1906
+# https://bugs.python.org/issue31639
+# The defect is fixed in 3.7 Python but Blender has the 3.5 version at time of
+# writing.
+from socketserver import ThreadingMixIn
+#
 # Module for starting a Thread.
 # https://docs.python.org/3/library/threading.html
 import threading
+#
+# Module for pretty printing exceptions.
+# https://docs.python.org/3/library/traceback.html#traceback-examples
+from traceback import print_exc
 #
 # Module for parsing URL strings.
 # https://docs.python.org/3/library/urllib.parse.html
@@ -57,8 +71,8 @@ from . import rest
 class Application(rest.Application):
     
     @property
-    def httpPort(self):
-        return self._httpPort
+    def url(self):
+        return self._url
     
     def _http_server(self):
         while not self.terminating():
@@ -85,19 +99,19 @@ class Application(rest.Application):
         # request thread hanging.
         self._httpServer.timeout = 0.5
         #
-        # Set a reference to the owner object into the server object for later
-        # use by its request Handler.
+        # Set a reference to the application object into the server object for
+        # later use by its request Handler.
         self._httpServer.application = self
         #
-        # Get the actual port number and server address.
+        # Get the actual port number and server address. The port number could
+        # be different, if zero was specified.
         address = self._httpServer.server_address
-        self._httpServerAddress = (
-            'localhost' if address[0] == '127.0.0.1' else address[0][:])
-        self._httpPort = int(address[1])
-        log(INFO, 'Started server at http://{}:{}'
-            , self._httpServerAddress, self._httpPort)
-        
-        log(INFO, 'Starting HTTP server.')
+        self._url = 'http://{}:{}'.format(
+            'localhost' if address[0] == '127.0.0.1' else address[0]
+            , int(address[1]))
+        #
+        # Start the server thread.
+        log(INFO, 'Starting HTTP server at {}', self.url)
         threading.Thread(target=self._http_server, name="http_server").start()
 
     def game_terminate(self):
@@ -126,14 +140,39 @@ class Application(rest.Application):
             ' is located, then down into the user_interface/ sub-directory.')
         return parser
     
-    def rest_api(self, handler):
-        url = urllib.parse.urlsplit(handler.path)
-        api = url.path.startswith('/api/') or url.path == '/api'
-        if (not api) and handler.command == 'GET':
-            return url
+    def rest_api(self, httpHandler):
+        url = urllib.parse.urlsplit(httpHandler.path)
+        if url.path == '/api':
+            path = list()
+        elif url.path.startswith('/api/'):
+            # Reference documentation for filter() is here:
+            # https://docs.python.org/3/library/functions.html#filter
+            # Next line removes blanks from the path, including the blank caused
+            # by the leading / character.
+            path = list(filter(None, url.path.split('/')))
+            #
+            # Delete the initial 'api'.
+            del path[0]
+        else:
+            path = None
 
-        print('rest_api(,{},{})'.format(handler, url))
-        handler.send_error(501)
+        if path is None:
+            return url
+        
+        with self.mainLock:
+            generic = self._restInterface.get_generic(path)
+
+            if generic is not None:
+                response = bytes(json.dumps(generic), 'utf-8')
+                httpHandler.send_response(200)
+                httpHandler.send_header('Content-Type', 'application/json')
+                httpHandler.send_header(
+                    'Content-Length', '{}'.format(len(response)))
+                httpHandler.end_headers()
+                httpHandler.wfile.write(response)
+                print('rest_api {} {} {}'.format(
+                    url, path, json.dumps(generic, indent=2)))
+
         return None
 
 # HTTP Server subclass. This class holds a reference to the Application object
@@ -145,13 +184,15 @@ class HTTPServer(ThreadingMixIn, HTTPServer):
     @application.setter
     def application(self, application):
         self._application = application
-
+    
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         try:
             url = self.server.application.rest_api(self)
         except:
             self.send_error(500)
+            log(ERROR, 'Exception in Handler on thread"{}"'
+                , threading.current_thread().name)
             raise
         if url is None:
             return

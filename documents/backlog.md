@@ -5,6 +5,8 @@ Backlog
 
 -   See about getting the launch script to start the browser, or at least
     refresh.
+
+-   Unit tests for pathify_split.
         
 -   Add a unit test like TestGameObject test_rest_list.
 

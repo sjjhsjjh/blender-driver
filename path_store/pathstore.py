@@ -57,6 +57,18 @@ def pathify(path):
             except TypeError:
                 yield path
 
+def pathify_split(str_, sep='/', skip=0):
+    for leg in str_.split(sep):
+        if leg == "":
+            continue
+        if skip > 0:
+            skip -= 1
+            continue
+        try:
+            yield int(leg)
+        except ValueError:
+            yield leg
+
 def iterify(source):
     """\
     Either source.items(), for a dictionary, or enumerate(source), for a list or

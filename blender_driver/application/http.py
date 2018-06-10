@@ -67,6 +67,9 @@ import urllib.parse
 #
 # Application base class module.
 from . import rest
+#
+# Path store utility.
+from path_store.pathstore import pathify_split
 
 class Application(rest.Application):
     
@@ -146,14 +149,7 @@ class Application(rest.Application):
         if url.path == '/api':
             path = list()
         elif url.path.startswith('/api/'):
-            # Reference documentation for filter() is here:
-            # https://docs.python.org/3/library/functions.html#filter
-            # Next line removes blanks from the path, including the blank caused
-            # by the leading / character.
-            path = list(filter(None, url.path.split('/')))
-            #
-            # Delete the initial 'api'.
-            del path[0]
+            path = list(pathify_split(url.path, skip=1))
         else:
             path = None
 

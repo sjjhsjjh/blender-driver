@@ -1,6 +1,11 @@
 Backlog
 =======
+-   Load the get_generic store by retrieving some things or in some other way at
+    game_initialise.
 
+-   See about getting the launch script to start the browser, or at least
+    refresh.
+        
 -   Add a unit test like TestGameObject test_rest_list.
 
 -   Maybe have a structure in the AnimatedRestInterface like:

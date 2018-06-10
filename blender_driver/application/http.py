@@ -84,7 +84,7 @@ class Application(rest.Application):
         if website is None:
             website = os.path.abspath(os.path.join(
                 os.path.dirname(__file__), os.path.pardir, os.path.pardir
-                , 'user_interface'))
+                , 'user_interface', 'diagnostic'))
         #
         # Change to the website directory so that the HTTP handler can be a
         # subclass of SimpleHTTPRequestHandler.
@@ -137,7 +137,8 @@ class Application(rest.Application):
             'Directory that contains the HTML for the user interface.'
             ' WARNING: The current working directory will change to that'
             ' directory. Default is to go up two levels from where this file'
-            ' is located, then down into the user_interface/ sub-directory.')
+            ' is located, then down into the user_interface/diagnostic/'
+            ' sub-directory.')
         return parser
     
     def rest_api(self, httpHandler):

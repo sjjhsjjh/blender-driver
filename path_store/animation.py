@@ -28,6 +28,18 @@ class Animation(object):
         self._completeTime = None
     
     @property
+    def implicitStart(self):
+        """\
+        If True, setting nowTime also sets startTime if startTime is None.
+        If False, setting nowTime has no affect on startTime. This means that
+        startTime must be set explicitly before the first call to get_value().
+        """
+        return self._implicitStart
+    @implicitStart.setter
+    def implicitStart(self, implicitStart):
+        self._implicitStart = implicitStart
+    
+    @property
     def startValue(self):
         return self._startValue
     @startValue.setter
@@ -40,6 +52,8 @@ class Animation(object):
         return self._nowTime
     @nowTime.setter
     def nowTime(self, nowTime):
+        if self.startTime is None and self.implicitStart:
+            self.startTime = nowTime
         self._nowTime = nowTime
         
     @property
@@ -178,6 +192,7 @@ class Animation(object):
         self._speed = None
         self._startValue = None
         self._startTime = None
+        self._implicitStart = True
         self._nowTime = None
         self._targetValue = None
 

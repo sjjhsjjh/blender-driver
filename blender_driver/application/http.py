@@ -157,18 +157,38 @@ class Application(rest.Application):
             return url
         
         with self.mainLock:
-            generic = self._restInterface.get_generic(path)
+            command = httpHandler.command.upper()
+            if command == 'GET':
+                generic = self._restInterface.get_generic(path)
+                if generic is not None:
+                    response = bytes(json.dumps(generic), 'utf-8')
+                    httpHandler.send_response(200)
+                    httpHandler.send_header('Content-Type', 'application/json')
+                    httpHandler.send_header(
+                        'Content-Length', '{}'.format(len(response)))
+                    httpHandler.end_headers()
+                    httpHandler.wfile.write(response)
+            elif command == 'PUT':
+                contentLengthHeader = httpHandler.headers.get('Content-Length')
+                if contentLengthHeader is None:
+                    contentLength = 0
+                else:
+                    contentLength = int(contentLengthHeader)
+                if contentLength > 0:
+                    contentJSON = (
+                        httpHandler.rfile.read(contentLength).decode('utf-8'))
+                else:
+                    contentJSON = None
+                if contentJSON is None:
+                    content = None
+                else:
+                    content = json.loads(contentJSON)
 
-            if generic is not None:
-                response = bytes(json.dumps(generic), 'utf-8')
+                print('rest_api Content-Length"{}"{}.\n{}\n{}'.format(
+                    contentLengthHeader, contentLength, contentJSON, content))
+                self._restInterface.rest_put(content, path)
                 httpHandler.send_response(200)
-                httpHandler.send_header('Content-Type', 'application/json')
-                httpHandler.send_header(
-                    'Content-Length', '{}'.format(len(response)))
                 httpHandler.end_headers()
-                httpHandler.wfile.write(response)
-                print('rest_api {} {} {}'.format(
-                    url, path, json.dumps(generic, indent=2)))
 
         return None
 
@@ -194,3 +214,16 @@ class Handler(SimpleHTTPRequestHandler):
         if url is None:
             return
         return super().do_GET()
+
+    def do_PUT(self):
+        try:
+            url = self.server.application.rest_api(self)
+        except:
+            self.send_error(500)
+            log(ERROR, 'Exception in Handler on thread"{}"'
+                , threading.current_thread().name)
+            raise
+        if url is None:
+            return
+        return super().do_PUT()
+        

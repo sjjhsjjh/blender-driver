@@ -7,7 +7,9 @@ Backlog
     refresh.
 
 -   Unit tests for pathify_split.
-        
+
+-   Read charset from content-type. Also check content-type in requests.
+
 -   Add a unit test like TestGameObject test_rest_list.
 
 -   Maybe have a structure in the AnimatedRestInterface like:

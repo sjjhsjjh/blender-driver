@@ -43,7 +43,7 @@ class UserInterface {
     }
 
     constructor(userInterfaceID) {
-        this._interval = undefined;
+        this._timeOut = undefined;
         this.userInterface = document.getElementById(userInterfaceID);
     }
     
@@ -58,23 +58,7 @@ class UserInterface {
         });
     }
     
-    stop() {
-        if (this._interval !== undefined) {        
-            clearInterval(this._interval);
-            this._interval = undefined;
-        }
-        fetch(this.api_path(['root', 'gameObjects']), {"method": "DELETE"})
-        .then(() => {
-            this.add_results("Stopped.");
-        });
-    }
-    
-    reset() {
-        if (this._interval !== undefined) {        
-            clearInterval(this._interval);
-            this._interval = undefined;
-        }
-            
+    build() {
         const xCount = 4;
         const yCount = 4;
         const zCount = 4;
@@ -87,65 +71,92 @@ class UserInterface {
         let x = xStart;
         let y = yStart;
         let z = zStart;
+        let objectCount;
         
         let xIndex = 0;
         let yIndex = 0;
         let zIndex = 0;
-        
-        let finished = false;
+
+        // Following code is based on a time out, but used to be based on an
+        // interval. The interval seems more conceptually correct, but the time
+        // out ensures that the above variables get incremented in
+        // synchronisation with the PATCH requests. If they get out of
+        // synchronisation, then an objectIndex can be duplicated and skipped,
+        // like 8 goes twice and 9 is skipped.
+        let phase = 2;
         function add_one(that) {
-            if (finished) {
-                console.log("Finished.");
-                return;
-            }
-            that.put({
+            const patch = (phase === 2) ?
+                {
                     "rotation": [0, 0, 0],
                     "worldPosition": [x, y, z],
                     "physics": false
-                }, 'root', 'gameObjects', objectIndex)
+                } : {
+                    "physics": true
+                };
+            fetch(that.api_path(['root', 'gameObjects', objectIndex]), {
+                "method": "PATCH",
+                "body": JSON.stringify(patch)
+            })
             .then(() => {
                 objectIndex += 1;
-    
-                zIndex += 1;
-                z += increment;
-                if (zIndex >= zCount) {
-                    zIndex = 0;
-                    z = zStart;
-    
-                    yIndex += 1;
-                    y += increment;
-                    if (yIndex >= yCount) {
-                        yIndex = 0;
-                        y = yStart;
-    
-                        xIndex += 1;
-                        x += increment;
-                        if (xIndex >= xCount) {
-                            finished = true;
+                
+                if (phase === 2) {
+                    zIndex += 1;
+                    z += increment;
+                    if (zIndex >= zCount) {
+                        zIndex = 0;
+                        z = zStart;
+        
+                        yIndex += 1;
+                        y += increment;
+                        if (yIndex >= yCount) {
+                            yIndex = 0;
+                            y = yStart;
+        
+                            xIndex += 1;
+                            x += increment;
+                            if (xIndex >= xCount) {
+                                phase -= 1;
+                                objectCount = objectIndex;
+                                objectIndex = 0;
+                            }
                         }
                     }
                 }
+                else if (phase == 1) {
+                    if (objectIndex >= objectCount) {
+                        phase -= 1;
+                        objectIndex = 0;
+                    }
+                }
                 
-                if (finished) {
-                    clearInterval(that._interval);
-                    that.get()
-                    .then(response => {
-                        that.add_results(response);
-                        for(var index=0; index<objectIndex; index++) {
-                            that.put(true,
-                                     'root', 'gameObjects', index, "physics");
-                        }
-                    });
+                if (phase <= 0) {
+                    that.get().then(response => that.add_results(response));
+                }
+                else {
+                    
+                    this._timeOut = setTimeout(
+                        add_one, (phase === 2 ? 10 : 1), that);
                 }
             });
         }
-        fetch(this.api_path(['root', 'gameObjects']), {"method": "DELETE"})
-        .then(() => {
-            this._interval = setInterval(add_one, 100, this);
-        });
+        this.reset().then(() => add_one(this));
 
         // Camera 12, 1, 7.
 
+    }
+    
+    reset() {
+        if (this._timeOut !== undefined) {        
+            clearTimeout(this._timeOut);
+            this._timeOut = undefined;
+        }
+        return fetch(this.api_path(['root', 'gameObjects']),
+                     {"method": "DELETE"});
+    }
+    
+    stop() {
+        this.reset().then(() => this.add_results("Stopped."));
     }
     
     get(...path) {
@@ -185,7 +196,7 @@ class UserInterface {
         this.add_button("Zoom", this.put_animation.bind(this));
         this.add_button("Fetch /", this.get_root.bind(this));
         this.add_button("Clear", this.clear_results.bind(this));
-        this.add_button("Reset", this.reset.bind(this));
+        this.add_button("Build", this.build.bind(this));
         this.add_button("Stop", this.stop.bind(this));
         
         this.results = this.appendNode('pre');

@@ -312,7 +312,8 @@ class Application(
     def move_cursor(self):
         self._cursorPath.append('subjectPath')
         subjectPath = list(self._restInterface.rest_get(self._cursorPath))
-        subjectPath[-1] = (subjectPath[-1] + 1) % self._objectCount
+        subjects = len(self._restInterface.rest_get(subjectPath[:-1]))
+        subjectPath[-1] = (subjectPath[-1] + 1) % subjects
         self._restInterface.rest_put(subjectPath, self._cursorPath)
         del self._cursorPath[-1:]
         # ToDo maybe: Force the camera to update to point to the new location.

@@ -17,10 +17,11 @@ class UserInterface {
         return parent.appendChild(this.createNode(tag, text));
     }
     
-    add_button(text, boundMethod) {
-        const button = this.appendNode('button', text);
+    add_button(text, boundMethod, parent) {
+        const button = this.appendNode('button', text, parent);
         button.setAttribute('type', 'button');
         button.onclick = boundMethod;
+        return button;
     }
     
     add_results(...objects) {
@@ -44,6 +45,7 @@ class UserInterface {
 
     constructor(userInterfaceID) {
         this._timeOut = undefined;
+        this._stopped = false;
         this.userInterface = document.getElementById(userInterfaceID);
     }
     
@@ -76,6 +78,8 @@ class UserInterface {
         let xIndex = 0;
         let yIndex = 0;
         let zIndex = 0;
+        
+        this.stopped = false;
 
         // Following code is based on a time out, but used to be based on an
         // interval. The interval seems more conceptually correct, but the time
@@ -85,6 +89,11 @@ class UserInterface {
         // like 8 goes twice and 9 is skipped.
         let phase = 2;
         function add_one(that) {
+            that._timeOut = undefined;
+            if (that.stopped) {
+                that.add_results("Stopped.");
+                return;
+            }
             const patch = (phase === 2) ?
                 {
                     "rotation": [0, 0, 0],
@@ -134,8 +143,7 @@ class UserInterface {
                     that.get().then(response => that.add_results(response));
                 }
                 else {
-                    
-                    this._timeOut = setTimeout(
+                    that._timeOut = setTimeout(
                         add_one, (phase === 2 ? 10 : 1), that);
                 }
             });
@@ -147,7 +155,7 @@ class UserInterface {
     }
     
     reset() {
-        if (this._timeOut !== undefined) {        
+        if (this._timeOut !== undefined) {
             clearTimeout(this._timeOut);
             this._timeOut = undefined;
         }
@@ -156,7 +164,13 @@ class UserInterface {
     }
     
     stop() {
-        this.reset().then(() => this.add_results("Stopped."));
+        this.stopped = true;
+        let message = "Deleting";
+        if (this._timeOut !== undefined) {
+            message += " and clearing time out:" + this._timeOut;
+        }
+        message += ".";
+        this.reset().then(() => this.add_results(message));
     }
     
     get(...path) {
@@ -174,7 +188,7 @@ class UserInterface {
         });
     }
     
-    get_root() {
+    get_display() {
         this.get().then(response => this.add_results(response));
     }
     
@@ -194,12 +208,14 @@ class UserInterface {
     show() {
         this.add_button("Fetch camera", this.get_camera.bind(this));
         this.add_button("Zoom", this.put_animation.bind(this));
-        this.add_button("Fetch /", this.get_root.bind(this));
-        this.add_button("Clear", this.clear_results.bind(this));
         this.add_button("Build", this.build.bind(this));
         this.add_button("Stop", this.stop.bind(this));
         
-        this.results = this.appendNode('pre');
+        const results = this.appendNode('fieldset');
+        this.appendNode('legend', "Results", results);
+        this.add_button("Clear", this.clear_results.bind(this), results);
+        this.add_button("Fetch /", this.get_display.bind(this), results);
+        this.results = this.appendNode('pre', undefined, results);
         
         return this;
     }

@@ -2,9 +2,7 @@ Backlog
 =======
 -   Next video:
 
-    -   Demonstration User Interface.
     -   Control object creation from the browser.
-    -   Control camera motion from the browser.
     -   Display a Fetch count in the browser.
     -   Put the results and Clear button in a fieldset.
 

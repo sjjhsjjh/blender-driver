@@ -17,10 +17,20 @@ class UserInterface {
         return parent.appendChild(this.createNode(tag, text));
     }
     
+    remove_childs(parent) {
+        while(true) {
+            const child = parent.firstChild;
+            if (child === null) {
+                break;
+            }
+            parent.removeChild(child);
+        }
+    }
+    
     add_button(text, boundMethod, parent) {
         const button = this.appendNode('button', text, parent);
         button.setAttribute('type', 'button');
-        button.onclick = boundMethod;
+        button.onclick = () => boundMethod();
         return button;
     }
     
@@ -72,12 +82,11 @@ class UserInterface {
         if (this._verboseMouseEvents) {
             this.add_text_results(mouseEvent + " " + JSON.stringify(dimension));
         }
-        this.put(
-            {
+        this.fetch(
+            "PUT", {
                 "valuePath": ["root", "camera", ...dimension],
                 "speed": amount
-            },
-            'animations', 'user_interface', 'camera'
+            }, 'animations', 'user_interface', 'camera'
         );
     }
 
@@ -85,9 +94,7 @@ class UserInterface {
         if (this._verboseMouseEvents) {
             this.add_text_results(mouseEvent);
         }
-        fetch(this.api_path(['animations', 'user_interface', 'camera']),
-              {"method": "DELETE"}
-        );
+        this.fetch("DELETE", 'animations', 'user_interface', 'camera');
     }
     
     add_results(...objects) {
@@ -109,31 +116,40 @@ class UserInterface {
     }
     
     clear_results() {
-        while(true) {
-            const child = this.results.firstChild;
-            if (child === null) {
-                break;
-            }
-            this.results.removeChild(child);
-        }
+        this.fetches = 0;
+        this.remove_childs(this.fetchCountDisplay);
+        this.remove_childs(this.results);
     }
 
     constructor(userInterfaceID) {
         this._timeOut = undefined;
         this._stopped = false;
         this._verboseMouseEvents = false;
+        this._fetches = 0;
         this.userInterface = document.getElementById(userInterfaceID);
+        this.fetchCountDisplay = undefined;
+    }
+    
+    get fetches() {
+        return this._fetches;
+    }
+    set fetches(count) {
+        this._fetches = count;
+        const fetchCount = 'Fetches:' + this.fetches + ".";
+        if (this.fetchCountDisplay === undefined) {
+            console.log(fetchCount);
+            return;
+        }
+        this.remove_childs(this.fetchCountDisplay);
+        this.appendNode('span', fetchCount, this.fetchCountDisplay);
     }
     
     api_path(path) {
-        return ['api', ...path].join('/');
-    }
-    
-    put(value, ...path) {
-        return fetch(this.api_path(path), {
-           "method": "PUT",
-           "body": JSON.stringify(value)
-        });
+        const prefix = 'api';
+        if (path === undefined) {
+            return prefix;
+        }
+        return [prefix, ...path].join('/');
     }
     
     build() {
@@ -178,10 +194,7 @@ class UserInterface {
                 } : {
                     "physics": true
                 };
-            fetch(that.api_path(['root', 'gameObjects', objectIndex]), {
-                "method": "PATCH",
-                "body": JSON.stringify(patch)
-            })
+            that.fetch("PATCH", patch, 'root', 'gameObjects', objectIndex)
             .then(() => {
                 objectIndex += 1;
                 
@@ -216,7 +229,7 @@ class UserInterface {
                 }
                 
                 if (phase <= 0) {
-                    that.get().then(response => that.add_results(response));
+                    that.get_display();
                 }
                 else {
                     that._timeOut = setTimeout(
@@ -225,9 +238,6 @@ class UserInterface {
             });
         }
         this.reset().then(() => add_one(this));
-
-        // Camera 12, 1, 7.
-
     }
     
     reset() {
@@ -235,8 +245,7 @@ class UserInterface {
             clearTimeout(this._timeOut);
             this._timeOut = undefined;
         }
-        return fetch(this.api_path(['root', 'gameObjects']),
-                     {"method": "DELETE"});
+        return this.fetch("DELETE", 'root', 'gameObjects');
     }
     
     stop() {
@@ -249,12 +258,20 @@ class UserInterface {
         this.reset().then(() => this.add_text_results(message));
     }
     
-    get(...path) {
-        return fetch(this.api_path(path)).then(response => response.json());
+    fetch(method, ...parameters) {
+        this.fetches++;
+        const options = {"method": method};
+        if (method !== "DELETE") {
+            options.body = JSON.stringify(parameters.shift());
+        }
+        return fetch(this.api_path(parameters), options);
     }
     
     get_display() {
-        this.get().then(response => this.add_results(response));
+        this.fetches++;
+        fetch(this.api_path())
+        .then(response => response.json())
+        .then(response => this.add_results(response));
     }
     
     show() {
@@ -274,10 +291,10 @@ class UserInterface {
         this.appendNode('legend', "Results", results);
         this.add_button("Clear", this.clear_results.bind(this), results);
         this.add_button("Fetch /", this.get_display.bind(this), results);
-
         this.add_tickbox("Verbose mouse events",
                          this.set_verbose_mouse_events.bind(this),
                          results);
+        this.fetchCountDisplay = this.appendNode('div', undefined, results);
         
 
         this.results = this.appendNode('pre', undefined, results);

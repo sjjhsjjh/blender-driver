@@ -3,8 +3,6 @@ Backlog
 -   Next video:
 
     -   Control object creation from the browser.
-    -   Display a Fetch count in the browser.
-    -   Put the results and Clear button in a fieldset.
 
 -   Load the get_generic store by retrieving some things or in some other way at
     game_initialise.

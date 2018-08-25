@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<!--
+(c) 2018 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
+Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
+-->
+<head>
+    <meta charset="utf-8">
+    <title>Demonstration UI</title>
+    <style>
+        html {font-family: sans-serif;}
+        p.smallprint {font-size: 0.7rem;}
+        p.smallprint a {text-decoration: none;}
+        fieldset {border: solid black 1px;}
+        label {white-space: pre;}
+        
+        fieldset#camera {
+            padding: 0.5em;
+        }
+        span.panel {
+            display: inline-block;
+            border: solid black 1px;
+            padding: 1em 0.1em 1em 0.1em;
+            margin: 0.5em;
+        }
+        span.panel span.label {
+            margin: 0 0.5em 0 0.5em;
+        }
+        span.panel span.control {
+            border: dotted black 1px;
+            padding: 0.75em;
+            margin: 0;
+        }
+    </style>
+    <script src="index.js"></script>
+</head>
+<body onload="main('user-interface');"><!--
+
+    The HTML body is written in a whitespace elimination style. The closing > of
+    a tag will sometimes be at the start of a line, and next to the opening < of
+    the next tag. This means that there is no whitespace outside markup.
+    
+--><h1>Demonstration User Interface</h1
+><div id="user-interface"></div
+
+
+><p class="smallprint">&copy; 2018 Jim Hawkins. MIT licensed, see
+<a href="https://opensource.org/licenses/MIT"
+>https://opensource.org/licenses/MIT</a><br
+/>Part of Blender Driver, see
+<a href="https://github.com/sjjhsjjh/blender-driver"
+>https://github.com/sjjhsjjh/blender-driver</a
+></p></body>
+</html>

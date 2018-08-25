@@ -67,9 +67,14 @@ import urllib.parse
 #
 # Application base class module.
 from . import rest
+
+from path_store.blender_game_engine.gameobjectcollection import (
+    GameObjectDict, GameObjectList)
+
 #
 # Path store utility.
-from path_store.pathstore import pathify_split
+from path_store.pathstore import pathify_split, walk as pathstore_walk
+
 
 class Application(rest.Application):
     
@@ -80,9 +85,18 @@ class Application(rest.Application):
     def _http_server(self):
         while not self.terminating():
             self._httpServer.handle_request()
+
+    def _point_maker(self, path, index, point):
+        if path[1] == 'gameObjects' and index == 3 and point is None:
+            return self.game_add_object('cube')
+        return self._base_point_maker(path, index, point)
     
     def game_initialise(self):
         super().game_initialise()
+        
+        self._base_point_maker = self._restInterface.point_maker
+        self._restInterface.point_maker = self._point_maker
+
         website = self.arguments.directory
         if website is None:
             website = os.path.abspath(os.path.join(
@@ -145,6 +159,15 @@ class Application(rest.Application):
         return parser
     
     def rest_api(self, httpHandler):
+        try:
+            return self._inner_rest_api(httpHandler)
+        except:
+            httpHandler.send_error(500)
+            log(ERROR, 'Exception in Handler on thread"{}"'
+                , threading.current_thread().name)
+            raise
+
+    def _inner_rest_api(self, httpHandler):
         url = urllib.parse.urlsplit(httpHandler.path)
         if url.path == '/api':
             path = list()
@@ -158,17 +181,41 @@ class Application(rest.Application):
         
         with self.mainLock:
             command = httpHandler.command.upper()
-            if command == 'GET':
+            if command == 'DELETE':
+                deleted = self._restInterface.rest_delete(path)
+                #
+                # If a game object collection is deleted, delete all its
+                # members. This will cause the endObject() method to be called
+                # on each member, so the BGE objects actually get deleted.
+                # It might be safe to delete in-walk but just in case, this code
+                # does it in two steps.
+                # Only handles lists right now.
+                collections = []
+                def end_object(point, path, results):
+                    if isinstance(point, GameObjectList):
+                        results.append(point)
+                pathstore_walk(
+                    deleted, end_object, None, collections, None, True)
+                log(DEBUG, 'Deleting {} {} {}.'
+                    , type(deleted), isinstance(deleted, GameObjectList)
+                    , len(collections))
+                for collection in collections:
+                    del collection[:]
+
+                httpHandler.send_response(200)
+                httpHandler.end_headers()
+            elif command == 'GET':
                 generic = self._restInterface.get_generic(path)
                 if generic is not None:
                     response = bytes(json.dumps(generic), 'utf-8')
                     httpHandler.send_response(200)
-                    httpHandler.send_header('Content-Type', 'application/json')
+                    httpHandler.send_header(
+                        'Content-Type', 'application/json; charset=utf-8')
                     httpHandler.send_header(
                         'Content-Length', '{}'.format(len(response)))
                     httpHandler.end_headers()
                     httpHandler.wfile.write(response)
-            elif command == 'PUT':
+            elif command == 'PUT' or command == 'PATCH':
                 contentLengthHeader = httpHandler.headers.get('Content-Length')
                 if contentLengthHeader is None:
                     contentLength = 0
@@ -184,11 +231,18 @@ class Application(rest.Application):
                 else:
                     content = json.loads(contentJSON)
 
-                print('rest_api Content-Length"{}"{}.\n{}\n{}'.format(
-                    contentLengthHeader, contentLength, contentJSON, content))
-                self._restInterface.rest_put(content, path)
+                print('_inner_rest_api {} Content-Length"{}"{}.\n{}\n{}'.format(
+                    command
+                    , contentLengthHeader, contentLength, contentJSON, content))
+                if command == 'PUT':
+                    self._restInterface.rest_put(content, path)
+                else:
+                    self._restInterface.rest_patch(content, path)
                 httpHandler.send_response(200)
                 httpHandler.end_headers()
+            else:
+                return url
+
 
         return None
 
@@ -203,27 +257,22 @@ class HTTPServer(ThreadingMixIn, HTTPServer):
         self._application = application
     
 class Handler(SimpleHTTPRequestHandler):
-    def do_GET(self):
-        try:
-            url = self.server.application.rest_api(self)
-        except:
-            self.send_error(500)
-            log(ERROR, 'Exception in Handler on thread"{}"'
-                , threading.current_thread().name)
-            raise
-        if url is None:
+    def do_DELETE(self):
+        if self.server.application.rest_api(self) is None:
             return
-        return super().do_GET()
+        super().do_DELETE()
+
+    def do_GET(self):
+        if self.server.application.rest_api(self) is None:
+            return
+        super().do_GET()
+
+    def do_PATCH(self):
+        if self.server.application.rest_api(self) is None:
+            return
+        super().do_PATCH()
 
     def do_PUT(self):
-        try:
-            url = self.server.application.rest_api(self)
-        except:
-            self.send_error(500)
-            log(ERROR, 'Exception in Handler on thread"{}"'
-                , threading.current_thread().name)
-            raise
-        if url is None:
+        if self.server.application.rest_api(self) is None:
             return
-        return super().do_PUT()
-        
+        super().do_PUT()

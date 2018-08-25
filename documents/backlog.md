@@ -1,7 +1,15 @@
 Backlog
 =======
+-   Next video:
+
+    -   Control object creation from the browser.
+    -   Control camera motion from the browser.
+
 -   Load the get_generic store by retrieving some things or in some other way at
     game_initialise.
+
+-   Maybe add a sweeper or something that ends any objects that have somehow
+    escaped from the gameObjects array.
 
 -   See about getting the launch script to start the browser, or at least
     refresh.

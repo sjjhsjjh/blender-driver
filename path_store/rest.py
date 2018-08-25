@@ -200,6 +200,8 @@ class AnimatedRestInterface(RestInterface):
             point.store = self.principal
             return point
 
+        # No point creating a point like this because a GameObject can only be
+        # constructed with a bge.types.KX_GameObject instance.
         # if path[0] == self._gameObjectPath[0] and index == 3:
         #     if not isinstance(point, self.GameObject):
         #         point = self.GameObject()
@@ -209,6 +211,10 @@ class AnimatedRestInterface(RestInterface):
         # -   We are creating a point for the root of the game object tree.
         # -   We know what type of path specifiers will be used at the next
         #     level down: strings or numbers.
+        #
+        # Then we create either a GameObjectDict or GameObjectList. The point of
+        # those classes is that they call endObject() on a contained item when
+        # it is deleted from the container. 
         #
         # It is intended to do the quickest checks first.
         depth = self._gameObjectPathLen + self.levels

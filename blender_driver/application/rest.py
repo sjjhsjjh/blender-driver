@@ -88,10 +88,16 @@ class Application(thread.Application):
                 *self._restInterface.set_now_times(self.tickPerf))
             #
             # Update all cursors, by updating all physics objects.
-            def update(point, path, results):
-                if point is not None:
-                    point.update()
-            self._restInterface.rest_walk(update, self.gameObjectPath)
+            try:
+                walk = (self._restInterface.rest_get(self.gameObjectPath)
+                        is not None)
+            except KeyError:
+                walk = False
+            if walk:
+                def update(point, path, results):
+                    if point is not None:
+                        point.update()
+                self._restInterface.rest_walk(update, self.gameObjectPath)
 
     def print_completions_log(self, anyCompletions, logStore):
         '''\

@@ -2,14 +2,31 @@ Backlog
 =======
 -   Next video:
 
+    -   Demonstration User Interface.
     -   Control object creation from the browser.
     -   Control camera motion from the browser.
+    -   Display a Fetch count in the browser.
+    -   Put the results and Clear button in a fieldset.
 
 -   Load the get_generic store by retrieving some things or in some other way at
     game_initialise.
 
 -   Maybe add a sweeper or something that ends any objects that have somehow
     escaped from the gameObjects array.
+
+-   Suppose a game object collection element, N, changes from a game object, O,
+    to None. At that point, the BGE object that corresponds to N doesn't get
+    endObject'd but it should.
+
+-   Add support for wildcards in rest_patch to support commands like the
+    following.
+    
+        PATCH /root/gameObject/*
+        {
+            "physics": true
+        }
+    
+    That would set physics to true in every item in the gameObjects collection.
 
 -   See about getting the launch script to start the browser, or at least
     refresh.

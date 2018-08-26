@@ -1,8 +1,16 @@
 Backlog
 =======
+-   Unit test for setting worldScale ... and setting whole arrays actually.
+
 -   Next video:
 
-    -   Control object creation from the browser.
+    -   Replace banner text with the URL.
+    -   Change floor size to fit whatever was built.
+    -   Better reset. Maybe switch on physics. Maybe don't delete everything,
+        only the excess if any.
+    -   Option to move the cursor.
+    -   Option for keyboard shortcuts in the browser, instead of clickless
+        camera controls.
 
 -   Load the get_generic store by retrieving some things or in some other way at
     game_initialise.

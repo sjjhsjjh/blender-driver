@@ -2,7 +2,7 @@
 // Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 
 class UserInterface {
-    createNode(tag, text) {
+    create_node(tag, text) {
         var element = document.createElement(tag);
         if ( text !== undefined ) {
             element.appendChild(document.createTextNode(text));
@@ -10,11 +10,11 @@ class UserInterface {
         return element;
     }
     
-    appendNode(tag, text, parent) {
+    append_node(tag, text, parent) {
         if (parent === undefined) {
             parent = this.userInterface;
         }
-        return parent.appendChild(this.createNode(tag, text));
+        return parent.appendChild(this.create_node(tag, text));
     }
     
     remove_childs(parent) {
@@ -28,27 +28,44 @@ class UserInterface {
     }
     
     add_button(text, boundMethod, parent) {
-        const button = this.appendNode('button', text, parent);
+        const button = this.append_node('button', text, parent);
         button.setAttribute('type', 'button');
         button.onclick = () => boundMethod();
         return button;
     }
     
-    add_tickbox(text, boundMethod, parent) {
-        const input = this.appendNode('input', undefined, parent);
-        this.appendNode('label', text, parent);
-        input.setAttribute('type', 'checkbox');
-        //input.setAttribute('checked', false);
-        input.onchange = () => boundMethod(input.checked);
+    add_numeric_input(name, defaultValue, label, parent) {
+        const panel = this.append_node('div', undefined, parent);
+        const labelNode = this.append_node('label', label, panel);
+        const input = this.append_node('input', undefined, panel);
+        input.setAttribute('type', 'number');
+        input.setAttribute('name', name);
+        labelNode.setAttribute('for', name);
+        if (defaultValue !== undefined) {
+            input.setAttribute('value', defaultValue);
+            this.formValues[name] = defaultValue;
+        }
+        input.onchange = () => {
+            this.formValues[name] = input.value;
+        };
         return input;
     }
     
-    set_verbose_mouse_events(value) {
-        this._verboseMouseEvents = value;
+    add_tickbox(name, label, parent) {
+        const input = this.append_node('input', undefined, parent);
+        input.setAttribute('type', 'checkbox');
+        input.setAttribute('name', name);
+        const labelNode = this.append_node('label', label, parent);
+        labelNode.setAttribute('for', name);
+        this.formValues[name] = false;
+        input.onchange = () => {
+            this.formValues[name] = input.checked;
+        };
+        return input;
     }
     
     add_camera_panel(text, dimension, unit, parent) {
-        const panel = this.appendNode('span', undefined, parent);
+        const panel = this.append_node('span', undefined, parent);
         panel.setAttribute('class', 'panel');
         
         ["++", "+", null, "-", "--"].forEach(
@@ -60,11 +77,11 @@ class UserInterface {
     
     add_camera_control(label, text, dimension, unit, parent) {
         if (label === null) {
-            const node = this.appendNode('span', text, parent);
+            const node = this.append_node('span', text, parent);
             node.setAttribute('class', 'label');
             return node;
         }
-        const control = this.appendNode('span', label, parent);
+        const control = this.append_node('span', label, parent);
         control.setAttribute('class', 'control');
         const sign = label[0] == '+' ? 1 : -1;
         control.onmouseover = () => {
@@ -79,7 +96,7 @@ class UserInterface {
     }
 
     camera_move(mouseEvent, dimension, amount) {
-        if (this._verboseMouseEvents) {
+        if (this.formValues.verboseMouseEvents) {
             this.add_text_results(mouseEvent + " " + JSON.stringify(dimension));
         }
         this.fetch(
@@ -91,7 +108,7 @@ class UserInterface {
     }
 
     camera_stop(mouseEvent) {
-        if (this._verboseMouseEvents) {
+        if (this.formValues.verboseMouseEvents) {
             this.add_text_results(mouseEvent);
         }
         this.fetch("DELETE", 'animations', 'user_interface', 'camera');
@@ -124,10 +141,10 @@ class UserInterface {
     constructor(userInterfaceID) {
         this._timeOut = undefined;
         this._stopped = false;
-        this._verboseMouseEvents = false;
         this._fetches = 0;
         this.userInterface = document.getElementById(userInterfaceID);
         this.fetchCountDisplay = undefined;
+        this.formValues = {};
     }
     
     get fetches() {
@@ -141,7 +158,7 @@ class UserInterface {
             return;
         }
         this.remove_childs(this.fetchCountDisplay);
-        this.appendNode('span', fetchCount, this.fetchCountDisplay);
+        this.append_node('span', fetchCount, this.fetchCountDisplay);
     }
     
     api_path(path) {
@@ -152,7 +169,90 @@ class UserInterface {
         return [prefix, ...path].join('/');
     }
     
-    build() {
+    go_fence() {
+        const separation = parseFloat(this.formValues.separation);
+        const posts = parseInt(this.formValues.posts);
+        const turn = (
+            (parseFloat(this.formValues.turnDegrees) / 180.0) * Math.PI);
+        const height = parseFloat(this.formValues.height);
+        
+        const xStart = -1.5;
+        const yStart = -3.5;
+        const zStart = 0.5 + height;
+        
+        let x = xStart;
+        let y = yStart;
+        let z = zStart;
+        let angle = 0;
+
+        this.stopped = false;
+        this.toBuild = [];
+        for(var postIndex=0; postIndex<posts; postIndex++) {
+            this.toBuild.push({"patch":{
+                "rotation": [0, 0, angle],
+                "worldPosition": [x, y, z],
+                "worldScale": [1.0, 1.0, height],
+                "physics": false
+            }});
+            this.toBuild.push({"patch":{
+                "rotation": [0, 0, angle + (0.25 * Math.PI)],
+                "worldPosition": [x, y, z + height + 2.0],
+                "worldScale": [1.0, 1.0, 0.5],
+                "physics": false
+            }});
+            x += separation * Math.cos(angle);
+            y += separation * Math.sin(angle);
+            angle += turn;
+        }
+        this.reset().then(() => this.build_one_fence(0, this.toBuild.length));
+    }
+    
+    build_one_fence(index, count) {
+        this._timeOut = undefined;
+        if (this.stopped) {
+            this.add_text_results("Stopped.");
+            return;
+        }
+
+        const patch = this.toBuild[index].patch;
+        const scale = patch.worldScale;
+        delete patch.worldScale;
+        this.fetch("PATCH", patch, 'root', 'gameObjects', index)
+        .then((response) =>
+            (this.formValues.trackBuild || index == 0) ?
+            this.fetch("PUT", ['root', 'gameObjects', index],
+                       'root', 'cursors', 0, 'subjectPath') :
+            Promise.resolve(response))
+        .then(() =>
+            this.fetch("PATCH", scale[2],
+                       'root', 'gameObjects', index, 'worldScale', 2))
+        .then((response) =>
+            (index % 2 == 1) ?
+            this.fetch("PUT", {
+                    "modulo": 2.0 * Math.PI,
+                    "speed": (2.0 / 3.0) * Math.PI,
+                    "valuePath": ["root", 'gameObjects', index, 'rotation', 2]
+                }, 'animations', 'gameObjects', Math.trunc(index / 2)) :
+            Promise.resolve(response))
+        .then(() => {
+            index++;
+            if (index >= count) {
+                (
+                    (!this.formValues.trackBuild) ?
+                    this.fetch("PUT",
+                               ['root', 'gameObjects', Math.trunc(index/2)],
+                               'root', 'cursors', 0, 'subjectPath') :
+                    Promise.resolve(null)
+                ).then(() => this.get_display());
+            }
+            else {
+                this._timeOut = setTimeout(
+                    this.build_one_fence.bind(this), 1, index, count);
+            }
+        });
+    }
+    
+    tower() {
         const xCount = 4;
         const yCount = 4;
         const zCount = 4;
@@ -245,7 +345,8 @@ class UserInterface {
             clearTimeout(this._timeOut);
             this._timeOut = undefined;
         }
-        return this.fetch("DELETE", 'root', 'gameObjects');
+        return this.fetch("DELETE", 'animations', 'gameObjects')
+        .then(() => this.fetch("DELETE", 'root', 'gameObjects'));
     }
     
     stop() {
@@ -264,40 +365,51 @@ class UserInterface {
         if (method !== "DELETE") {
             options.body = JSON.stringify(parameters.shift());
         }
-        return fetch(this.api_path(parameters), options);
+        return fetch(this.api_path(parameters), options)
+        .then(response => response.text());
     }
     
     get_display() {
         this.fetches++;
-        fetch(this.api_path())
+        return fetch(this.api_path())
         .then(response => response.json())
-        .then(response => this.add_results(response));
+        .then(response => {
+            this.add_results(response);
+            return Promise.resolve(response);
+        });
     }
     
     show() {
-        this.add_button("Build", this.build.bind(this));
+        this.add_button("Build", this.tower.bind(this));
         this.add_button("Stop", this.stop.bind(this));
+        
+        const build = this.append_node('fieldset');
+        
+        this.append_node('legend', "Fence", build);
+        this.add_numeric_input('posts', 10, 'Posts:', build);
+        this.add_numeric_input('separation', 4.0, 'Separation:', build);
+        this.add_numeric_input(
+            'turnDegrees', 5.0, 'Deviation (degrees):', build);
+        this.add_numeric_input('height', 3.0, 'Height:', build);
+        this.add_button("Build", this.go_fence.bind(this), build);
 
-        const camera = this.appendNode('fieldset');
+        const camera = this.append_node('fieldset');
         camera.setAttribute('id', 'camera');
-        this.appendNode('legend', "Camera", camera);
+        this.append_node('legend', "Camera", camera);
         this.add_camera_panel("Zoom", ["orbitDistance"], -5.0, camera);
         this.add_camera_panel("Orbit", ["orbitAngle"], -0.5, camera);
         this.add_camera_panel("Altitude", ["worldPosition", 2], 5.0, camera);
         this.add_camera_panel("X", ["worldPosition", 0], 5.0, camera);
         this.add_camera_panel("Y", ["worldPosition", 1], 5.0, camera);
+        this.add_tickbox('trackBuild', "Track build", camera);
 
-        const results = this.appendNode('fieldset');
-        this.appendNode('legend', "Results", results);
+        const results = this.append_node('fieldset');
+        this.append_node('legend', "Results", results);
         this.add_button("Clear", this.clear_results.bind(this), results);
         this.add_button("Fetch /", this.get_display.bind(this), results);
-        this.add_tickbox("Verbose mouse events",
-                         this.set_verbose_mouse_events.bind(this),
-                         results);
-        this.fetchCountDisplay = this.appendNode('div', undefined, results);
-        
-
-        this.results = this.appendNode('pre', undefined, results);
+        this.add_tickbox('verboseMouseEvents', "Verbose mouse events", results);
+        this.fetchCountDisplay = this.append_node('div', undefined, results);
+        this.results = this.append_node('pre', undefined, results);
         
         return this;
     }

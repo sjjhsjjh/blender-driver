@@ -87,7 +87,12 @@ class Application(rest.Application):
             self._httpServer.handle_request()
 
     def _point_maker(self, path, index, point):
-        if path[1] == 'gameObjects' and index == 3 and point is None:
+        if (
+            index == 3
+            and point is None
+            and path[0] == 'root'
+            and path[1] == 'gameObjects'
+        ):
             return self.game_add_object('cube')
         return self._base_point_maker(path, index, point)
     

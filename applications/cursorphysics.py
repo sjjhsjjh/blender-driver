@@ -58,8 +58,7 @@ import blender_driver.application.http
 # imports run OK.
 print('"'.join(('Application module ', __name__, '.')))
 
-class Application(
-    blender_driver.application.http.Application, restanimation.Application):
+class Application(restanimation.Application):
     
     templates = {
         'cube': {

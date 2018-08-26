@@ -237,13 +237,80 @@ class UserInterface {
         .then(() => {
             index++;
             if (index >= count) {
+                const floorMargin = 1.0;
+                const dimensions = this.toBuild.reduce(
+                  (accumulator, item) => {
+                    const values = item.patch.worldPosition;
+                    if (accumulator.xMin === undefined ||
+                        values[0] < accumulator.xMin
+                    ) {
+                        accumulator.xMin = values[0];
+                    }
+                    if (accumulator.yMin === undefined ||
+                        values[1] < accumulator.yMin
+                    ) {
+                        accumulator.yMin = values[1];
+                    }
+                    if (accumulator.xMax === undefined ||
+                        values[0] > accumulator.xMax
+                    ) {
+                        accumulator.xMax = values[0];
+                    }
+                    if (accumulator.yMax === undefined ||
+                        values[1] > accumulator.yMax
+                    ) {
+                        accumulator.yMax = values[1];
+                    }
+                    return accumulator;
+                  }, {
+                    "xMin": undefined,
+                    "yMin": undefined,
+                    "xMax": undefined,
+                    "yMax": undefined
+                  }
+                );
+                let setFloor = (dimensions.xMin !== undefined &&
+                                dimensions.xMax !== undefined &&
+                                dimensions.yMin !== undefined &&
+                                dimensions.yMax !== undefined);
+                if (setFloor) {
+                    dimensions.xMin -= floorMargin;
+                    dimensions.yMin -= floorMargin;
+                    dimensions.xMax += floorMargin;
+                    dimensions.yMax += floorMargin;
+                }
+                console.log('accumulator', dimensions, setFloor);
                 (
                     (!this.formValues.trackBuild) ?
                     this.fetch("PUT",
                                ['root', 'gameObjects', Math.trunc(index/2)],
                                'root', 'cursors', 0, 'subjectPath') :
                     Promise.resolve(null)
-                ).then(() => this.get_display());
+                )
+                .then(() =>
+                    setFloor ?
+                        this.fetch(
+                            "PUT", (
+                                dimensions.xMax - dimensions.xMin
+                            ), 'root', 'floor', 'worldScale', 0
+                            ).then(() =>
+                        this.fetch(
+                            "PUT", (
+                                dimensions.yMax - dimensions.yMin
+                            ), 'root', 'floor', 'worldScale', 1)
+                            ).then(() =>
+                        this.fetch(
+                            "PUT", (
+                                0.5 * (dimensions.xMax + dimensions.xMin)
+                            ), 'root', 'floor', 'worldPosition', 0)
+                            ).then(() =>
+                        this.fetch(
+                            "PUT", (
+                                0.5 * (dimensions.yMax + dimensions.yMin)
+                            ), 'root', 'floor', 'worldPosition', 1)
+                        ) :
+                    Promise.resolve(null))
+                .then(() => this.get_display());
             }
             else {
                 this._timeOut = setTimeout(

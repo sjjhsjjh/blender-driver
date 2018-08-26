@@ -4,8 +4,6 @@ Backlog
 
 -   Next video:
 
-    -   Replace banner text with the URL.
-    -   Change floor size to fit whatever was built.
     -   Better reset. Maybe switch on physics. Maybe don't delete everything,
         only the excess if any.
     -   Option to move the cursor.

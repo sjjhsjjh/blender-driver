@@ -34,19 +34,25 @@ class UserInterface {
         return button;
     }
     
-    add_numeric_input(name, defaultValue, label, parent) {
+    add_numeric_input(name, defaultString, label, parent) {
+        // The default value must be passed as a string to distinguish 4 from
+        // 4.0 for example.
         const panel = this.append_node('div', undefined, parent);
         const labelNode = this.append_node('label', label, panel);
         const input = this.append_node('input', undefined, panel);
         input.setAttribute('type', 'number');
         input.setAttribute('name', name);
         labelNode.setAttribute('for', name);
-        if (defaultValue !== undefined) {
-            input.setAttribute('value', defaultValue);
-            this.formValues[name] = defaultValue;
+        const isFloat = (defaultString !== undefined &&
+                         defaultString.includes("."));
+        const parseValue = (isFloat ? parseFloat : parseInt);
+        if (defaultString !== undefined) {
+            input.setAttribute('value', parseValue(defaultString));
+            this.formValues[name] = parseValue(defaultString);
+            input.setAttribute('step', isFloat ? 0.1 : 1);
         }
         input.onchange = () => {
-            this.formValues[name] = input.value;
+            this.formValues[name] = parseValue(input.value);
         };
         return input;
     }
@@ -161,20 +167,11 @@ class UserInterface {
         this.append_node('span', fetchCount, this.fetchCountDisplay);
     }
     
-    api_path(path) {
-        const prefix = 'api';
-        if (path === undefined) {
-            return prefix;
-        }
-        return [prefix, ...path].join('/');
-    }
-    
     go_fence() {
-        const separation = parseFloat(this.formValues.separation);
-        const posts = parseInt(this.formValues.posts);
-        const turn = (
-            (parseFloat(this.formValues.turnDegrees) / 180.0) * Math.PI);
-        const height = parseFloat(this.formValues.height);
+        const separation = this.formValues.fenceSeparation;
+        const posts = this.formValues.posts;
+        const turn = (this.formValues.turnDegrees / 180.0) * Math.PI;
+        const height = this.formValues.height;
         
         const xStart = -1.5;
         const yStart = -3.5;
@@ -188,223 +185,209 @@ class UserInterface {
         this.stopped = false;
         this.toBuild = [];
         for(var postIndex=0; postIndex<posts; postIndex++) {
-            this.toBuild.push({"patch":{
+            //
+            // Fence post.
+            this.toBuild.push({"cube":{
                 "rotation": [0, 0, angle],
                 "worldPosition": [x, y, z],
-                "worldScale": [1.0, 1.0, height],
-                "physics": false
+                "worldScale": [1.0, 1.0, height]
             }});
-            this.toBuild.push({"patch":{
-                "rotation": [0, 0, angle + (0.25 * Math.PI)],
-                "worldPosition": [x, y, z + height + 2.0],
-                "worldScale": [1.0, 1.0, 0.5],
-                "physics": false
-            }});
+            //
+            // Fence cap.
+            this.toBuild.push({
+                "cube":{
+                    "rotation": [0, 0, angle + (0.25 * Math.PI)],
+                    "worldPosition": [x, y, z + height + 2.0],
+                    "worldScale": [1.0, 1.0, 0.5],
+                    "physics": false
+                },
+                "animation":{
+                    "specification":{
+                        "modulo": 2.0 * Math.PI,
+                        "speed": (2.0 / 3.0) * Math.PI,
+                        "valuePath": ["root", 'gameObjects',
+                                      (postIndex * 2) + 1 , 'rotation', 2]
+                    },
+                    "path": ['animations', 'gameObjects', postIndex]
+                }
+            });
+
             x += separation * Math.cos(angle);
             y += separation * Math.sin(angle);
             angle += turn;
         }
-        this.reset().then(() => this.build_one_fence(0, this.toBuild.length));
+        this.build_start();
     }
     
-    build_one_fence(index, count) {
+    build_start() {
+        const count = this.toBuild.length;
+        return this.fetch("DELETE", 'animations', 'gameObjects')
+        .then(() => this.drop())
+        .then((oldCount) => this.build_one(0, oldCount, count));
+    }
+    
+    build_one(index, oldCount, count) {
         this._timeOut = undefined;
         if (this.stopped) {
             this.add_text_results("Stopped.");
             return;
         }
 
-        const patch = this.toBuild[index].patch;
-        const scale = patch.worldScale;
-        delete patch.worldScale;
-        this.fetch("PATCH", patch, 'root', 'gameObjects', index)
+        const cube = this.toBuild[index].cube;
+        const scale = cube.worldScale === undefined ? [1.0, 1.0, 1.0] : cube.worldScale;
+        delete cube.worldScale;
+        cube.physics = false;
+        const animation = this.toBuild[index].animation;
+        return (
+            (index < oldCount) ?
+            this.fetch("PUT", null, 'root', 'gameObjects', index) :
+            Promise.resolve(null)
+        )
+        //.then(() =>
+        //    this.fetch("PUT", false, 'root', 'gameObjects', index, 'physics'))
+        .then(() =>
+            this.fetch("PATCH", cube, 'root', 'gameObjects', index))
+        .then(() =>
+            this.fetch("PUT", scale[0],
+                       'root', 'gameObjects', index, 'worldScale', 0))
+        .then(() =>
+            this.fetch("PUT", scale[1],
+                       'root', 'gameObjects', index, 'worldScale', 1))
+        .then(() =>
+            this.fetch("PUT", scale[2],
+                       'root', 'gameObjects', index, 'worldScale', 2))
         .then((response) =>
             (this.formValues.trackBuild || index == 0) ?
             this.fetch("PUT", ['root', 'gameObjects', index],
                        'root', 'cursors', 0, 'subjectPath') :
             Promise.resolve(response))
-        .then(() =>
-            this.fetch("PATCH", scale[2],
-                       'root', 'gameObjects', index, 'worldScale', 2))
         .then((response) =>
-            (index % 2 == 1) ?
-            this.fetch("PUT", {
-                    "modulo": 2.0 * Math.PI,
-                    "speed": (2.0 / 3.0) * Math.PI,
-                    "valuePath": ["root", 'gameObjects', index, 'rotation', 2]
-                }, 'animations', 'gameObjects', Math.trunc(index / 2)) :
-            Promise.resolve(response))
-        .then(() => {
+            (animation === undefined) ?
+            Promise.resolve(response) :
+            this.fetch("PUT", animation.specification, ...animation.path))
+        .then((response) => {
             index++;
             if (index >= count) {
-                const floorMargin = 1.0;
-                const dimensions = this.toBuild.reduce(
-                  (accumulator, item) => {
-                    const values = item.patch.worldPosition;
-                    if (accumulator.xMin === undefined ||
-                        values[0] < accumulator.xMin
-                    ) {
-                        accumulator.xMin = values[0];
-                    }
-                    if (accumulator.yMin === undefined ||
-                        values[1] < accumulator.yMin
-                    ) {
-                        accumulator.yMin = values[1];
-                    }
-                    if (accumulator.xMax === undefined ||
-                        values[0] > accumulator.xMax
-                    ) {
-                        accumulator.xMax = values[0];
-                    }
-                    if (accumulator.yMax === undefined ||
-                        values[1] > accumulator.yMax
-                    ) {
-                        accumulator.yMax = values[1];
-                    }
-                    return accumulator;
-                  }, {
-                    "xMin": undefined,
-                    "yMin": undefined,
-                    "xMax": undefined,
-                    "yMax": undefined
-                  }
-                );
-                let setFloor = (dimensions.xMin !== undefined &&
-                                dimensions.xMax !== undefined &&
-                                dimensions.yMin !== undefined &&
-                                dimensions.yMax !== undefined);
-                if (setFloor) {
-                    dimensions.xMin -= floorMargin;
-                    dimensions.yMin -= floorMargin;
-                    dimensions.xMax += floorMargin;
-                    dimensions.yMax += floorMargin;
-                }
-                console.log('accumulator', dimensions, setFloor);
-                (
-                    (!this.formValues.trackBuild) ?
-                    this.fetch("PUT",
-                               ['root', 'gameObjects', Math.trunc(index/2)],
-                               'root', 'cursors', 0, 'subjectPath') :
-                    Promise.resolve(null)
-                )
-                .then(() =>
-                    setFloor ?
-                        this.fetch(
-                            "PUT", (
-                                dimensions.xMax - dimensions.xMin
-                            ), 'root', 'floor', 'worldScale', 0
-                            ).then(() =>
-                        this.fetch(
-                            "PUT", (
-                                dimensions.yMax - dimensions.yMin
-                            ), 'root', 'floor', 'worldScale', 1)
-                            ).then(() =>
-                        this.fetch(
-                            "PUT", (
-                                0.5 * (dimensions.xMax + dimensions.xMin)
-                            ), 'root', 'floor', 'worldPosition', 0)
-                            ).then(() =>
-                        this.fetch(
-                            "PUT", (
-                                0.5 * (dimensions.yMax + dimensions.yMin)
-                            ), 'root', 'floor', 'worldPosition', 1)
-                        ) :
-                    Promise.resolve(null))
-                .then(() => this.get_display());
+                this.build_finish(index, oldCount);
             }
             else {
                 this._timeOut = setTimeout(
-                    this.build_one_fence.bind(this), 1, index, count);
+                    this.build_one.bind(this), 1, index, oldCount, count);
             }
+            return Promise.resolve(response);
         });
     }
     
-    tower() {
-        const xCount = 4;
-        const yCount = 4;
-        const zCount = 4;
-        const increment = 2.5;
+    build_finish(built, oldCount) {
+        const floorMargin = 1.0;
+        const dimensions = this.toBuild.reduce(
+            (accumulator, item) => {
+                const values = item.cube.worldPosition;
+                if (accumulator.xMin === undefined ||
+                    values[0] < accumulator.xMin
+                ) {
+                    accumulator.xMin = values[0];
+                }
+                if (accumulator.yMin === undefined ||
+                    values[1] < accumulator.yMin
+                ) {
+                    accumulator.yMin = values[1];
+                }
+                if (accumulator.xMax === undefined ||
+                    values[0] > accumulator.xMax
+                ) {
+                    accumulator.xMax = values[0];
+                }
+                if (accumulator.yMax === undefined ||
+                    values[1] > accumulator.yMax
+                ) {
+                    accumulator.yMax = values[1];
+                }
+                return accumulator;
+            }, {
+                "xMin": undefined,
+                "yMin": undefined,
+                "xMax": undefined,
+                "yMax": undefined
+            });
+        let setFloor = (dimensions.xMin !== undefined &&
+                        dimensions.xMax !== undefined &&
+                        dimensions.yMin !== undefined &&
+                        dimensions.yMax !== undefined);
+        if (setFloor) {
+            dimensions.xMin -= floorMargin;
+            dimensions.yMin -= floorMargin;
+            dimensions.xMax += floorMargin;
+            dimensions.yMax += floorMargin;
+        }
+        console.log('accumulator', dimensions, setFloor);
+        return (
+            (!this.formValues.trackBuild) ?
+            this.fetch("PUT",
+                       ['root', 'gameObjects', Math.trunc(built/2)],
+                       'root', 'cursors', 0, 'subjectPath') :
+            Promise.resolve(null)
+        )
+        .then(() =>
+            setFloor ?
+            this.fetch(
+                "PUT", dimensions.xMax - dimensions.xMin,
+                'root', 'floor', 'worldScale', 0
+            ).then(() => this.fetch(
+                "PUT", dimensions.yMax - dimensions.yMin,
+                'root', 'floor', 'worldScale', 1
+            )).then(() => this.fetch(
+                "PUT", 0.5 * (dimensions.xMax + dimensions.xMin),
+                'root', 'floor', 'worldPosition', 0
+            )).then(() => this.fetch(
+                "PUT", 0.5 * (dimensions.yMax + dimensions.yMin),
+                'root', 'floor', 'worldPosition', 1
+            )) :
+            Promise.resolve(null))
+        .then(() => {
+            const delete_one = (remaining) => {
+                if (remaining > 0) {
+                    return this.fetch("DELETE", 'root', 'gameObjects', built)
+                    .then(() => delete_one(remaining - 1));
+                }
+                else {
+                    return Promise.resolve(remaining);
+                }
+            };
+            return delete_one(oldCount - built);
+        })
+        .then(() => this.get_add_results());
+    }
+    
+    pile() {
+        const xCount = this.formValues.depth;
+        const yCount = this.formValues.width;
+        const zCount = this.formValues.pileHeight;
+        const separation = this.formValues.pileSeparation;
+
         const xStart = -1.5;
         const yStart = -3.5;
         const zStart = 0.5;
         
-        let objectIndex = 0;
-        let x = xStart;
-        let y = yStart;
-        let z = zStart;
-        let objectCount;
-        
-        let xIndex = 0;
-        let yIndex = 0;
-        let zIndex = 0;
-
         this.stopped = false;
-
-        // Following code is based on a time out, but used to be based on an
-        // interval. The interval seems more conceptually correct, but the time
-        // out ensures that the above variables get incremented in
-        // synchronisation with the PATCH requests. If they get out of
-        // synchronisation, then an objectIndex can be duplicated and skipped,
-        // like 8 goes twice and 9 is skipped.
-        let phase = 2;
-        function add_one(that) {
-            that._timeOut = undefined;
-            if (that.stopped) {
-                that.add_text_results("Stopped.");
-                return;
+        this.toBuild = [];
+        let x = xStart;
+        for (var xIndex=0; xIndex<xCount; xIndex++) {
+            let y = yStart;
+            for (var yIndex=0; yIndex<yCount; yIndex++) {
+                let z = zStart;
+                for (var zIndex=0; zIndex<zCount; zIndex++) {
+                    this.toBuild.push({"cube":{
+                        "rotation": [0, 0, 0],
+                        "worldPosition": [x, y, z]
+                    }});
+                    z += separation;
+                }
+                y += separation;
             }
-            const patch = (phase === 2) ?
-                {
-                    "rotation": [0, 0, 0],
-                    "worldPosition": [x, y, z],
-                    "physics": false
-                } : {
-                    "physics": true
-                };
-            that.fetch("PATCH", patch, 'root', 'gameObjects', objectIndex)
-            .then(() => {
-                objectIndex += 1;
-                
-                if (phase === 2) {
-                    zIndex += 1;
-                    z += increment;
-                    if (zIndex >= zCount) {
-                        zIndex = 0;
-                        z = zStart;
-        
-                        yIndex += 1;
-                        y += increment;
-                        if (yIndex >= yCount) {
-                            yIndex = 0;
-                            y = yStart;
-        
-                            xIndex += 1;
-                            x += increment;
-                            if (xIndex >= xCount) {
-                                phase -= 1;
-                                objectCount = objectIndex;
-                                objectIndex = 0;
-                            }
-                        }
-                    }
-                }
-                else if (phase == 1) {
-                    if (objectIndex >= objectCount) {
-                        phase -= 1;
-                        objectIndex = 0;
-                    }
-                }
-                
-                if (phase <= 0) {
-                    that.get_display();
-                }
-                else {
-                    that._timeOut = setTimeout(
-                        add_one, (phase === 2 ? 10 : 1), that);
-                }
-            });
+            x += separation;
         }
-        this.reset().then(() => add_one(this));
+        this.build_start();
     }
     
     reset() {
@@ -426,6 +409,72 @@ class UserInterface {
         this.reset().then(() => this.add_text_results(message));
     }
     
+    drop() {
+        return this.get('root', 'gameObjects')
+        .then(gameObjects => Promise.resolve(gameObjects.length))
+        .catch(error => {
+            console.log('drop caught', error);
+            return Promise.resolve(0);
+        })
+        .then(count => {
+            const drop_one = (index, count) => {
+                if (index < count) {
+                    return this.fetch("PUT", true,
+                                      'root', 'gameObjects', index, 'physics')
+                    .then(() => drop_one(index + 1, count));
+                }
+                else {
+                    return Promise.resolve(count);
+                }
+            };
+            return drop_one(0, count);
+
+            //
+            //const drops = [];
+            //for(let index=0; index < count; index++) {
+            //    drops.push(this.fetch(
+            //        "PUT", true, 'root', 'gameObjects', index, 'physics'));
+            //}
+            //return Promise.all(drops);
+        });
+        //.then(dropResults => Promise.resolve(dropResults.length));
+    }
+    
+    reset_camera() {
+        const speed = 15.0;
+        return this.fetch(
+            "DELETE", 'animations', 'user_interface', 'camera')
+        .then(() => this.fetch(
+            "PUT", ['root', 'floor'], 'root', 'cursors', 0, 'subjectPath'))
+        .then(() => this.fetch(
+            "PUT", {
+                "speed": speed,
+                "valuePath": ["root", "camera", 'worldPosition', 0],
+                "targetValue": 20.0
+            }, 'animations', 'camera_setup', 0))
+        .then(() => this.fetch(
+            "PUT", {
+                "speed": speed,
+                "valuePath": ["root", "camera", 'worldPosition', 1],
+                "targetValue": 1.0
+            }, 'animations', 'camera_setup', 1))
+        .then(() => this.fetch(
+            "PUT", {
+                "speed": speed,
+                "valuePath": ["root", "camera", 'worldPosition', 2],
+                "targetValue": 7.0
+            }, 'animations', 'camera_setup', 2))
+        ;
+    }
+    
+    api_path(path) {
+        const prefix = 'api';
+        if (path === undefined) {
+            return prefix;
+        }
+        return [prefix, ...path].join('/');
+    }
+    
     fetch(method, ...parameters) {
         this.fetches++;
         const options = {"method": method};
@@ -436,35 +485,50 @@ class UserInterface {
         .then(response => response.text());
     }
     
-    get_display() {
+    get(...path) {
         this.fetches++;
-        return fetch(this.api_path())
+        return fetch(this.api_path(path))
         .then(response => response.json())
-        .then(response => {
+        .catch(reason => Promise.reject(reason));
+    }
+
+    get_add_results(...path) {
+        this.get(...path).then(response => {
             this.add_results(response);
             return Promise.resolve(response);
         });
     }
     
     show() {
-        this.add_button("Build", this.tower.bind(this));
-        this.add_button("Stop", this.stop.bind(this));
-        
-        const build = this.append_node('fieldset');
-        
-        this.append_node('legend', "Fence", build);
-        this.add_numeric_input('posts', 10, 'Posts:', build);
-        this.add_numeric_input('separation', 4.0, 'Separation:', build);
+        const cubes = this.append_node('fieldset');
+        this.append_node('legend', "Cubes", cubes);
+        const cubesButtons = this.append_node('div', undefined, cubes);
+        this.add_button("Drop", this.drop.bind(this), cubesButtons);
+        this.add_button("Stop", this.stop.bind(this), cubesButtons);
+
+        const pile = this.append_node('fieldset', undefined, cubes);
+        this.append_node('legend', "Pile", pile);
+        this.add_numeric_input('width', "4", 'Width:', pile);
+        this.add_numeric_input('depth', "3", 'Depth:', pile);
+        this.add_numeric_input('pileHeight', "5", 'Height:', pile);
+        this.add_numeric_input('pileSeparation', "1.5", 'Separation:', pile);
+        this.add_button("Build", this.pile.bind(this), pile);
+
+        const fence = this.append_node('fieldset', undefined, cubes);
+        this.append_node('legend', "Fence", fence);
+        this.add_numeric_input('posts', "10", 'Posts:', fence);
+        this.add_numeric_input('fenceSeparation', "4.0", 'Separation:', fence);
         this.add_numeric_input(
-            'turnDegrees', 5.0, 'Deviation (degrees):', build);
-        this.add_numeric_input('height', 3.0, 'Height:', build);
-        this.add_button("Build", this.go_fence.bind(this), build);
+            'turnDegrees', "5.0", 'Deviation (degrees):', fence);
+        this.add_numeric_input('height', "3.0", 'Height:', fence);
+        this.add_button("Build", this.go_fence.bind(this), fence);
 
         const camera = this.append_node('fieldset');
         camera.setAttribute('id', 'camera');
+        this.add_button("Reset", this.reset_camera.bind(this), camera);
         this.append_node('legend', "Camera", camera);
         this.add_camera_panel("Zoom", ["orbitDistance"], -5.0, camera);
-        this.add_camera_panel("Orbit", ["orbitAngle"], -0.5, camera);
+        this.add_camera_panel("Orbit", ["orbitAngle"], 0.5, camera);
         this.add_camera_panel("Altitude", ["worldPosition", 2], 5.0, camera);
         this.add_camera_panel("X", ["worldPosition", 0], 5.0, camera);
         this.add_camera_panel("Y", ["worldPosition", 1], 5.0, camera);
@@ -473,7 +537,7 @@ class UserInterface {
         const results = this.append_node('fieldset');
         this.append_node('legend', "Results", results);
         this.add_button("Clear", this.clear_results.bind(this), results);
-        this.add_button("Fetch /", this.get_display.bind(this), results);
+        this.add_button("Fetch /", this.get_add_results.bind(this), results);
         this.add_tickbox('verboseMouseEvents', "Verbose mouse events", results);
         this.fetchCountDisplay = this.append_node('div', undefined, results);
         this.results = this.append_node('pre', undefined, results);

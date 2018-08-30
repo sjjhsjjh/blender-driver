@@ -12,7 +12,23 @@ Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
         p.smallprint {font-size: 0.7rem;}
         p.smallprint a {text-decoration: none;}
         fieldset {border: solid black 1px;}
+
         label {white-space: pre;}
+
+        /* The input fields for numeric values all happen to be in nested
+         * fieldset elements.
+         */
+        fieldset fieldset {
+            text-align: right;
+            display: inline-block;
+        }
+        fieldset fieldset div {
+            padding-bottom: 0.5em;
+        }
+        
+        input[type="number"] {
+            width: 5em;
+        }
         
         fieldset#camera {
             padding: 0.5em;
@@ -40,7 +56,7 @@ Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
     a tag will sometimes be at the start of a line, and next to the opening < of
     the next tag. This means that there is no whitespace outside markup.
     
---><h1>Demonstration User Interface</h1
+--><h1>Blender Driver</h1
 ><div id="user-interface"></div
 
 

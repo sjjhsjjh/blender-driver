@@ -4,11 +4,13 @@ Backlog
 
 -   Next video:
 
-    -   Better reset. Maybe switch on physics. Maybe don't delete everything,
-        only the excess if any.
+    -   Sort out stopping build and deleting everything as separate options.
     -   Option to move the cursor.
-    -   Option for keyboard shortcuts in the browser, instead of clickless
-        camera controls.
+    -   UI Layout with Results on the right.
+    -   Progress to be updated by build_one.
+
+-   Option for keyboard shortcuts in the browser, instead of clickless camera
+    controls.
 
 -   Load the get_generic store by retrieving some things or in some other way at
     game_initialise.
@@ -16,9 +18,9 @@ Backlog
 -   Maybe add a sweeper or something that ends any objects that have somehow
     escaped from the gameObjects array.
 
--   Suppose a game object collection element, N, changes from a game object, O,
-    to None. At that point, the BGE object that corresponds to N doesn't get
-    endObject'd but it should.
+-   Unit tests for: Suppose a game object collection element, N, changes from a
+    game object, O, to None. At that point, the BGE object that corresponds to N
+    doesn't get endObject'd but it should.
 
 -   Add support for wildcards in rest_patch to support commands like the
     following.

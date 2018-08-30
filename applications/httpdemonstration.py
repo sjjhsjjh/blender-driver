@@ -65,7 +65,7 @@ class Application(
     def game_initialise(self):
         super().game_initialise()
         self._bannerObject.text = "\n".join((
-            " ".join(("Browse", self._url)),
+            " ".join(("User interface:", self._url)),
             "Ctrl-Q here to terminate, or ESC to crash."))
         self._restInterface.rest_put(
             ('root', 'floor'), tuple(self._cursorPath) + ('subjectPath',))

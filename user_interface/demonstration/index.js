@@ -5,16 +5,41 @@ class UserInterface {
     constructor(userInterfaceID) {
         this._buildTimeOut = undefined;
         this._stopped = false;
-        this._fetches = 0;
         this.userInterface = document.getElementById(userInterfaceID);
-        this.fetchCountDisplay = undefined;
+        this.clear_fetch_counts();
         this.formValues = {};
+        this._progress = "";
+    }
+    
+    clear_fetch_counts() {
+        this.fetchCounts = {};
+        UserInterface.methodList.forEach(
+            (method) => this.fetchCounts[method.toLowerCase()] = 0);
+        if (this.fetchCountTextNode !== undefined) {
+            this.fetchCountTextNode.nodeValue = "";
+        }
+    }
+    
+    add_fetch_count(method, increment=1) {
+        this.fetchCounts[method.toLowerCase()] += increment;
+        this.fetchCountTextNode.nodeValue = "HTTP " + UserInterface.methodList
+        .map(method => `${method}:${this.fetchCounts[method.toLowerCase()]}`)
+        .join(" ");
     }
     
     create_node(tag, text) {
-        var element = document.createElement(tag);
-        if ( text !== undefined ) {
-            element.appendChild(document.createTextNode(text));
+        const textNode = (
+            text === undefined ?
+            undefined :
+            document.createTextNode(text)
+        );
+        if (tag === undefined) {
+            return textNode;
+        }
+
+        const element = document.createElement(tag);
+        if (textNode !== undefined) {
+            element.appendChild(textNode);
         }
         return element;
     }
@@ -141,29 +166,15 @@ class UserInterface {
     }
     
     monitor_clear() {
-        this.fetches = 0;
-        this.remove_childs(this.fetchCountDisplay);
+        this.clear_fetch_counts();
         this.remove_childs(this.monitor);
     }
 
-    get fetches() {
-        return this._fetches;
-    }
-    set fetches(count) {
-        this._fetches = count;
-        const fetchCount = 'Fetches:' + this.fetches + ".";
-        if (this.fetchCountDisplay === undefined) {
-            console.log(fetchCount);
-            return;
-        }
-        this.remove_childs(this.fetchCountDisplay);
-        this.append_node('span', fetchCount, this.fetchCountDisplay);
-    }
-    
     fence() {
         const separation = this.formValues.fenceSeparation;
         const posts = this.formValues.posts;
         const turn = (this.formValues.turnDegrees / 180.0) * Math.PI;
+        const spin = (this.formValues.spinDegrees / 180.0) * Math.PI;
         const height = this.formValues.height;
         
         const xStart = -1.5;
@@ -197,7 +208,7 @@ class UserInterface {
                 "animation":{
                     "specification":{
                         "modulo": 2.0 * Math.PI,
-                        "speed": (2.0 / 3.0) * Math.PI,
+                        "speed": spin,
                         "valuePath": ["root", 'gameObjects',
                                       (postIndex * 2) + 1 , 'rotation', 2]
                     },
@@ -243,8 +254,17 @@ class UserInterface {
         this.build_start();
     }
     
+    get progress() {
+        return this._progress;
+    }
+    set progress(progress) {
+        this.progressTextNode.nodeValue = progress;
+        this._progress = progress;
+    }
+    
     build_start() {
         const count = this.toBuild.length;
+        this.progress = `To build: ${count}.`;
         return this.fetch("DELETE", 'animations', 'gameObjects')
         .then(() => this.drop())
         .then((oldCount) => this.build_one(0, oldCount, count));
@@ -252,16 +272,19 @@ class UserInterface {
     
     build_one(index, oldCount, count) {
         this._buildTimeOut = undefined;
+        const progress = ` ${index + 1} of ${count}.`;
         if (this.stopped) {
-            this.monitor_add("Stopped.");
-            return;
+            this.progress = "Stopped at" + progress;
+            return Promise.resolve(null);
         }
 
         const cube = this.toBuild[index].cube;
-        const scale = cube.worldScale === undefined ? [1.0, 1.0, 1.0] : cube.worldScale;
+        const scale = (
+            cube.worldScale === undefined ? [1.0, 1.0, 1.0] : cube.worldScale);
         delete cube.worldScale;
         cube.physics = false;
         const animation = this.toBuild[index].animation;
+        this.progress = "Building" + progress;
         return (
             (index < oldCount) ?
             this.fetch("PUT", null, 'root', 'gameObjects', index) :
@@ -301,6 +324,7 @@ class UserInterface {
     }
     
     build_finish(built, oldCount) {
+        this.progress = `Built ${built}.`;
         const floorMargin = 1.0;
         const dimensions = this.toBuild.reduce(
             (accumulator, item) => {
@@ -380,23 +404,28 @@ class UserInterface {
         .then(() => this.get_monitor());
     }
     
-    reset() {
+    stop_spinning() {
+        return this.fetch("DELETE", 'animations', 'gameObjects');
+    }
+    
+    stop_build() {
+        this.stopped = true;
         if (this._buildTimeOut !== undefined) {
             clearTimeout(this._buildTimeOut);
             this._buildTimeOut = undefined;
         }
-        return this.fetch("DELETE", 'animations', 'gameObjects')
-        .then(() => this.fetch("DELETE", 'root', 'gameObjects'));
     }
     
-    stop() {
-        this.stopped = true;
-        let message = "Deleting";
-        if (this._buildTimeOut !== undefined) {
-            message += " and clearing time out:" + this._buildTimeOut;
-        }
-        message += ".";
-        this.reset().then(() => this.monitor_add(message));
+    clear() {
+        this.stop_build();
+        this.progress = "";
+        return this.stop_spinning()
+        .then(() => this.fetch(
+            "PATCH", [10.0, 10.0], 'root', 'floor', 'worldScale'))
+        .then(() => this.fetch(
+            "PATCH", [0.0, 0.0], 'root', 'floor', 'worldPosition'))
+        .then(() => this.cursor_to_floor())
+        .then(() => this.fetch("DELETE", 'root', 'gameObjects'));
     }
     
     drop() {
@@ -421,12 +450,16 @@ class UserInterface {
         });
     }
     
+    cursor_to_floor() {
+        return this.fetch(
+            "PUT", ['root', 'floor'], 'root', 'cursors', 0, 'subjectPath');
+    }
+    
     reset_camera() {
         const speed = 15.0;
         return this.fetch(
             "DELETE", 'animations', 'user_interface', 'camera')
-        .then(() => this.fetch(
-            "PUT", ['root', 'floor'], 'root', 'cursors', 0, 'subjectPath'))
+        .then(() => this.cursor_to_floor())
         .then(() => this.fetch(
             "PUT", {
                 "speed": speed,
@@ -457,7 +490,7 @@ class UserInterface {
     }
     
     fetch(method, ...parameters) {
-        this.fetches++;
+        this.add_fetch_count(method);
         const options = {"method": method};
         if (method !== "DELETE") {
             options.body = JSON.stringify(parameters.shift());
@@ -467,7 +500,7 @@ class UserInterface {
     }
     
     get(...path) {
-        this.fetches++;
+        this.add_fetch_count("get");
         return fetch(this.api_path(path))
         .then(response => response.json())
         .catch(reason => Promise.reject(reason));
@@ -483,9 +516,6 @@ class UserInterface {
     show() {
         const construct = this.append_node('fieldset');
         this.append_node('legend', "Construct", construct);
-        const constructButtons = this.append_node('div', undefined, construct);
-        this.add_button("Drop", this.drop.bind(this), constructButtons);
-        this.add_button("Stop", this.stop.bind(this), constructButtons);
 
         const pile = this.append_node('fieldset', undefined, construct);
         this.append_node('legend', "Pile", pile);
@@ -502,7 +532,17 @@ class UserInterface {
         this.add_numeric_input(
             'turnDegrees', "5.0", 'Deviation (degrees):', fence);
         this.add_numeric_input('height', "3.0", 'Height:', fence);
+        this.add_numeric_input(
+            'spinDegrees', "120.0", 'Spin (degrees):', fence);
         this.add_button("Build", this.fence.bind(this), fence);
+
+        const constructButtons = this.append_node('div', undefined, construct);
+        this.add_button("Drop", this.drop.bind(this), constructButtons);
+        this.add_button(
+            "Stop build", this.stop_build.bind(this), constructButtons);
+        this.add_button(
+            "Stop spinning", this.stop_spinning.bind(this), constructButtons);
+        this.add_button("Clear", this.clear.bind(this), constructButtons);
 
         const camera = this.append_node('fieldset');
         camera.setAttribute('id', 'camera');
@@ -521,12 +561,18 @@ class UserInterface {
         this.append_node('legend', "Monitor", monitor);
         this.add_button("Clear", this.monitor_clear.bind(this), monitor);
         this.add_button("Fetch /", this.get_monitor.bind(this), monitor);
-        this.fetchCountDisplay = this.append_node('div', undefined, monitor);
+        const progressNode = this.append_node('span', undefined, monitor);
+        progressNode.setAttribute('id', 'progress');
+        this.progressTextNode = this.append_node(undefined, "", progressNode);
+        const fetchCountNode = this.append_node('div', undefined, monitor);
+        this.fetchCountTextNode = this.append_node(
+            undefined, "", fetchCountNode);
         this.monitor = this.append_node('pre', undefined, monitor);
         
         return this;
     }
 }
+UserInterface.methodList = ["get", "put", "patch", "delete"];
 
 function main(userInterfaceID) {
     const userInterface = new UserInterface(userInterfaceID);

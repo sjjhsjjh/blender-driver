@@ -4,10 +4,8 @@ Backlog
 
 -   Next video:
 
-    -   Sort out stopping build and deleting everything as separate options.
     -   Option to move the cursor.
     -   UI Layout with Results on the right.
-    -   Progress to be updated by build_one.
 
 -   Option for keyboard shortcuts in the browser, instead of clickless camera
     controls.

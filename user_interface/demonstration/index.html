@@ -25,14 +25,12 @@ Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
         fieldset fieldset div {
             padding-bottom: 0.5em;
         }
+        input[type="number"] { width: 5em; }
         
-        input[type="number"] {
-            width: 5em;
-        }
+        /* Button holder underneath nested fieldset. */
+        fieldset + div { padding-top: 0.5em; }
         
-        fieldset#camera {
-            padding: 0.5em;
-        }
+        fieldset#camera { padding: 0.5em; }
         span.panel {
             display: inline-block;
             border: solid black 1px;
@@ -47,6 +45,8 @@ Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
             padding: 0.75em;
             margin: 0;
         }
+        
+        span#progress { margin-left: 0.5em; }
     </style>
     <script src="index.js"></script>
 </head>

@@ -197,6 +197,8 @@ class UserInterface {
     display_cursor_subject(subject) {
         if (this.cursorInput !== undefined) {
             // Text input elements must always receive a string value.
+            // TOTH:
+            // https://stackoverflow.com/questions/7609130/set-the-value-of-an-input-field#comment34884943_13826178
             this.cursorInput.value = `${subject[subject.length - 1]}`;
         }
     }
@@ -579,20 +581,20 @@ class UserInterface {
         const construct = this.add_fieldset("Construct");
 
         const pile = this.add_fieldset("Pile", construct);
-        this.add_numeric_input('width', "4", 'Width:', pile);
-        this.add_numeric_input('depth', "3", 'Depth:', pile);
-        this.add_numeric_input('pileHeight', "5", 'Height:', pile);
+        this.add_numeric_input('width', "2", 'Width:', pile);
+        this.add_numeric_input('depth', "1", 'Depth:', pile);
+        this.add_numeric_input('pileHeight', "3", 'Height:', pile);
         this.add_numeric_input('pileSeparation', "1.5", 'Separation:', pile);
         this.add_button("Build", this.pile.bind(this), pile);
 
         const fence = this.add_fieldset("Fence", construct);
-        this.add_numeric_input('posts', "10", 'Posts:', fence);
+        this.add_numeric_input('posts', "5", 'Posts:', fence);
         this.add_numeric_input('fenceSeparation', "4.0", 'Separation:', fence);
         this.add_numeric_input(
-            'turnDegrees', "5.0", 'Deviation (degrees):', fence);
+            'turnDegrees', "10.0", 'Deviation (degrees):', fence);
         this.add_numeric_input('height', "3.0", 'Height:', fence);
         this.add_numeric_input(
-            'spinDegrees', "120.0", 'Spin (degrees):', fence);
+            'spinDegrees', "240.0", 'Spin (degrees):', fence);
         this.add_button("Build", this.fence.bind(this), fence);
 
         const constructButtons = this.append_node('div', undefined, construct);

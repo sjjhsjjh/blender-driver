@@ -1,10 +1,11 @@
 Backlog
 =======
--   Unit test for setting worldScale ... and setting whole arrays actually.
-
 -   Next video:
 
-    -   UI Layout with Results on the right.
+    -   Fix the problem where the cursor isn't always following an object
+        falling under gravity.
+
+-   Unit test for setting worldScale ... and setting whole arrays actually.
 
 -   Option for keyboard shortcuts in the browser, instead of clickless camera
     controls.

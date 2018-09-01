@@ -14,7 +14,7 @@ class UserInterface {
     clear_fetch_counts() {
         this.fetchCounts = {};
         UserInterface.methodList.forEach(
-            (method) => this.fetchCounts[method.toLowerCase()] = 0);
+            method => this.fetchCounts[method.toLowerCase()] = 0);
         if (this.fetchCountTextNode !== undefined) {
             this.fetchCountTextNode.nodeValue = "";
         }
@@ -22,9 +22,12 @@ class UserInterface {
     
     add_fetch_count(method, increment=1) {
         this.fetchCounts[method.toLowerCase()] += increment;
-        this.fetchCountTextNode.nodeValue = "HTTP " + UserInterface.methodList
-        .map(method => `${method}:${this.fetchCounts[method.toLowerCase()]}`)
-        .join(" ");
+        if (this.fetchCountTextNode !== undefined) {
+            this.fetchCountTextNode.nodeValue = [
+                "HTTP", ...UserInterface.methodList.map(method =>
+                    `${method}:${this.fetchCounts[method.toLowerCase()]}`
+                )].join(" ");
+        }
     }
     
     create_node(tag, text) {
@@ -61,10 +64,17 @@ class UserInterface {
         }
     }
     
-    add_button(text, boundMethod, parent) {
+    add_fieldset(label, parent) {
+        const fieldset = this.append_node('fieldset', undefined, parent);
+        fieldset.setAttribute('id', label.toLowerCase());
+        this.append_node('legend', label, fieldset);
+        return fieldset;
+    }
+    
+    add_button(text, boundMethod, parent, ...methodParameters) {
         const button = this.append_node('button', text, parent);
         button.setAttribute('type', 'button');
-        button.onclick = () => boundMethod();
+        button.onclick = () => boundMethod(...methodParameters);
         return button;
     }
     
@@ -133,6 +143,62 @@ class UserInterface {
             this.camera_stop("mouse out " + label);
         };
         return control;
+    }
+    
+    add_cursor_panel(parent) {
+        const panel = this.append_node('div', undefined, parent);
+        this.add_button("<", this.move_cursor.bind(this), panel, -1);
+        const input = this.append_node('input', undefined, panel);
+        input.setAttribute('type', 'text');
+        input.onchange = () => {
+            this.move_cursor(undefined, parseInt(input.value));
+        };
+        this.add_button(">", this.move_cursor.bind(this), panel, 1);
+        return input;
+    }
+    
+    move_cursor(increment, value) {
+        return this.get('root', 'gameObjects')
+        .then(gameObjects => gameObjects.length)
+        .catch(() => 0)
+        .then(count => 
+            this.get(...UserInterface.cursorSubjectPath)
+            .then(response => [count, response]))
+        .then(([count, path]) => {
+            let current = path[path.length - 1];
+            if (current === 'floor') {
+                current = count;
+            }
+            count += 1;
+
+            // TOTH for JS modulo and negative numbers:
+            // https://stackoverflow.com/a/17323608/7657675
+            const nextIndex = (((
+                increment === undefined ? value : current + increment
+                ) % count) + count) % count;
+            return this.put_cursor_subject(
+                nextIndex === count - 1 ?
+                ['root', 'floor'] :
+                ['root', 'gameObjects', nextIndex]
+            );
+        });
+    }
+    
+    get_cursor_subject() {
+        return this.get(...UserInterface.cursorSubjectPath)
+        .then(subject => this.display_cursor_subject(subject));
+    }
+    
+    put_cursor_subject(subject) {
+        this.display_cursor_subject(subject);
+        return this.fetch("PUT", subject, ...UserInterface.cursorSubjectPath);
+    }
+
+    display_cursor_subject(subject) {
+        if (this.cursorInput !== undefined) {
+            // Text input elements must always receive a string value.
+            this.cursorInput.value = `${subject[subject.length - 1]}`;
+        }
     }
 
     camera_move(moveDescription, dimension, amount) {
@@ -267,7 +333,7 @@ class UserInterface {
         this.progress = `To build: ${count}.`;
         return this.fetch("DELETE", 'animations', 'gameObjects')
         .then(() => this.drop())
-        .then((oldCount) => this.build_one(0, oldCount, count));
+        .then(oldCount => this.build_one(0, oldCount, count));
     }
     
     build_one(index, oldCount, count) {
@@ -301,16 +367,15 @@ class UserInterface {
         .then(() =>
             this.fetch("PUT", scale[2],
                        'root', 'gameObjects', index, 'worldScale', 2))
-        .then((response) =>
+        .then(() => 
             (this.formValues.trackBuild || index == 0) ?
-            this.fetch("PUT", ['root', 'gameObjects', index],
-                       'root', 'cursors', 0, 'subjectPath') :
-            Promise.resolve(response))
-        .then((response) =>
+            this.put_cursor_subject(['root', 'gameObjects', index]) :
+            Promise.resolve(null))
+        .then(() =>
             (animation === undefined) ?
-            Promise.resolve(response) :
+            Promise.resolve(null) :
             this.fetch("PUT", animation.specification, ...animation.path))
-        .then((response) => {
+        .then(() => {
             index++;
             if (index >= count) {
                 this.build_finish(index, oldCount);
@@ -319,7 +384,7 @@ class UserInterface {
                 this._buildTimeOut = setTimeout(
                     this.build_one.bind(this), 1, index, oldCount, count);
             }
-            return Promise.resolve(response);
+            return Promise.resolve(null);
         });
     }
     
@@ -368,9 +433,8 @@ class UserInterface {
         }
         return (
             (!this.formValues.trackBuild) ?
-            this.fetch("PUT",
-                       ['root', 'gameObjects', Math.trunc(built/2)],
-                       'root', 'cursors', 0, 'subjectPath') :
+            this.put_cursor_subject(
+                ['root', 'gameObjects', Math.trunc(built/2)]) :
             Promise.resolve(null)
         )
         .then(() =>
@@ -390,16 +454,19 @@ class UserInterface {
             )) :
             Promise.resolve(null))
         .then(() => {
-            const delete_one = (remaining) => {
-                if (remaining > 0) {
+            const builtProgress = this.progress;
+            const delete_one = (deleted, remaining) => {
+                if (deleted < remaining) {
+                    this.progress = `Deleting ${deleted + 1} of ${remaining}.`;
                     return this.fetch("DELETE", 'root', 'gameObjects', built)
-                    .then(() => delete_one(remaining - 1));
+                    .then(() => delete_one(deleted + 1, remaining));
                 }
                 else {
+                    this.progress = builtProgress;
                     return Promise.resolve(remaining);
                 }
             };
-            return delete_one(oldCount - built);
+            return delete_one(0, oldCount - built);
         })
         .then(() => this.get_monitor());
     }
@@ -424,25 +491,25 @@ class UserInterface {
             "PATCH", [10.0, 10.0], 'root', 'floor', 'worldScale'))
         .then(() => this.fetch(
             "PATCH", [0.0, 0.0], 'root', 'floor', 'worldPosition'))
-        .then(() => this.cursor_to_floor())
+        .then(() => this.put_cursor_subject(['root', 'floor']))
         .then(() => this.fetch("DELETE", 'root', 'gameObjects'));
     }
     
     drop() {
         return this.get('root', 'gameObjects')
-        .then(gameObjects => Promise.resolve(gameObjects.length))
-        .catch(error => {
-            console.log('drop caught', error);
-            return Promise.resolve(0);
-        })
+        .then(gameObjects => gameObjects.length)
+        .catch(() => 0)
         .then(count => {
+            this.progress = `To drop: ${count}.`;
             const drop_one = (index, count) => {
                 if (index < count) {
+                    this.progress = `Dropping ${index + 1} of ${count}.`;
                     return this.fetch("PUT", true,
                                       'root', 'gameObjects', index, 'physics')
                     .then(() => drop_one(index + 1, count));
                 }
                 else {
+                    this.progress = `Dropped ${count}.`;
                     return Promise.resolve(count);
                 }
             };
@@ -450,16 +517,11 @@ class UserInterface {
         });
     }
     
-    cursor_to_floor() {
-        return this.fetch(
-            "PUT", ['root', 'floor'], 'root', 'cursors', 0, 'subjectPath');
-    }
-    
     reset_camera() {
         const speed = 15.0;
         return this.fetch(
             "DELETE", 'animations', 'user_interface', 'camera')
-        .then(() => this.cursor_to_floor())
+        .then(() => this.put_cursor_subject(['root', 'floor']))
         .then(() => this.fetch(
             "PUT", {
                 "speed": speed,
@@ -514,19 +576,16 @@ class UserInterface {
     }
     
     show() {
-        const construct = this.append_node('fieldset');
-        this.append_node('legend', "Construct", construct);
+        const construct = this.add_fieldset("Construct");
 
-        const pile = this.append_node('fieldset', undefined, construct);
-        this.append_node('legend', "Pile", pile);
+        const pile = this.add_fieldset("Pile", construct);
         this.add_numeric_input('width', "4", 'Width:', pile);
         this.add_numeric_input('depth', "3", 'Depth:', pile);
         this.add_numeric_input('pileHeight', "5", 'Height:', pile);
         this.add_numeric_input('pileSeparation', "1.5", 'Separation:', pile);
         this.add_button("Build", this.pile.bind(this), pile);
 
-        const fence = this.append_node('fieldset', undefined, construct);
-        this.append_node('legend', "Fence", fence);
+        const fence = this.add_fieldset("Fence", construct);
         this.add_numeric_input('posts', "10", 'Posts:', fence);
         this.add_numeric_input('fenceSeparation', "4.0", 'Separation:', fence);
         this.add_numeric_input(
@@ -544,12 +603,9 @@ class UserInterface {
             "Stop spinning", this.stop_spinning.bind(this), constructButtons);
         this.add_button("Clear", this.clear.bind(this), constructButtons);
 
-        const camera = this.append_node('fieldset');
-        camera.setAttribute('id', 'camera');
-        this.append_node('legend', "Camera", camera);
+        const camera = this.add_fieldset("Camera");
         const cameraButtons = this.append_node('div', undefined, camera);
         this.add_button("Reset", this.reset_camera.bind(this), cameraButtons);
-        this.add_tickbox('trackBuild', "Track build", cameraButtons);
         this.add_tickbox('monitorMouse', "Monitor mouse", cameraButtons);
         this.add_camera_panel("Zoom", ["orbitDistance"], -5.0, camera);
         this.add_camera_panel("Orbit", ["orbitAngle"], 0.5, camera);
@@ -557,8 +613,12 @@ class UserInterface {
         this.add_camera_panel("X", ["worldPosition", 0], 5.0, camera);
         this.add_camera_panel("Y", ["worldPosition", 1], 5.0, camera);
  
-        const monitor = this.append_node('fieldset');
-        this.append_node('legend', "Monitor", monitor);
+        const cursor = this.add_fieldset("Cursor");
+        this.add_tickbox('trackBuild', "Track build", cursor);
+        this.cursorInput = this.add_cursor_panel(cursor);
+        this.get_cursor_subject();
+
+        const monitor = this.add_fieldset("Monitor");
         this.add_button("Clear", this.monitor_clear.bind(this), monitor);
         this.add_button("Fetch /", this.get_monitor.bind(this), monitor);
         const progressNode = this.append_node('span', undefined, monitor);
@@ -573,6 +633,7 @@ class UserInterface {
     }
 }
 UserInterface.methodList = ["get", "put", "patch", "delete"];
+UserInterface.cursorSubjectPath = ['root', 'cursors', 0, 'subjectPath'];
 
 function main(userInterfaceID) {
     const userInterface = new UserInterface(userInterfaceID);

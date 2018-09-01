@@ -4,7 +4,6 @@ Backlog
 
 -   Next video:
 
-    -   Option to move the cursor.
     -   UI Layout with Results on the right.
 
 -   Option for keyboard shortcuts in the browser, instead of clickless camera
@@ -29,6 +28,15 @@ Backlog
         }
     
     That would set physics to true in every item in the gameObjects collection.
+    
+-   Add support for getting array length, to support commands like the
+    following.
+    
+        GET /root/gameObjects/length
+    
+    Where: gameObjects is an array and it returns the length of the array.
+
+-   Lamps.
 
 -   See about getting the launch script to start the browser, or at least
     refresh.

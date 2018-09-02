@@ -1,11 +1,19 @@
 Backlog
 =======
+-   Unit test for setting worldScale ... and setting whole arrays actually.
+
+-   Unit test for raising an error when the tether has children.
+
 -   Next video:
 
-    -   Fix the problem where the cursor isn't always following an object
-        falling under gravity.
+    -   One big PATCH unless tracking build.
 
--   Unit test for setting worldScale ... and setting whole arrays actually.
+-   Show and hide Cursor instances, by starting and ending the visualisers.
+
+    End the visualisers if not visible, and set self._visualisers = None.
+
+-   Non-linear animation speed. Maybe accelerating based on elapsed time, but
+    decelerating based on proximity to target value.
 
 -   Option for keyboard shortcuts in the browser, instead of clickless camera
     controls.
@@ -14,7 +22,7 @@ Backlog
     game_initialise.
 
 -   Maybe add a sweeper or something that ends any objects that have somehow
-    escaped from the gameObjects array.
+    escaped from the gameObjects array, unless they have children.
 
 -   Unit tests for: Suppose a game object collection element, N, changes from a
     game object, O, to None. At that point, the BGE object that corresponds to N
@@ -23,7 +31,7 @@ Backlog
 -   Add support for wildcards in rest_patch to support commands like the
     following.
     
-        PATCH /root/gameObject/*
+        PATCH /root/gameObjects/*
         {
             "physics": true
         }
@@ -87,10 +95,12 @@ Backlog
 
 -   Unit tests for InterceptProperty setattr.
 
--   Get a JSON representation of a path store principal.
+-   Implement POST after thinking about what it should do. POST to an array
+    could append to the array, easy.
 
--   HTTP server that responds to a GET request with a JSON representation of the
-    path store.
+-   How to do applyImpulse? Maybe by POST to an "impulse" property, that gets
+    pushed down to a setter, that executes the applyImpulse and discards its own
+    value.
 
 -   Move heavier diagnostic logs into unit tests in which Mock objects track
     calls.

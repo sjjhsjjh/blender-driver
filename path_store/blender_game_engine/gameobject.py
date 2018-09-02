@@ -101,6 +101,12 @@ def get_game_object_subclass(bge):
             return self._tether
         @tether.setter
         def tether(self, tether):
+            if self._tether is not None and self._tether is not tether:
+                children = len(self.tether.children)
+                if children > 0:
+                    raise RuntimeError("Tether endObject when it has"
+                                       " children:{}.".format(children))
+                self._tether.endObject()
             self._tether = tether
             self.update()
             
@@ -115,6 +121,10 @@ def get_game_object_subclass(bge):
         @physics.setter
         def physics(self, physics):
             if physics:
+                # Clear the rotation. An object that has physics could collide
+                # with another object and then tumble. This means that any user
+                # has lost control of the object's rotation.
+                del self.rotation[:]
                 self.restoreDynamics()
             else:
                 self.suspendDynamics(True)
@@ -136,8 +146,8 @@ def get_game_object_subclass(bge):
             if beingAnimated and not wasAnimated:
                 self.physics = False
             elif wasAnimated and not beingAnimated:
+                # Next line causes the rotation array to be cleared.
                 self.physics = True
-                del self.rotation[:]
             self._beingAnimated = beingAnimated
 
         @property
@@ -154,6 +164,31 @@ def get_game_object_subclass(bge):
         @rotation.deleter
         def rotation(self):
             del self._rotation[:]
+        
+        # Override.
+        def endObject(self):
+            # Next line causes the tether property setter, above, to run. That
+            # in turn will endObject the tether, if there is one. That comes
+            # back through here, because the tether is also an instance of this
+            # GameObject. That's OK if tethers don't get tethers.
+            self.tether = None
+            super().endObject()
+
+        def set_parent(self, parent):
+            if parent is None:
+                self.removeParent()
+            else:
+                self.setParent(parent)
+        # It'd be nice to do the above with some clever Python property code
+        # maybe like this:
+        #
+        #     parent = property(KX_GameObject.parent.fget, _set_parent)
+        #
+        # It doesn't seem to work, maybe because parent isn't a normal Python
+        # property. Instead, there's a setter method. The name follows the PEP 8
+        # convention, which makes it different to KX_GameObject.setParent.
+        # This single setter is a convenience. Native setParent(None) seems to
+        # be a no-op, instead of removing the parent.
         
         def make_vector(self, startVector, endVector, calibre=0.1):
             vector = endVector - startVector
@@ -220,7 +255,6 @@ class Rotation(object):
         """Set the list property from the rotation of the game object."""
         orientation = self._gameObject.worldOrientation
         if self._orientationCache == orientation:
-            log(DEBUG, 'Used orientationCache')
             return
         #
         # Cache the orientation because the list setting looks like quite an
@@ -339,16 +373,3 @@ def get_game_text_subclass(bge, GameObject):
     # code.
     
     return GameText
-
-# 
-# class RestBGEObject(RestInterface):
-#     
-#     def rest_POST(self, parameters):
-#         # Add an object to the scene.
-#         # Make the object instance be self.restPrincipal
-#         # call super().restPOST(parameters) which will set each thing in the
-#         # parameters dictionary.
-#         pass
-# -   How to do applyImpulse? Maybe by POST to an "impulse" property, that gets
-#     pushed down to a setter, that executes the applyImpulse and discards its
-#     own value.

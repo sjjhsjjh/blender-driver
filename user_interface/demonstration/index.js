@@ -235,6 +235,7 @@ class UserInterface {
     
     monitor_clear() {
         this.clear_fetch_counts();
+        this.progress = "";
         this.remove_childs(this.monitor);
     }
 
@@ -255,18 +256,18 @@ class UserInterface {
         let angle = 0;
 
         this.stopped = false;
-        this.toBuild = [];
+        const toBuild = [];
         for(var postIndex=0; postIndex<posts; postIndex++) {
             //
             // Fence post.
-            this.toBuild.push({"cube":{
+            toBuild.push({"cube":{
                 "rotation": [0, 0, angle],
                 "worldPosition": [x, y, z],
                 "worldScale": [1.0, 1.0, height]
             }});
             //
             // Fence cap.
-            this.toBuild.push({
+            toBuild.push({
                 "cube":{
                     "rotation": [0, 0, angle + (0.25 * Math.PI)],
                     "worldPosition": [x, y, z + height + 2.0],
@@ -288,7 +289,7 @@ class UserInterface {
             y += separation * Math.sin(angle);
             angle += turn;
         }
-        this.build_start();
+        this.build_start(toBuild);
     }
     
     pile() {
@@ -302,14 +303,14 @@ class UserInterface {
         const zStart = 0.5;
         
         this.stopped = false;
-        this.toBuild = [];
+        const toBuild = [];
         let x = xStart;
         for (var xIndex=0; xIndex<xCount; xIndex++) {
             let y = yStart;
             for (var yIndex=0; yIndex<yCount; yIndex++) {
                 let z = zStart;
                 for (var zIndex=0; zIndex<zCount; zIndex++) {
-                    this.toBuild.push({"cube":{
+                    toBuild.push({"cube":{
                         "rotation": [0, 0, 0],
                         "worldPosition": [x, y, z]
                     }});
@@ -319,7 +320,7 @@ class UserInterface {
             }
             x += separation;
         }
-        this.build_start();
+        this.build_start(toBuild);
     }
     
     get progress() {
@@ -330,15 +331,15 @@ class UserInterface {
         this._progress = progress;
     }
     
-    build_start() {
-        const count = this.toBuild.length;
-        this.progress = `To build: ${count}.`;
+    build_start(toBuild) {
+        this.progress = `To build: ${toBuild.length}.`;
         return this.fetch("DELETE", 'animations', 'gameObjects')
         .then(() => this.drop())
-        .then(oldCount => this.build_one(0, oldCount, count));
+        .then(oldCount => this.build_one(0, oldCount, toBuild));
     }
     
-    build_one(index, oldCount, count) {
+    build_one(index, oldCount, toBuild) {
+        const count = toBuild.length;
         this._buildTimeOut = undefined;
         const progress = ` ${index + 1} of ${count}.`;
         if (this.stopped) {
@@ -346,20 +347,14 @@ class UserInterface {
             return Promise.resolve(null);
         }
 
-        const cube = this.toBuild[index].cube;
+        const cube = toBuild[index].cube;
         const scale = (
             cube.worldScale === undefined ? [1.0, 1.0, 1.0] : cube.worldScale);
         delete cube.worldScale;
         cube.physics = false;
-        const animation = this.toBuild[index].animation;
+        const animation = toBuild[index].animation;
         this.progress = "Building" + progress;
-        return (
-            (index < oldCount) ?
-            this.fetch("PUT", null, 'root', 'gameObjects', index) :
-            Promise.resolve(null)
-        )
-        .then(() =>
-            this.fetch("PATCH", cube, 'root', 'gameObjects', index))
+        return this.fetch("PATCH", cube, 'root', 'gameObjects', index)
         .then(() =>
             this.fetch("PUT", scale[0],
                        'root', 'gameObjects', index, 'worldScale', 0))
@@ -370,7 +365,7 @@ class UserInterface {
             this.fetch("PUT", scale[2],
                        'root', 'gameObjects', index, 'worldScale', 2))
         .then(() => 
-            (this.formValues.trackBuild || index == 0) ?
+            this.formValues.trackBuild ?
             this.put_cursor_subject(['root', 'gameObjects', index]) :
             Promise.resolve(null))
         .then(() =>
@@ -380,20 +375,20 @@ class UserInterface {
         .then(() => {
             index++;
             if (index >= count) {
-                this.build_finish(index, oldCount);
+                this.build_finish(index, oldCount, toBuild);
             }
             else {
                 this._buildTimeOut = setTimeout(
-                    this.build_one.bind(this), 1, index, oldCount, count);
+                    this.build_one.bind(this), 1, index, oldCount, toBuild);
             }
             return Promise.resolve(null);
         });
     }
     
-    build_finish(built, oldCount) {
+    build_finish(built, oldCount, toBuild) {
         this.progress = `Built ${built}.`;
         const floorMargin = 1.0;
-        const dimensions = this.toBuild.reduce(
+        const dimensions = toBuild.reduce(
             (accumulator, item) => {
                 const values = item.cube.worldPosition;
                 if (accumulator.xMin === undefined ||
@@ -434,12 +429,6 @@ class UserInterface {
             dimensions.yMax += floorMargin;
         }
         return (
-            (!this.formValues.trackBuild) ?
-            this.put_cursor_subject(
-                ['root', 'gameObjects', Math.trunc(built/2)]) :
-            Promise.resolve(null)
-        )
-        .then(() =>
             setFloor ?
             this.fetch(
                 "PUT", dimensions.xMax - dimensions.xMin,
@@ -454,8 +443,8 @@ class UserInterface {
                 "PUT", 0.5 * (dimensions.yMax + dimensions.yMin),
                 'root', 'floor', 'worldPosition', 1
             )) :
-            Promise.resolve(null))
-        .then(() => {
+            Promise.resolve(null)
+        ).then(() => {
             const builtProgress = this.progress;
             const delete_one = (deleted, remaining) => {
                 if (deleted < remaining) {
@@ -469,8 +458,9 @@ class UserInterface {
                 }
             };
             return delete_one(0, oldCount - built);
-        })
-        .then(() => this.get_monitor());
+        }).then(() =>
+            this.get_monitor()
+        );
     }
     
     stop_spinning() {
@@ -588,7 +578,7 @@ class UserInterface {
         this.add_button("Build", this.pile.bind(this), pile);
 
         const fence = this.add_fieldset("Fence", construct);
-        this.add_numeric_input('posts', "5", 'Posts:', fence);
+        this.add_numeric_input('posts', "2", 'Posts:', fence);
         this.add_numeric_input('fenceSeparation', "4.0", 'Separation:', fence);
         this.add_numeric_input(
             'turnDegrees', "10.0", 'Deviation (degrees):', fence);

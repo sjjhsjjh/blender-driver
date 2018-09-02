@@ -124,8 +124,8 @@ class Cursor(object):
         if (self._subject is None
             and self._subjectPath is not None
             and self._restInterface is not None
-            ):
-            self._subject = self.restInterface.rest_get(self.subjectPath)
+        ):
+            self._subject = self._restInterface.rest_get(self.subjectPath)
 
         subject = self._subject
         if subject is None:
@@ -161,7 +161,7 @@ class Cursor(object):
             self._helpers = tuple(self._add_empty() for _ in range(3))
         if self._helpers is not None and (changedSubject or created):
             for helper in self._helpers:
-                helper.setParent(subject.tether)
+                helper.set_parent(subject.tether)
         #
         # Position the helper objects.
         if self._helpers is not None:
@@ -181,14 +181,12 @@ class Cursor(object):
 
             if self._visualisers is not None and (changedSubject or created):
                 for visualiser in self._visualisers:
-                    visualiser.setParent(subject.tether)
+                    visualiser.set_parent(subject.tether)
 
             if self._visualisers is not None:
                 self._visualisers[0].make_vector(self.origin, self.end)
                 self._visualisers[1].make_vector(self.end, self.point)
                 self._visualisers[2].make_vector(self.point, self.origin)
-
-        # ToDo: End the visualisers if not visible, and set self._visualisers = None.
 
     def __init__(self):
         self._subject = None

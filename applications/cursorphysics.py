@@ -135,7 +135,7 @@ class Application(restanimation.Application):
             # set visibility in a single put, so that it gets set last.
             self._restInterface.rest_patch({
                     'subjectPath': tuple(path),
-                    'offset': 3.0, 'length': 4.0, 'radius': 2.0,
+                    'offset': 2.0, 'length': 4.0, 'radius': 2.0,
                     'rotation': radians(90)
                 }, self._cursorPath)
             self._cursorPath.append('visible')

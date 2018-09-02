@@ -93,7 +93,9 @@ class Application(rest.Application):
             and path[0] == 'root'
             and path[1] == 'gameObjects'
         ):
-            return self.game_add_object('cube')
+            object_ = self.game_add_object('cube')
+            object_.tether = self._add_empty()
+            return object_
         return self._base_point_maker(path, index, point)
     
     def game_initialise(self):

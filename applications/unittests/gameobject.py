@@ -347,7 +347,7 @@ class TestGameObject(TestCaseWithApplication):
                 pass
 
     def test_rest_dict(self):
-        self.add_phase_starts(6, 7, 8)
+        self.add_phase_starts(3, 4, 5)
         keys = ('third', 'fourth', 'fifth')
         paraDict = {}
         error = RuntimeError(
@@ -402,3 +402,44 @@ class TestGameObject(TestCaseWithApplication):
             with self.tick:
                 pass
 
+    def test_scale(self):
+        self.add_phase_starts(6, 7, 8)
+        with self.application.mainLock:
+            gameObject = self.add_test_object()
+            self.show_status("Created")
+
+            gameObject.physics = False
+            #
+            # Initial scale in all axes should be the same as the template.
+            objectName = self.get_class_and_name()[1]
+            expectedScale = self.application.templates[objectName]['scale'][:]
+            self.assertAlmostEqual(
+                expectedScale[0], pathstore.get(gameObject, ('worldScale', 0)))
+            self.assertAlmostEqual(gameObject.worldScale[:], expectedScale)
+            
+        scale = [expectedScale[0] * 2.0,
+                 expectedScale[1] * 3.0,
+                 expectedScale[2] * 4.0]
+        while self.up_to_phase(0):
+            with self.tick:
+                pass
+        with self.tick:
+            with self.application.mainLock:
+                pathstore.replace(gameObject, scale, 'worldScale')
+
+        while self.up_to_phase(1):
+            with self.tick:
+                pass
+        with self.tick:
+            with self.application.mainLock:
+                pathstore.replace(gameObject, expectedScale, 'worldScale')
+
+        while self.up_to_phase(2):
+            with self.tick:
+                pass
+        with self.tick:
+            with self.application.mainLock:
+                pathstore.merge(gameObject, scale, 'worldScale')
+
+        with self.tick, self.application.mainLock:
+            gameObject.physics = True

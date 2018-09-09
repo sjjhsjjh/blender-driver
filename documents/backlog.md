@@ -1,7 +1,5 @@
 Backlog
 =======
--   Unit test for raising an error when the tether has children.
-
 -   Next video:
 
     -   One big drop, and one big DELETE, unless tracking build.
@@ -9,6 +7,8 @@ Backlog
 -   Show and hide Cursor instances, by starting and ending the visualisers.
 
     End the visualisers if not visible, and set self._visualisers = None.
+
+-   Unit test for raising an error when the tether has children.
 
 -   Non-linear animation speed. Maybe accelerating based on elapsed time, but
     decelerating based on proximity to target value.
@@ -53,8 +53,6 @@ Backlog
 
 -   See about getting the launch script to start the browser, or at least
     refresh.
-
--   Unit tests for pathify_split.
 
 -   Read charset from content-type. Also check content-type in requests.
 

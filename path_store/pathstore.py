@@ -41,7 +41,8 @@ class PointType(Enum):
     ATTR = 3
 
 def pathify(path):
-    """Generator that returns a list suitable for path store navigation:
+    """\
+    Generator that returns a list suitable for path store navigation:
     
     -   A zero-element list, if path is None.
     -   A one-element list, if path is a string or isn't iterable.
@@ -57,8 +58,16 @@ def pathify(path):
             except TypeError:
                 yield path
 
-def pathify_split(str_, sep='/', skip=0):
-    for leg in str_.split(sep):
+def pathify_split(joined, sep='/', skip=0):
+    """\
+    Split a string into a sequence of paths suitable for path store
+    navigation and return them in a generator.
+    
+    Empty paths are stripped.
+    """
+    if joined is None:
+        joined = ""
+    for leg in joined.split(sep):
         if leg == "":
             continue
         if skip > 0:
@@ -67,7 +76,14 @@ def pathify_split(str_, sep='/', skip=0):
         try:
             yield int(leg)
         except ValueError:
-            yield leg
+            slicers = leg.split(':', 2)
+            if len(slicers) <= 1:
+                yield leg
+            else:
+                yield slice(*list(
+                    None if slicer == "" else int(slicer) for slicer in slicers
+                ))
+                
 
 def iterify(source):
     """\

@@ -34,6 +34,46 @@ class TestPathify(unittest.TestCase):
         self.assertEqual(
             list(pathstore.pathify(("jio", 2))), ["jio", 2])
 
+class TestPathifySplit(unittest.TestCase):
+    def test_empty(self):
+        self.assertEqual(list(pathstore.pathify_split(None)), [])
+        self.assertEqual(list(pathstore.pathify_split("")), [])
+        self.assertEqual(list(pathstore.pathify_split("/")), [])
+        self.assertEqual(list(pathstore.pathify_split("//")), [])
+        self.assertEqual(list(pathstore.pathify_split("//full/")), ["full"])
+    def test_skip(self):
+        self.assertEqual(list(pathstore.pathify_split("1/2", skip=1)), [2])
+    def test_one_number(self):
+        self.assertEqual(list(pathstore.pathify_split("1")), [1])
+        self.assertEqual(list(pathstore.pathify_split("/1")), [1])
+        self.assertEqual(list(pathstore.pathify_split("1/")), [1])
+    def test_one_string(self):
+        self.assertEqual(list(pathstore.pathify_split("jio")), ["jio"])
+        self.assertEqual(list(pathstore.pathify_split("jio/")), ["jio"])
+        self.assertEqual(list(pathstore.pathify_split("/jio")), ["jio"])
+    def test_string_number(self):
+        self.assertEqual(
+            list(pathstore.pathify_split(("jio/2"))), ["jio", 2])
+    def test_strings_numbers(self):
+        self.assertEqual(
+            list(pathstore.pathify_split(("jio/2/bo/4"))), ["jio", 2, "bo", 4])
+        self.assertEqual(
+            list(pathstore.pathify_split(("5/6/7/8"))), [5,6,7,8])
+        self.assertEqual(
+            list(pathstore.pathify_split(("5/6/7/8o"))), [5,6,7,"8o"])
+        self.assertEqual(
+            list(pathstore.pathify_split(("a/bb/cc/d"))), ["a","bb","cc","d"])
+    def test_slice(self):
+        self.assertEqual(
+            list(pathstore.pathify_split(("jio/2:")))
+            , ["jio", slice(2,None,None)])
+        self.assertEqual(
+            list(pathstore.pathify_split((":3/2:"))),
+            [slice(None,3,None), slice(2,None)])
+        self.assertEqual(
+            list(pathstore.pathify_split(("3:2:1/:3/2:"))),
+            [slice(3,2,1), slice(None,3,None), slice(2,None)])
+
 class TestIterify(unittest.TestCase):
     def test_int(self):
         with self.assertRaises(TypeError) as testContext:

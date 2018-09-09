@@ -3,7 +3,6 @@
 
 class UserInterface {
     constructor(userInterfaceID) {
-        this._buildTimeOut = undefined;
         this._stopped = false;
         this.userInterface = document.getElementById(userInterfaceID);
         this.clear_fetch_counts();
@@ -312,6 +311,7 @@ class UserInterface {
                 for (var zIndex=0; zIndex<zCount; zIndex++) {
                     toBuild.push({"cube":{
                         "rotation": [0, 0, 0],
+                        "worldScale": [1, 1, 1],
                         "worldPosition": [x, y, z]
                     }});
                     z += separation;
@@ -333,59 +333,61 @@ class UserInterface {
     
     build_start(toBuild) {
         this.progress = `To build: ${toBuild.length}.`;
+        toBuild.forEach(item => Object.assign(item.cube, {"physics": false}));
+
         return this.fetch("DELETE", 'animations', 'gameObjects')
         .then(() => this.drop())
-        .then(oldCount => this.build_one(0, oldCount, toBuild));
+        .then(oldCount => (
+            this.formValues.trackBuild ?
+            this.build_one(0, oldCount, toBuild) :
+            this.build_all(oldCount, toBuild)
+        ))
+        .then(([built, oldCount, toBuild]) =>
+            this.build_finish(built, oldCount, toBuild)
+        );
+    }
+    
+    build_all(oldCount, toBuild) {
+        // The animation.path isn't used here.
+        return this.fetch(
+            "PATCH", toBuild.map(item => item.cube), 'root', 'gameObjects')
+        .then(() => this.fetch(
+            "PATCH",
+            toBuild
+                .filter(item => item.animation)
+                .map(item => item.animation.specification),
+            'animations', 'gameObjects'))
+        .then(() => Promise.resolve(toBuild.length, oldCount, toBuild));
     }
     
     build_one(index, oldCount, toBuild) {
         const count = toBuild.length;
-        this._buildTimeOut = undefined;
         const progress = ` ${index + 1} of ${count}.`;
         if (this.stopped) {
             this.progress = "Stopped at" + progress;
-            return Promise.resolve(null);
+            return Promise.resolve(undefined, undefined, undefined);
         }
 
         const cube = toBuild[index].cube;
-        const scale = (
-            cube.worldScale === undefined ? [1.0, 1.0, 1.0] : cube.worldScale);
-        delete cube.worldScale;
-        cube.physics = false;
         const animation = toBuild[index].animation;
         this.progress = "Building" + progress;
         return this.fetch("PATCH", cube, 'root', 'gameObjects', index)
-        .then(() =>
-            this.fetch("PUT", scale[0],
-                       'root', 'gameObjects', index, 'worldScale', 0))
-        .then(() =>
-            this.fetch("PUT", scale[1],
-                       'root', 'gameObjects', index, 'worldScale', 1))
-        .then(() =>
-            this.fetch("PUT", scale[2],
-                       'root', 'gameObjects', index, 'worldScale', 2))
         .then(() => 
-            this.formValues.trackBuild ?
-            this.put_cursor_subject(['root', 'gameObjects', index]) :
-            Promise.resolve(null))
+            this.put_cursor_subject(['root', 'gameObjects', index]))
         .then(() =>
             (animation === undefined) ?
-            Promise.resolve(null) :
+            Promise.resolve() :
             this.fetch("PUT", animation.specification, ...animation.path))
-        .then(() => {
-            index++;
-            if (index >= count) {
-                this.build_finish(index, oldCount, toBuild);
-            }
-            else {
-                this._buildTimeOut = setTimeout(
-                    this.build_one.bind(this), 1, index, oldCount, toBuild);
-            }
-            return Promise.resolve(null);
-        });
+        .then(() =>
+            index + 1 >= count ?
+            Promise.resolve(index + 1, oldCount, toBuild) :
+            this.build_one(index + 1, oldCount, toBuild));
     }
     
     build_finish(built, oldCount, toBuild) {
+        if (built === undefined) {
+            return;
+        }
         this.progress = `Built ${built}.`;
         const floorMargin = 1.0;
         const dimensions = toBuild.reduce(
@@ -443,7 +445,7 @@ class UserInterface {
                 "PUT", 0.5 * (dimensions.yMax + dimensions.yMin),
                 'root', 'floor', 'worldPosition', 1
             )) :
-            Promise.resolve(null)
+            Promise.resolve()
         ).then(() => {
             const builtProgress = this.progress;
             const delete_one = (deleted, remaining) => {
@@ -469,10 +471,6 @@ class UserInterface {
     
     stop_build() {
         this.stopped = true;
-        if (this._buildTimeOut !== undefined) {
-            clearTimeout(this._buildTimeOut);
-            this._buildTimeOut = undefined;
-        }
     }
     
     clear() {

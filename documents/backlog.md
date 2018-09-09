@@ -1,12 +1,10 @@
 Backlog
 =======
--   Unit test for setting worldScale ... and setting whole arrays actually.
-
 -   Unit test for raising an error when the tether has children.
 
 -   Next video:
 
-    -   One big PATCH unless tracking build.
+    -   One big drop, and one big DELETE, unless tracking build.
 
 -   Show and hide Cursor instances, by starting and ending the visualisers.
 
@@ -45,6 +43,12 @@ Backlog
     
     Where: gameObjects is an array and it returns the length of the array.
 
+-   Add support for Python slices in array operations, at least delete.
+    
+        DELETE /root/gameObjects/4:
+    
+    Would delete from item 4 onwards.
+    
 -   Lamps.
 
 -   See about getting the launch script to start the browser, or at least

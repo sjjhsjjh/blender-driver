@@ -31,7 +31,10 @@ class GameObjectList(collections.UserList):
         list.__delitem__(list_, specifier)
     
     def __setitem__(self, index, value):
-        item = self.data[index]
+        try:
+            item = self.data[index]
+        except IndexError:
+            item = None
         if item is not value and item is not None:
             item.endObject()
         list.__setitem__(self.data, index, value)
@@ -44,7 +47,10 @@ class GameObjectDict(collections.UserDict):
         dict.__delitem__(self.data, key)
     
     def __setitem__(self, key, value):
-        item = self.data[key]
+        try:
+            item = self.data[key]
+        except KeyError:
+            item = None
         if item is not value and item is not None:
             item.endObject()
         dict.__setitem__(self.data, key, value)

@@ -147,4 +147,33 @@ class TestGet(unittest.TestCase):
         with self.assertRaises(type(expected)) as context:
             pathstore.get(parent, (1, 'ele'))
         self.assertEqual(str(context.exception), str(expected))
-        
+    
+    def test_slice(self):
+        parent = [11, 12, 13, 14, 15]
+        points = pathstore.get(parent, pathstore.pathify_split("1:"))
+        self.assertEqual(points, [12, 13, 14, 15])
+
+        parent0 = {'odd':11, 'even':12, 'sub':[101, 102, 103]}
+        parent1 = {'odd':13, 'even':14, 'sub':[201, 202, 203]}
+        parent = [
+            parent0,
+            parent1,
+            {'odd':15, 'even':16},
+            {'odd':17, 'even':18}
+        ]
+        points = pathstore.get(parent, pathstore.pathify_split("1:/odd"))
+        self.assertEqual(points, [13,15,17])
+        points = pathstore.get(parent, pathstore.pathify_split("3:/odd"))
+        self.assertEqual(points, [17])
+        points = pathstore.get(parent, pathstore.pathify_split("::2/odd"))
+        self.assertEqual(points, [11,15])
+        points = pathstore.get(parent, pathstore.pathify_split(":2/even"))
+        self.assertEqual(points, [12,14])
+        points = pathstore.get(parent, pathstore.pathify_split(":2/sub/1"))
+        self.assertEqual(points, [102,202])
+        points = pathstore.get(parent, pathstore.pathify_split(":2/sub/::2"))
+        self.assertEqual(points, [[101,103],[201,203]])
+        points = pathstore.get(parent, pathstore.pathify_split("0:2"))
+        self.assertEqual(len(points), 2)
+        self.assertIs(points[0], parent0)
+        self.assertIs(points[1], parent1)

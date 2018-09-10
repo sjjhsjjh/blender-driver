@@ -75,3 +75,76 @@ class TestDelete(unittest.TestCase):
         with self.assertRaises(KeyError) as dictContext:
             pathstore.get(principal, ('ngDict', 'two'))
         self.assertEqual(str(dictError), str(dictContext.exception))
+    
+    def test_slice(self):
+        parent = [11, 12, 13, 14, 15]
+        points = pathstore.delete(parent, pathstore.pathify_split("1:"))
+        self.assertEqual(points, [12, 13, 14, 15])
+        self.assertEqual(parent, [11])
+        
+        def sub_parent():
+            return [
+                {'odd':11, 'even':12, 'sub':[101, 102, 103]},
+                {'odd':13, 'even':14, 'sub':[201, 202, 203]},
+                {'odd':15, 'even':16},
+                {'odd':17, 'even':18}
+            ]
+
+        parent = sub_parent()
+        points = pathstore.delete(parent, pathstore.pathify_split("1:/odd"))
+        self.assertEqual(points, [13,15,17])
+        self.assertEqual(parent, [
+            {'odd':11, 'even':12, 'sub':[101, 102, 103]},
+            {'even':14, 'sub':[201, 202, 203]},
+            {'even':16},
+            {'even':18}
+        ])
+        
+        parent = sub_parent()
+        points = pathstore.delete(parent, pathstore.pathify_split("1:3/odd"))
+        self.assertEqual(points, [13,15])
+        self.assertEqual(parent, [
+            {'odd':11, 'even':12, 'sub':[101, 102, 103]},
+            {'even':14, 'sub':[201, 202, 203]},
+            {'even':16},
+            {'odd':17, 'even':18}
+        ])
+        
+        parent = sub_parent()
+        points = pathstore.delete(parent, pathstore.pathify_split(":2/sub/1"))
+        self.assertEqual(points, [102,202])
+        self.assertEqual(parent, [
+            {'odd':11, 'even':12, 'sub':[101, 103]},
+            {'odd':13, 'even':14, 'sub':[201, 203]},
+            {'odd':15, 'even':16},
+            {'odd':17, 'even':18}
+        ])
+
+        parent = sub_parent()
+        points = pathstore.delete(parent, pathstore.pathify_split(":2/sub/::2"))
+        self.assertEqual(points, [[101,103],[201,203]])
+        self.assertEqual(parent, [
+            {'odd':11, 'even':12, 'sub':[102]},
+            {'odd':13, 'even':14, 'sub':[202]},
+            {'odd':15, 'even':16},
+            {'odd':17, 'even':18}
+        ])
+
+        parent = sub_parent()
+        points = pathstore.delete(parent, pathstore.pathify_split("3:/odd"))
+        self.assertEqual(points, [17])
+        expected = sub_parent()
+        del expected[3]['odd']
+        self.assertEqual(parent, expected)
+
+        parent = sub_parent()
+        expected0 = parent[0]
+        expected1 = parent[1]
+        points = pathstore.delete(parent, pathstore.pathify_split("0:2"))
+        self.assertEqual(len(points), 2)
+        self.assertIs(points[0], expected0)
+        self.assertIs(points[1], expected1)
+        self.assertEqual(parent, [
+            {'odd':15, 'even':16},
+            {'odd':17, 'even':18}
+        ])

@@ -77,13 +77,8 @@ def pathify_split(joined, sep='/', skip=0):
             yield int(leg)
         except ValueError:
             slicers = leg.split(':', 2)
-            if len(slicers) <= 1:
-                yield leg
-            else:
-                yield slice(*list(
-                    None if slicer == "" else int(slicer) for slicer in slicers
-                ))
-                
+            yield leg if len(slicers) <= 1 else slice(*list(
+                None if slicer == "" else int(slicer) for slicer in slicers))
 
 def iterify(source):
     """\
@@ -171,7 +166,7 @@ def get(parent, path=None):
     
     If path is None or empty, returns the parent.
     """
-    return parent if path is None else _get(parent, path, False)
+    return parent if path is None else _get(parent, list(pathify(path)), False)
 
 def delete(parent, path):
     """\
@@ -184,21 +179,40 @@ def delete(parent, path):
     If the holder of the specified point is None, returns the error that get()
     would have raised.
     """
-    return _get(parent, path, True)
+    return _get(parent, list(pathify(path)), True)
 
 def _get(parent, path, delete):
-    error = None
-    pathified = pathify(path)
+    # It seemed like a nice idea to keep path as a generator for as long as
+    # possible. However, to support embedded slices, can be necessary to repeat
+    # part of the descent. This means that it can has to stop being a generator
+    # at some point in the middle of the loop that is enumerating it, which is
+    # bad. So now `path` has to be a list already.
+
     if delete:
-        pathified = tuple(pathified)
-        stop = len(pathified) - 1
+        stop = len(path) - 1
         if stop < 0:
             raise ValueError('Path for deletion is empty but should have at'
                              ' least one element.')
     
-    for index, leg in enumerate(pathified):
+    error = None
+    for index, leg in enumerate(path):
         if error is not None:
             raise error
+        
+        if isinstance(leg, slice):
+            # Copy the end of the path, including the slice. The element that
+            # holds the slice gets overwritten repeatedly.
+            tail = path[index:]
+            # print(path, index, leg, tail)
+            points = []
+            deleteSlice = (delete and index >= stop)
+            for sliceIndex in range(*leg.indices(len(parent))):
+                tail[0] = sliceIndex
+                points.append(_get(parent, tail, delete and not deleteSlice))
+            if deleteSlice:
+                parent.__delitem__(leg)
+            return points
+
         pointType, point, descendError = descend(parent, leg)
         if pointType is None:
             message = " ".join(("Couldn't get point for", str_quote(leg), "in"

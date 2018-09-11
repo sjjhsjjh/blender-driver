@@ -357,7 +357,7 @@ class UserInterface {
                 .filter(item => item.animation)
                 .map(item => item.animation.specification),
             'animations', 'gameObjects'))
-        .then(() => Promise.resolve(toBuild.length, oldCount, toBuild));
+        .then(() => Promise.resolve([toBuild.length, oldCount, toBuild]));
     }
     
     build_one(index, oldCount, toBuild) {
@@ -365,7 +365,7 @@ class UserInterface {
         const progress = ` ${index + 1} of ${count}.`;
         if (this.stopped) {
             this.progress = "Stopped at" + progress;
-            return Promise.resolve(undefined, undefined, undefined);
+            return Promise.resolve([undefined, undefined, undefined]);
         }
 
         const cube = toBuild[index].cube;
@@ -380,7 +380,7 @@ class UserInterface {
             this.fetch("PUT", animation.specification, ...animation.path))
         .then(() =>
             index + 1 >= count ?
-            Promise.resolve(index + 1, oldCount, toBuild) :
+            Promise.resolve([index + 1, oldCount, toBuild]) :
             this.build_one(index + 1, oldCount, toBuild));
     }
     
@@ -446,21 +446,13 @@ class UserInterface {
                 'root', 'floor', 'worldPosition', 1
             )) :
             Promise.resolve()
-        ).then(() => {
-            const builtProgress = this.progress;
-            const delete_one = (deleted, remaining) => {
-                if (deleted < remaining) {
-                    this.progress = `Deleting ${deleted + 1} of ${remaining}.`;
-                    return this.fetch("DELETE", 'root', 'gameObjects', built)
-                    .then(() => delete_one(deleted + 1, remaining));
-                }
-                else {
-                    this.progress = builtProgress;
-                    return Promise.resolve(remaining);
-                }
-            };
-            return delete_one(0, oldCount - built);
-        }).then(() =>
+        ).then(() => (
+            oldCount > built ?
+            // Note the colon in the last path leg, which is range notation.
+            this.fetch("DELETE", 'root', 'gameObjects', `${built}:`)
+            .then(() => Promise.resolve(oldCount - built)) :
+            Promise.resolve(oldCount - built)
+        )).then(() =>
             this.get_monitor()
         );
     }

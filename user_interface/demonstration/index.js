@@ -432,23 +432,17 @@ class UserInterface {
         }
         return (
             setFloor ?
-            this.fetch(
-                "PUT", dimensions.xMax - dimensions.xMin,
-                'root', 'floor', 'worldScale', 0
-            ).then(() => this.fetch(
-                "PUT", dimensions.yMax - dimensions.yMin,
-                'root', 'floor', 'worldScale', 1
-            )).then(() => this.fetch(
-                "PUT", 0.5 * (dimensions.xMax + dimensions.xMin),
-                'root', 'floor', 'worldPosition', 0
-            )).then(() => this.fetch(
-                "PUT", 0.5 * (dimensions.yMax + dimensions.yMin),
-                'root', 'floor', 'worldPosition', 1
-            )) :
+            this.fetch("PATCH", {
+                "worldScale": [dimensions.xMax - dimensions.xMin,
+                               dimensions.yMax - dimensions.yMin],
+                "worldPosition": [0.5 * (dimensions.xMax + dimensions.xMin),
+                                  0.5 * (dimensions.yMax + dimensions.yMin)]
+            }, 'root', 'floor') :
             Promise.resolve()
         ).then(() => (
             oldCount > built ?
-            // Note the colon in the last path leg, which is range notation.
+            // On the next line, note the colon in the last path leg, which is
+            // range notation.
             this.fetch("DELETE", 'root', 'gameObjects', `${built}:`)
             .then(() => Promise.resolve(oldCount - built)) :
             Promise.resolve(oldCount - built)

@@ -1,8 +1,6 @@
 Backlog
 =======
--   Next video:
-
-    -   One big drop, and one big DELETE, unless tracking build.
+-   Next video.
 
 -   Show and hide Cursor instances, by starting and ending the visualisers.
 
@@ -42,12 +40,6 @@ Backlog
         GET /root/gameObjects/length
     
     Where: gameObjects is an array and it returns the length of the array.
-
--   Add support for Python slices in array operations, at least delete.
-    
-        DELETE /root/gameObjects/4:
-    
-    Would delete from item 4 onwards.
     
 -   Lamps.
 
@@ -99,6 +91,12 @@ Backlog
 
 -   Implement POST after thinking about what it should do. POST to an array
     could append to the array, easy.
+
+    Could treat -1 as a special case if it is the path leg being used as an
+    index into an array. If leg is -1, change leg to len(parent) so that the
+    parent list or tuple gets extended by the point maker. However, this would
+    be inconsistent with Python array indexing, in which a negative index is to
+    be counted back from the end, e.g. -1 is the last element.
 
 -   How to do applyImpulse? Maybe by POST to an "impulse" property, that gets
     pushed down to a setter, that executes the applyImpulse and discards its own

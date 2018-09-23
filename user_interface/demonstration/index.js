@@ -466,9 +466,7 @@ class UserInterface {
             this.fetch("DELETE", 'root', 'gameObjects', `${built}:`)
             .then(() => Promise.resolve(oldCount - built)) :
             Promise.resolve(oldCount - built)
-        )).then(() =>
-            this.get_monitor()
-        );
+        ));
     }
     
     stop_spinning() {

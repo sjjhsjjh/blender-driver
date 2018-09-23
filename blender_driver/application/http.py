@@ -189,31 +189,45 @@ class Application(rest.Application):
         with self.mainLock:
             command = httpHandler.command.upper()
             if command == 'DELETE':
-                deleted = self._restInterface.rest_delete(path)
-                #
-                # If a game object collection is deleted, delete all its
-                # members. This will cause the endObject() method to be called
-                # on each member, so the BGE objects actually get deleted.
-                # It might be safe to delete in-walk but just in case, this code
-                # does it in two steps.
-                # Only handles lists right now.
-                collections = []
-                def end_object(point, path, results):
-                    if isinstance(point, GameObjectList):
-                        results.append(point)
-                pathstore_walk(
-                    deleted, end_object, None, collections, None, True)
-                log(DEBUG, 'Deleting {} {} {}.'
-                    , type(deleted), isinstance(deleted, GameObjectList)
-                    , len(collections))
-                for collection in collections:
-                    del collection[:]
+                try:
+                    deleted = self._restInterface.rest_delete(path)
+                    sendError = None
+                except KeyError as error:
+                    sendError = 404
 
-                httpHandler.send_response(200)
-                httpHandler.end_headers()
+                if sendError is None:
+                    #
+                    # If a game object collection is deleted, delete all its
+                    # members. This will cause the endObject() method to be
+                    # called on each member, so the BGE objects actually get
+                    # deleted. It might be safe to delete in-walk but just in
+                    # case, this code does it in two steps. Only handles lists
+                    # right now.
+                    collections = []
+                    def end_object(point, path, results):
+                        if isinstance(point, GameObjectList):
+                            results.append(point)
+                    pathstore_walk(
+                        deleted, end_object, None, collections, None, True)
+                    log(DEBUG, 'Deleting {} {} {}.'
+                        , type(deleted), isinstance(deleted, GameObjectList)
+                        , len(collections))
+                    for collection in collections:
+                        del collection[:]
+    
+                    httpHandler.send_response(200)
+                    httpHandler.end_headers()
+                else:
+                    httpHandler.send_error(sendError)
+
             elif command == 'GET':
-                generic = self._restInterface.get_generic(path)
-                if generic is not None:
+                try:
+                    generic = self._restInterface.get_generic(path)
+                    sendError = None
+                except KeyError as error:
+                    sendError = 404
+
+                if sendError is None:
                     response = bytes(json.dumps(generic), 'utf-8')
                     httpHandler.send_response(200)
                     httpHandler.send_header(
@@ -222,6 +236,9 @@ class Application(rest.Application):
                         'Content-Length', '{}'.format(len(response)))
                     httpHandler.end_headers()
                     httpHandler.wfile.write(response)
+                else:
+                    httpHandler.send_error(sendError)
+
             elif command == 'PUT' or command == 'PATCH':
                 contentLengthHeader = httpHandler.headers.get('Content-Length')
                 if contentLengthHeader is None:

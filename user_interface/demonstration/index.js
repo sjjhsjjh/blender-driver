@@ -156,18 +156,27 @@ class UserInterface {
         return input;
     }
     
-    move_cursor(increment, value) {
-        return this.get('root', 'gameObjects')
-        .then(gameObjects => gameObjects.length)
-        .catch(() => 0)
-        .then(count => 
+    move_cursor(increment, value, objectCount) {
+        return (
+            objectCount === undefined ?
+            this.get('root', 'gameObjects')
+            .then(gameObjects => gameObjects.length)
+            .catch(() => 0) :
+            Promise.resolve(objectCount)
+        )
+        .then(count => (
+            increment === undefined ?
+            Promise.resolve([count, undefined]) :
             this.get(...UserInterface.cursorSubjectPath)
-            .then(response => [count, response]))
-        .then(([count, path]) => {
-            let current = path[path.length - 1];
-            if (current === 'floor') {
-                current = count;
-            }
+            .then(path => {
+                let current = path[path.length - 1];
+                if (current === 'floor') {
+                    current = count;
+                }
+                return [count, current];
+            })
+        ))
+        .then(([count, current]) => {
             count += 1;
 
             // TOTH for JS modulo and negative numbers:
@@ -439,7 +448,18 @@ class UserInterface {
                                   0.5 * (dimensions.yMax + dimensions.yMin)]
             }, 'root', 'floor') :
             Promise.resolve()
-        ).then(() => (
+        )
+        // If the cursor subject is about to be deleted as a surplus, move the
+        // cursor to the last object.
+        .then(() => this.get(...UserInterface.cursorSubjectPath))
+        .then(path => {
+            const current = path[path.length - 1];
+            if (current === 'floor' || parseInt(current) < built) {
+                return Promise.resolve();
+            }
+            return this.move_cursor(undefined, built - 1);
+        })
+        .then(() => (
             oldCount > built ?
             // On the next line, note the colon in the last path leg, which is
             // range notation.
@@ -464,32 +484,30 @@ class UserInterface {
         this.progress = "";
         return this.stop_spinning()
         .then(() => this.fetch(
-            "PATCH", [10.0, 10.0], 'root', 'floor', 'worldScale'))
-        .then(() => this.fetch(
-            "PATCH", [0.0, 0.0], 'root', 'floor', 'worldPosition'))
+            "PATCH", {
+                'worldScale': [10.0, 10.0],
+                'worldPosition': [0.0, 0.0]
+            }, 'root', 'floor'))
         .then(() => this.put_cursor_subject(['root', 'floor']))
-        .then(() => this.fetch("DELETE", 'root', 'gameObjects'));
+        .then(() => this.fetch("DELETE", 'root', 'gameObjects', ':'));
     }
     
     drop() {
         return this.get('root', 'gameObjects')
         .then(gameObjects => gameObjects.length)
-        .catch(() => 0)
+        .catch(error => {
+            console.log('drop() caught', error);
+            return 0;
+        })
         .then(count => {
-            this.progress = `To drop: ${count}.`;
-            const drop_one = (index, count) => {
-                if (index < count) {
-                    this.progress = `Dropping ${index + 1} of ${count}.`;
-                    return this.fetch("PUT", true,
-                                      'root', 'gameObjects', index, 'physics')
-                    .then(() => drop_one(index + 1, count));
-                }
-                else {
-                    this.progress = `Dropped ${count}.`;
-                    return Promise.resolve(count);
-                }
-            };
-            return drop_one(0, count);
+            if (count <= 0) {
+                return 0;
+            }
+            // Colon in quotes on the next line will create a slice of each item
+            // in the gameObjects array.
+            return this.fetch(
+                "PUT", true, 'root', 'gameObjects', ':', 'physics')
+            .then(() => count);
         });
     }
     

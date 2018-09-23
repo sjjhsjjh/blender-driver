@@ -127,3 +127,48 @@ class TestMerge(unittest.TestCase):
         self.assertIsNot(principal0, value)
         value['bb'] = None
         self.assertEqual(principal0, value)
+
+    def test_slice(self):
+        principal0 = [1, 2, 3, 4]
+        principal = pathstore.merge(principal0, 0, slice(2, None))
+        self.assertIs(principal, principal0)
+        self.assertEqual(principal, [1,2,0,0])
+
+        def sub_parent():
+            return [
+                {'odd':11, 'even':12, 'sub':[101, 102, 103]},
+                {'odd':13, 'even':14, 'sub':[201, 202, 203]},
+                {'odd':15, 'even':16},
+                {'odd':17, 'even':18}
+            ]
+
+        principal0 = sub_parent()
+        principal = pathstore.merge(principal0, True, [slice(1, None), 'odd'])
+        self.assertIs(principal, principal0)
+        self.assertEqual(principal, [
+            {'odd':11, 'even':12, 'sub':[101, 102, 103]},
+            {'odd':True, 'even':14, 'sub':[201, 202, 203]},
+            {'odd':True, 'even':16},
+            {'odd':True, 'even':18}
+        ])
+
+        principal0 = sub_parent()
+        principal = pathstore.merge(principal0, True, [slice(1, 3), 'odd'])
+        self.assertIs(principal, principal0)
+        self.assertEqual(principal, [
+            {'odd':11, 'even':12, 'sub':[101, 102, 103]},
+            {'odd':True, 'even':14, 'sub':[201, 202, 203]},
+            {'odd':True, 'even':16},
+            {'odd':17, 'even':18}
+        ])
+
+        principal0 = {'it':sub_parent()}
+        principal = pathstore.merge(
+            principal0, True, ['it', slice(None, None, 2), 'odd'])
+        self.assertIs(principal, principal0)
+        self.assertEqual(principal, {'it':[
+            {'odd':True, 'even':12, 'sub':[101, 102, 103]},
+            {'odd':13, 'even':14, 'sub':[201, 202, 203]},
+            {'odd':True, 'even':16},
+            {'odd':17, 'even':18}
+        ]})

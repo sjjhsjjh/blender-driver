@@ -419,15 +419,7 @@ def replace(parent, value, path=None, point_maker=default_point_maker):
     point_maker.
     """
     log(DEBUG, "{} {} {}.", parent, path, value)
-    return _insert(parent
-                   , tuple(pathify(path))
-                   , True
-                   , value
-                   , point_maker
-                   , enumerate(pathify(path)))
-    # There is a possible problem with the lambda in the above. Because it
-    # returns None for the parent, it might discard whatever had been put in by
-    # a custom point maker.
+    return _insert(parent, list(pathify(path)), True, value, point_maker, 0)
 
 def merge(parent, value, path=None, point_maker=default_point_maker):
     """\
@@ -438,19 +430,13 @@ def merge(parent, value, path=None, point_maker=default_point_maker):
     point_maker.
     """
     log(DEBUG, "{} {} {}.", parent, path, value)
-    
-    return _insert(parent
-                   , tuple(pathify(path))
-                   , False
-                   , value
-                   , point_maker
-                   , enumerate(pathify(path)))
+    return _insert(parent, list(pathify(path)), False, value, point_maker, 0)
 
-def _insert(parent, path, replacing, value, point_maker, enumerator):
+def _insert(parent, path, replacing, value, point_maker, index):
     try:
-        index, leg = next(enumerator)
+        legMaker = path[index]
         stopping = False
-    except StopIteration:
+    except IndexError:
         stopping = True
     
     if stopping:
@@ -459,7 +445,7 @@ def _insert(parent, path, replacing, value, point_maker, enumerator):
                 return None
             #
             # Pad the path with a None so that the index isn't out of bounds.
-            parent = point_maker(tuple(path) + (None,), len(path), None)
+            parent = point_maker(path + [None], len(path), None)
             #
             # If a made point would have the same type as value, discard it and
             # use value. Otherwise, _merge value into the point. If the value
@@ -470,46 +456,54 @@ def _insert(parent, path, replacing, value, point_maker, enumerator):
 
     wasTuple = isinstance(parent, tuple)
 
-# Could treat leg -1 as a special case here.
-# If leg is -1, discard parent unless it is a list or tuple,
-# and change leg to len(parent)
-
-    pointType, point, descendError = descend(parent, leg)
-    if pointType is PointType.LIST and isinstance(parent, str):
-        # Sorry, hack to force descent into a string to fail if setting.
-        point = None
-    
-    log(DEBUG, "{:d} {}\n  {}\n  {}\n  {} {}({})", index, str_quote(leg), parent
-        , str(pointType)
-        , str_quote(point), type(descendError).__name__, str(descendError))
-
-    if pointType is None or point is None:
-        pathLen = len(path)
-        makePath = path
-        if index >= pathLen:
-            makePath = tuple(path) + (None,) * (index + 1 - pathLen)
-        log(DEBUG, "about to point_maker({}, {}, {}).", makePath, index, parent)
-        parent = point_maker(makePath, index, parent)
-        log(DEBUG, "made point {} {}.", parent, parent.__class__)
+    legs = tuple(
+        range(*legMaker.indices(len(parent)))
+        ) if isinstance(legMaker, slice) else (legMaker,)
+    for leg in legs:
+        # path[index] = leg
         pointType, point, descendError = descend(parent, leg)
-        if (pointType is None
-            and point is None
-            and isinstance(descendError, KeyError)
-        ):
-            pointType = PointType.DICTIONARY
+        if pointType is PointType.LIST and isinstance(parent, str):
+            # Sorry, hack to force descent into a string to fail if setting.
+            point = None
+        
+        log(DEBUG, "path[{:d}] {}\n  {}\n  {} {}\n  {}({})"
+            , index, str_quote(leg)
+            , parent
+            , str(pointType), str_quote(point)
+            , type(descendError).__name__, str(descendError))
 
-    if pointType is None:
-        raise AssertionError("".join((
-            "pointType was None twice at ", str(parent)
-            ," path:", str(path), " index:", str(index)
-            , " leg:", str_quote(leg), ".")))
+        if pointType is None or point is None:
+            pathLen = len(path)
+            makePath = (
+                path[:] if index < pathLen else
+                path + [None] * (index + 1 - pathLen))
+            log(DEBUG, "about to point_maker({}, {}, {})."
+                , makePath, index, parent)
+            parent = point_maker(makePath, index, parent)
+            log(DEBUG, "made point {} {}.", parent, parent.__class__)
+            pointType, point, descendError = descend(parent, leg)
+            if (pointType is None
+                and point is None
+                and isinstance(descendError, KeyError)
+            ):
+                pointType = PointType.DICTIONARY
 
-    value = _insert(point, path, replacing, value, point_maker, enumerator)
+        if pointType is None:
+            raise AssertionError("".join((
+                "pointType was None twice at ", str(parent)
+                , " path:", str(path), " index:", str(index)
+                , " leg:", str_quote(leg)
+                , " legMaker:" if len(legs) > 1 else ""
+                , str_quote(legMaker) if len(legs) > 1 else ""
+                , ".")))
+
+        legValue = _insert(
+            point, path, replacing, value, point_maker, index + 1)
     
-    didSet, parent = _set(parent, leg, value, pointType)
+        didSet, parent = _set(parent, leg, legValue, pointType)
 
-    if not didSet:
-        log(DEBUG, "setter optimised: {}.", pointType)
+        if not didSet:
+            log(DEBUG, "setter optimised: {}.", pointType)
 
     if wasTuple and isinstance(parent, list):
         parent = tuple(parent)
@@ -530,15 +524,12 @@ def _merge(parent, value, point_maker, pointMakerPath):
     #
     # The code reaches this point only if the value is iterable.
     #
-    # Create a path that is definitely a list, and therefore mutable.
-    path = list(pathify(pointMakerPath))
+    # Copy the path.
+    path = pointMakerPath[:]
     #
     # Set the length into a variable to avoid recalculation later.
     pathLen = len(path)
 
-    def enumerate_one(index, item):
-        yield index, item
-    
     for legKey, legValue in legIterator:
         log(DEBUG, "iteration {} {}", str_quote(legKey), legValue)
         # Not sure about this so it's commented out. It seems that it could skip
@@ -546,8 +537,7 @@ def _merge(parent, value, point_maker, pointMakerPath):
         # if legValue is None:
         #     continue
         path.append(legKey)
-        parent = _insert(parent, path, False, legValue, point_maker
-                         , enumerate_one(pathLen, legKey))
+        parent = _insert(parent, path, False, legValue, point_maker, pathLen)
         path.pop()
 
     log(DEBUG, "return {}.", parent)

@@ -140,14 +140,14 @@ class TestPrincipal(unittest.TestCase):
         pointMakerTracker = PointMakerTracker()
         point0 = None
         path = 0
-        expected = [pointMakerTracker.tracker_for((path,), 0, point0)]
+        expected = [pointMakerTracker.tracker_for([path], 0, point0)]
         point1 = pathstore.merge(
             point0, None, path, point_maker=pointMakerTracker.point_maker)
         self.assertEqual(pointMakerTracker.makerTrack, expected)
         
         pointMakerTracker = PointMakerTracker()
         point0 = None
-        path = ('abc', 'de', 'fgh', 'ij', 'kl')
+        path = ['abc', 'de', 'fgh', 'ij', 'kl']
         expected = [
             (str(path), index, str(point0)) for index in range(len(path))]
         point1 = pathstore.merge(

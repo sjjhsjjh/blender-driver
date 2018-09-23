@@ -94,7 +94,7 @@ class TestPointMaker(unittest.TestCase):
 
     def test_principal_root(self):
         pointMaker = PointMaker(0)
-        path = ('testAttr', 'de', 'fgh', 'ij', 'kl')
+        path = ['testAttr', 'de', 'fgh', 'ij', 'kl']
         #
         # Start with None.
         point0 = None
@@ -130,7 +130,7 @@ class TestPointMaker(unittest.TestCase):
         #
         # Try a path that can't be rooted in the required type.
         point0 = None
-        path = ('de', 'fgh', 'ij', 'kl')
+        path = ['de', 'fgh', 'ij', 'kl']
         with self.assertRaises(AssertionError) as context:
             point1 = pathstore.merge(point0, None, path, point_maker=mock)
         index = 0
@@ -144,7 +144,7 @@ class TestPointMaker(unittest.TestCase):
         pointMaker = PointMaker(3)
         mock = Mock(side_effect=pointMaker.principal_point_maker)
         point0 = None
-        path = ('de', 'fgh', 'ij', 'testAttr')
+        path = ['de', 'fgh', 'ij', 'testAttr']
         value = "valueTest"
         point1 = pathstore.merge(point0, value, path, point_maker=mock)
         self.assertEqual(mock.call_args_list, [
@@ -155,8 +155,8 @@ class TestPointMaker(unittest.TestCase):
 
         mock.reset_mock()
         point0 = None
-        path0 = ('de', 2, 'ij')
-        path1 = ('testAttr', 1, 0)
+        path0 = ['de', 2, 'ij']
+        path1 = ['testAttr', 1, 0]
         path = path0 + path1
         value = "arrayValue"
         point1 = pathstore.merge(point0, value, path, point_maker=mock)
@@ -172,7 +172,7 @@ class TestPointMaker(unittest.TestCase):
         mock.reset_mock()
         pointMaker.reset()
         point0 = None
-        path = ('de', 2, 'ij')
+        path = ['de', 2, 'ij']
         value0 = "Value in dictionary."
         value = {'testAttr': value0}
         point1 = pathstore.replace(point0, value, path, point_maker=mock)
@@ -183,7 +183,7 @@ class TestPointMaker(unittest.TestCase):
         self.assertEqual(pointMaker.calls, [
             call(path, index, None) for index in range(len(path))
             ] + [
-            call(tuple(path) + (None,), len(path), None),
+            call(path + [None], len(path), None),
             call(list(path) + ['testAttr'], len(path), principal)])
         #
         # Replacing with an empty dictionary should result in an object if the
@@ -191,7 +191,7 @@ class TestPointMaker(unittest.TestCase):
         mock.reset_mock()
         pointMaker.reset()
         point0 = None
-        path = ('de', 2, 'ij')
+        path = ['de', 2, 'ij']
         point1 = pathstore.replace(point0, {}, path, point_maker=mock)
         principal = pathstore.get(point1, path)
         self.assertEqual(point1, {'de':[None, None, {'ij':principal}]})
@@ -199,7 +199,7 @@ class TestPointMaker(unittest.TestCase):
         self.assertEqual(pointMaker.calls, [
             call(path, index, None) for index in range(len(path))
             ] + [
-            call(tuple(path) + (None,), len(path), None)])
+            call(path + [None], len(path), None)])
         #
         # Replacing with a None should result in None, regardless of what the
         # point maker specifies. The last invocation of the point maker in the
@@ -208,7 +208,7 @@ class TestPointMaker(unittest.TestCase):
         mock.reset_mock()
         pointMaker.reset()
         point0 = None
-        path = ('de', 2, 'ij')
+        path = ['de', 2, 'ij']
         point1 = pathstore.replace(point0, None, path, point_maker=mock)
         self.assertEqual(point1, {'de':[None, None, {'ij':None}]})
         principal = pathstore.get(point1, path)
@@ -219,7 +219,7 @@ class TestPointMaker(unittest.TestCase):
         pointMaker = PointMaker(4)
         mock = Mock(side_effect=pointMaker.principal_point_maker)
         point0 = None
-        path = ('de', 'fgh', 'ij', 'kl')
+        path = ['de', 'fgh', 'ij', 'kl']
         point1 = pathstore.merge(point0, None, path, point_maker=mock)
         self.assertEqual(mock.call_args_list, [
             call(path, index, None) for index in range(len(path))])
@@ -252,7 +252,7 @@ class TestPointMaker(unittest.TestCase):
             return root
 
         expectedCalls = [
-            call(('outvaluearr', 0, 'invalue'), index, None
+            call(['outvaluearr', 0, 'invalue'], index, None
                 ) for index in range(3)] + [
             #
             # The last parameter on the next line is the `expected` structure,
@@ -260,8 +260,8 @@ class TestPointMaker(unittest.TestCase):
             # `outvaluearr` hierarchy, but by the time the value is checked, it
             # has been modified, because pathstore.merge operates in place on
             # the data structure. 
-            call(('outvaluedict', 'invalue'), 0, expected),
-            call(('outvaluedict', 'invalue'), 1, None)]
+            call(['outvaluedict', 'invalue'], 0, expected),
+            call(['outvaluedict', 'invalue'], 1, None)]
 
 
         mock = Mock(side_effect=pathstore.default_point_maker)
@@ -323,7 +323,7 @@ class TestPointMaker(unittest.TestCase):
         point0 = None
         point1 = pathstore.merge(point0, value, point_maker=mock)
         self.assertEqual(mock.call_args_list, [
-            call([], 0, None), call(['testAttr'], 1, None)])
+            call(['testAttr'], 0, None), call(['testAttr', 'a'], 1, None)])
         self.assertIsInstance(point1, Principal)
         #
         # Note that the merge-ness cascades, so the attrValue dictionary is
@@ -341,4 +341,4 @@ class TestPointMaker(unittest.TestCase):
         mock.reset_mock()
         point1 = pathstore.replace(point0, value, point_maker=mock)
         self.assertIs(point1, value)
-        self.assertEqual(mock.call_args_list, [call((None,), 0, None)])
+        self.assertEqual(mock.call_args_list, [call([None], 0, None)])

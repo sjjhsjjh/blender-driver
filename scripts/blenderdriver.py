@@ -370,9 +370,9 @@ class Main(object):
         # Start the recorder.
         try:
             if self._arguments.verbose:
-                print(" ".join(
+                print(" ".join((
                     self.argv0, 'Starting recorder:\n\t', '\n\t'.join((
-                    '"'.join(("", _, "")) for _ in recorderCommand))))
+                    '"'.join(("", _, "")) for _ in recorderCommand)))))
                 recorder = subprocess.Popen(recorderCommand)
             else:
                 #

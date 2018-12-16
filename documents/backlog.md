@@ -1,7 +1,5 @@
 Backlog
 =======
--   ES6 import and separate files in general.
-
 -   Covert radians to degrees in NumericPanel.
 
 -   Next video.

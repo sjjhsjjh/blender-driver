@@ -1,0 +1,81 @@
+/* (c) 2018 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
+ * Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
+ */
+
+html {font-family: sans-serif;}
+p.smallprint {font-size: 0.7rem;}
+p.smallprint a {text-decoration: none;}
+fieldset {border: solid black 1px;}
+
+label {white-space: pre;}
+
+/* The input fields for numeric values all happen to be in nested
+ * fieldset elements.
+ */
+fieldset fieldset {
+    text-align: right;
+    display: inline-block;
+}
+fieldset fieldset div {
+    padding-bottom: 0.5em;
+}
+input[type="number"], input[type="text"] {
+    width: 3em;
+    text-align: right;
+    
+    transition:
+        background-color 0.25s ease-in,
+        color 0.25s ease-in;
+}
+input:disabled {
+    background-color: Silver;
+    color: Silver;
+}
+
+/* Button holder underneath nested fieldset. */
+fieldset + div { padding-top: 0.5em; }
+
+fieldset#camera { padding: 0.5em; }
+span.panel {
+    display: inline-block;
+    border: solid black 1px;
+    padding: 1em 0.1em 1em 0.1em;
+    margin: 0.5em;
+}
+span.panel div {
+    /*background-color: lightgreen;*/
+    display: inline-block;
+    text-align: center;
+    position: relative;
+    /*padding: 0.5em;*/
+    min-width: 4em;
+}
+span.panel div label {
+    /*background-color: lightblue;*/
+    position: relative;
+    top: -0.75em;
+}
+span.panel div input {
+    /*background-color: pink;*/
+    position: absolute;
+    right: 0.2em;
+    width: 4em;
+    bottom: -1em;
+}
+span.panel span.hoverControl {
+    border: dotted black 1px;
+    padding: 0.75em;
+    margin: 0;
+    transition:
+        background-color 0.25s ease-in,
+        color 0.25s ease-in;
+}
+span.panel span.hoverControl-active:hover {
+    background-color: darkgray;
+    color: white;
+}
+span.panel span.hoverControl-inactive {
+    background-color: Silver;
+}
+
+span#progress { margin-left: 0.5em; }

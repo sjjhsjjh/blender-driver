@@ -293,3 +293,12 @@ class TestWalk(unittest.TestCase):
         del results[:]
         pathstore.walk(principal, editor_append_second, second=second)
         self.assertEqual(results, expected)
+
+    def test_second_return(self):
+        def editor_set(point, path, results, second):
+            return True, second
+        generic = {"a": None}
+        aValue = {"c":"d"}
+        principal = {"a":aValue}
+        pathstore.walk(generic, editor_set, ["a"], second=principal)
+        self.assertIs(generic['a'], aValue)

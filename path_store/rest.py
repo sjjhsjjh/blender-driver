@@ -64,8 +64,11 @@ class RestInterface(object):
     
     def get_generic(self, path=None):
         def populate(pointUnused, pathUnused, resultsUnused, second):
+            # This should maybe be _generic_value(second).
             return True, second
 
+        # Following will populate the generic structure from the principal
+        # structure, but only for paths that exist in the generic structure.
         if self.principal is not None:
             self._generic = pathstore.walk(
                 self._generic, populate, path, second=self.principal)
@@ -92,6 +95,8 @@ class RestInterface(object):
 
     def rest_get(self, path=None):
         self._generic = pathstore.merge(self._generic, None, path)
+        # Near here, should maybe remove it from the _generic if an error was
+        # raised by the principal get.
         return pathstore.get(self.principal, path)
     
     def rest_walk(self, editor, path=None, results=None):

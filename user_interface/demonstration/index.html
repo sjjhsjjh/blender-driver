@@ -28,6 +28,14 @@ Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
         input[type="number"], input[type="text"] {
             width: 3em;
             text-align: right;
+            
+            transition:
+                background-color 0.25s ease-in,
+                color 0.25s ease-in;
+        }
+        input:disabled {
+            background-color: Silver;
+            color: Silver;
         }
         
         /* Button holder underneath nested fieldset. */
@@ -40,17 +48,40 @@ Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
             padding: 1em 0.1em 1em 0.1em;
             margin: 0.5em;
         }
-        span.panel span.label {
-            margin: 0 0.5em 0 0.5em;
+        span.panel div {
+            /*background-color: lightgreen;*/
+            display: inline-block;
+            text-align: center;
+            position: relative;
+            /*padding: 0.5em;*/
+            min-width: 4em;
         }
-        span.panel span.control {
+        span.panel div label {
+            /*background-color: lightblue;*/
+            position: relative;
+            top: -0.75em;
+        }
+        span.panel div input {
+            /*background-color: pink;*/
+            position: absolute;
+            right: 0.2em;
+            width: 4em;
+            bottom: -1em;
+        }
+        span.panel span.hoverControl {
             border: dotted black 1px;
             padding: 0.75em;
             margin: 0;
+            transition:
+                background-color 0.25s ease-in,
+                color 0.25s ease-in;
         }
-        span.panel span.control:hover {
+        span.panel span.hoverControl-active:hover {
             background-color: darkgray;
             color: white;
+        }
+        span.panel span.hoverControl-inactive {
+            background-color: Silver;
         }
         
         span#progress { margin-left: 0.5em; }

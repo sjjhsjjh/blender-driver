@@ -224,8 +224,19 @@ class Application(rest.Application):
                 try:
                     generic = self._restInterface.get_generic(path)
                     sendError = None
-                except KeyError as error:
+                except KeyError:
                     sendError = 404
+                
+                if sendError is not None:
+                    # Path isn't in the generic object. See if it is in the
+                    # principal. This has the side effect of adding the path to
+                    # the generic.
+                    try:
+                        self._restInterface.rest_get(path)
+                        generic = self._restInterface.get_generic(path)
+                        sendError = None
+                    except KeyError:
+                        pass
 
                 if sendError is None:
                     response = bytes(json.dumps(generic), 'utf-8')

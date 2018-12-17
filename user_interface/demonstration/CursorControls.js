@@ -11,7 +11,9 @@ export default class CursorControls extends Controls {
         this._prefix = ['root', 'cursors', 0];
         this._animationPath = ['animations', 'user_interface', 'cursor'];
 
-        this._add_panel("Offset", ["offset"], 1.0);
+        this._add_panel("X", ["offset", 0], 1.0);
+        this._add_panel("Y", ["offset", 1], 1.0);
+        this._add_panel("Z", ["offset", 2], 1.0);
         this._add_panel("Length", ["length"], 1.0);
         this._add_panel("Radius", ["radius"], 1.0);
         this._add_panel("Rotation", ["rotation"], 0.5);

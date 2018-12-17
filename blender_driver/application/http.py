@@ -266,9 +266,9 @@ class Application(rest.Application):
                 else:
                     content = json.loads(contentJSON)
 
-                print('_inner_rest_api {} Content-Length"{}"{}.\n{}\n{}'.format(
-                    command
-                    , contentLengthHeader, contentLength, contentJSON, content))
+                # print('_inner_rest_api {} Content-Length"{}"{}.\n{}\n{}'.format(
+                #     command
+                #     , contentLengthHeader, contentLength, contentJSON, content))
                 if command == 'PUT':
                     self._restInterface.rest_put(content, path)
                 else:

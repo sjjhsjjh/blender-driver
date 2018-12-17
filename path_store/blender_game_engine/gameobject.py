@@ -11,11 +11,6 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
-# Module for levelled logging messages.
-# Tutorial is here: https://docs.python.org/3.5/howto/logging.html
-# Reference is here: https://docs.python.org/3.5/library/logging.html
-from logging import DEBUG, INFO, WARNING, ERROR, log
-#
 # Module for mathematical operations needed to decompose a rotation matrix.
 # https://docs.python.org/3.5/library/math.html
 from math import atan2, pow, sqrt

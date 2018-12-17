@@ -9,12 +9,31 @@ if __name__ == '__main__':
     print(__doc__)
     raise SystemExit(1)
 
+# Standard library imports, in alphabetic order.
+#
+# Module that facilitates container subclasses.
+# https://docs.python.org/3/library/collections.html#collections.UserList
+import collections
+# Data model reference documentation is also useful:
+# https://docs.python.org/3/reference/datamodel.html#emulating-container-types
+#
 # Blender library imports, in alphabetic order.
 #
 # Blender Game Engine maths utilities.
 # http://www.blender.org/api/blender_python_api_current/mathutils.html
 # They're super-effective!
 from mathutils import Vector, Quaternion
+#
+# Local imports, would go here.
+
+class UpdateList(collections.UserList):
+    def __init__(self, update, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._update = update
+        
+    def __setitem__(self, index, value):
+        list.__setitem__(self.data, index, value)
+        self._update()
 
 class Cursor(object):
     #
@@ -72,7 +91,6 @@ class Cursor(object):
     def offset(self, offset):
         self._offset = offset
         self._update(False)
-    #
     @property
     def length(self):
         return self._length
@@ -117,7 +135,7 @@ class Cursor(object):
             return None
         return self._helpers[index].worldPosition.copy()
         
-    def _update(self, changedSubject):
+    def _update(self, changedSubject=False):
         if changedSubject:
             self._subject = None
 
@@ -133,8 +151,10 @@ class Cursor(object):
         #
         # Set the offset properties.
         axisVector = subject.getAxisVect(self.zAxis)
-        self._originOffset = (
-            None if self._offset is None else self._offset * axisVector)
+        #
+        # Parameter to getAxisVect is a list, from which it returns a Vector.
+        self._originOffset = subject.getAxisVect(self.offset)
+        # print(self._offset, self._originOffset)
         if self._originOffset is None:
             self._endOffset = None
         else:
@@ -174,9 +194,11 @@ class Cursor(object):
 
         if self._visible:
             created = False
+            vectorPoints = (subject.worldPosition.copy(), self.origin,
+                            self.end, self.point, self.origin)
             if self._visualisers is None and self._add_visualiser is not None:
-                self._visualisers = tuple(
-                    self._add_visualiser() for _ in range(3))
+                self._visualisers = tuple(self._add_visualiser()
+                                          for _ in range(len(vectorPoints) - 1))
                 created = True
 
             if self._visualisers is not None and (changedSubject or created):
@@ -184,9 +206,9 @@ class Cursor(object):
                     visualiser.set_parent(subject.tether)
 
             if self._visualisers is not None:
-                self._visualisers[0].make_vector(subject.worldPosition.copy(), self.end)
-                self._visualisers[1].make_vector(self.end, self.point)
-                self._visualisers[2].make_vector(self.point, self.origin)
+                for index, visualiser in enumerate(self._visualisers):
+                    visualiser.make_vector(vectorPoints[index]
+                                           , vectorPoints[index + 1])
 
     def __init__(self):
         self._subject = None
@@ -199,7 +221,7 @@ class Cursor(object):
         self._add_empty = None
         self._visible = False
 
-        self._offset = None
+        self._offset = UpdateList(self._update, (0.0, 0.0, 0.0))
         self._length = None
         self._radius = None
         self._rotation = None

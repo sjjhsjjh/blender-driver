@@ -184,7 +184,7 @@ class Cursor(object):
                     visualiser.set_parent(subject.tether)
 
             if self._visualisers is not None:
-                self._visualisers[0].make_vector(self.origin, self.end)
+                self._visualisers[0].make_vector(subject.worldPosition.copy(), self.end)
                 self._visualisers[1].make_vector(self.end, self.point)
                 self._visualisers[2].make_vector(self.point, self.origin)
 

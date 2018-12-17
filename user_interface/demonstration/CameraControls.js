@@ -2,38 +2,47 @@
 // Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 
 import NumericPanel from './NumericPanel.js';
+import Controls from './Controls.js';
 
-export default class CameraControls {
+export default class CameraControls extends Controls {
     constructor(userInterface) {
-        this._userInterface = userInterface;
-        this._panels = [
-            new NumericPanel(this, "Zoom", ["orbitDistance"], -5.0),
-            new NumericPanel(this, "Orbit", ["orbitAngle"], 0.5),
-            new NumericPanel(this, "Altitude", ["worldPosition", 2], 5.0),
-            new NumericPanel(this, "X", ["worldPosition", 0], 5.0),
-            new NumericPanel(this, "Y", ["worldPosition", 1], 5.0)
-        ];
+        super(userInterface);
+
+        this._prefix = ['root', 'camera'];
+        this._animationPath = ['animations', 'user_interface', 'camera'];
+        
+        this._add_panel("Zoom", ["orbitDistance"], -5.0);
+        this._add_panel("Orbit", ["orbitAngle"], 0.5);
+        this._add_panel("Altitude", ["worldPosition", 2], 5.0);
+        this._add_panel("X", ["worldPosition", 0], 5.0);
+        this._add_panel("Y", ["worldPosition", 1], 5.0);
     }
-    
-    get userInterface() {
-        return this._userInterface;
+
+    _add_panel(text, dimension, unit) {
+        const path = [...this._prefix, ...dimension];
+        this._panels.push(new NumericPanel(
+            this, text, path.join('_'), {
+                "path":path,
+                "unit":unit,
+                "animationPath":this._animationPath
+            }));
     }
     
     show(parent) {
-        const ui = this._userInterface;
+        const ui = this.userInterface;
         const cameraButtons = ui.append_node('div', undefined, parent);
         ui.add_button("Reset", this.reset_camera.bind(this), cameraButtons);
         ui.add_tickbox('monitorMouse', "Monitor mouse", cameraButtons);
-        
-        this._panels.forEach(panel => panel.show(parent));
+        super.show(parent);
     }
 
     reset_camera() {
+        const ui = this.userInterface;
         const speed = 15.0;
-        const ui = this._userInterface;
         this.activateInputControls(false);
         this.activateHoverControls(true);
-        return this.stop('reset_camera')
+        return this.stop(
+            'reset_camera', {"animationPath": this._animationPath})
         .then(() => ui.put_cursor_subject(['root', 'floor']))
         .then(() => ui.fetch(
             "PUT", {
@@ -56,46 +65,8 @@ export default class CameraControls {
         ;
     }
     
-    stop(moveDescription) {
-        const ui = this._userInterface;
-        if (ui.formValues.monitorMouse) {
-            ui.monitor_add(moveDescription);
-        }
-        return ui.fetch("DELETE", 'animations', 'user_interface', 'camera')
-        .then(() => ui.fetch("DELETE", 'animations', 'reset_camera'));
-    }
-
-    move(moveDescription, dimension, amount) {
-        const ui = this._userInterface;
-        if (ui.formValues.monitorMouse) {
-            ui.monitor_add(moveDescription + " " + JSON.stringify(dimension));
-        }
-        return ui.fetch( "PUT", {
-                "valuePath": ["root", "camera", ...dimension],
-                "speed": amount
-            }, 'animations', 'user_interface', 'camera');
-    }
-
-    get(dimension) {
-        return this._userInterface.get('root', 'camera', ...dimension);
-    }
-    
-    set(value, amount, dimension) {
-        return this._userInterface.fetch( "PUT", {
-                "valuePath": ["root", "camera", ...dimension],
-                "speed": amount,
-                "targetValue": value,
-            }, 'animations', 'user_interface', 'camera');
-    }
-    
-    name(dimension) {
-        return ['camera', ...dimension].join('_');
-    }
-    
-    activateInputControls(active) {
-        this._panels.forEach(panel => panel.inputActive = active);
-    }
-    activateHoverControls(active) {
-        this._panels.forEach(panel => panel.hoverActive = active);
+    stop(description, move) {
+        return super.stop(description, move).then(() =>
+            this.userInterface.fetch( "DELETE", 'animations', 'reset_camera'));
     }
 }

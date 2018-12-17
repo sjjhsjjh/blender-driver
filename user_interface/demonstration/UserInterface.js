@@ -2,6 +2,7 @@
 // Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 
 import CameraControls from './CameraControls.js';
+import CursorControls from './CursorControls.js';
 
 export default class UserInterface {
     constructor(userInterfaceID) {
@@ -12,6 +13,7 @@ export default class UserInterface {
         this._progress = "";
         
         this._cameraControls = new CameraControls(this);
+        this._cursorControls = new CursorControls(this);
     }
     
     clear_fetch_counts() {
@@ -126,6 +128,9 @@ export default class UserInterface {
             this.move_cursor(undefined, parseInt(input.value));
         };
         this.add_button(">", this.move_cursor.bind(this), panel, 1);
+
+        this._cursorControls.show(parent);
+
         return input;
     }
     

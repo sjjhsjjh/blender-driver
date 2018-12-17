@@ -2,11 +2,11 @@
 // Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
 
 export default class NumericPanel {
-    constructor(control, text, dimension, unit) {
+    constructor(control, text, name, move) {
         this._control = control;
         this._text = text;
-        this._dimension = dimension;
-        this._unit = unit;
+        this._name = name;
+        this._move = move;
 
         this._panel = undefined;
         this._hoverControls = [];
@@ -25,7 +25,7 @@ export default class NumericPanel {
         }
         this._update_input_panel();
         if (active) {
-            this._control.get(this._dimension)
+            this._control.get(this._move)
             .then(got => {
                 this._panel.input.value = Number.parseFloat(got).toFixed(1);
             });
@@ -41,49 +41,45 @@ export default class NumericPanel {
             control => this._update_hover_control(control));
     }
     
-    show(parent) {
-        const ui = this._control.userInterface;
-        const panel = ui.append_node('span', undefined, parent);
+    show(userInterface, parent) {
+        const panel = userInterface.append_node('span', undefined, parent);
         panel.classList.add('panel');
         
         ["++", "+", false, "-", "--"].forEach(label => {
             if (label) {
-                this._hoverControls.push(this.add_hover_control(label, panel));
+                this._hoverControls.push(this.add_hover_control(
+                    userInterface, label, panel));
             }
             else {
-                this.add_input_control(panel);
+                this.add_input_control(userInterface, panel);
             }
         });
 
         return panel;
     }
     
-    add_hover_control(label, parent) {
-        const ui = this._control.userInterface;
-        const control = ui.append_node('span', label, parent);
+    add_hover_control(userInterface, label, parent) {
+        const control = userInterface.append_node('span', label, parent);
         control.classList.add("hoverControl");
         this._update_hover_control(control);
         const sign = label[0] == '+' ? 1 : -1;
         const moveDescription = `move ${label} "${this._text}"`;
         const stopDescription = `stop ${label} "${this._text}"`;
+        const factor = label.length * label.length * sign;
         control.onmouseover = () => {
             if (this.hoverActive) {
-                this._control.move(
-                    moveDescription, this._dimension,
-                    this._unit * label.length * label.length * sign);
+                this._control.move(moveDescription, this._move, factor);
             }
         };
         control.onmouseout = () => {
             if (this.hoverActive) {
-                this._control.stop(stopDescription);
+                this._control.stop(stopDescription, this._move);
             }
         };
         control.onclick = () => {
             this._control.activateInputControls(false);
             this._control.activateHoverControls(true);
-            this._control.move(
-                moveDescription, this._dimension,
-                this._unit * label.length * label.length * sign);
+            this._control.move(moveDescription, this._move, factor);
         };
         return control;
     }
@@ -101,17 +97,15 @@ export default class NumericPanel {
         }
         return control;
     }
-        
     
-    add_input_control(parent) {
-        const ui = this._control.userInterface;
-        this._panel = ui.add_numeric_input(
-            this._control.name(this._dimension), "0.0", this._text, parent);
+    add_input_control(userInterface, parent) {
+        this._panel = userInterface.add_numeric_input(
+            this._name, "0.0", this._text, parent);
         this._update_input_panel();
 
         this._panel.input.onchange = () => {
             const value = parseFloat(this._panel.input.value);
-            this._control.set(value, this._unit * 16.0, this._dimension);
+            this._control.set(value, this._move);
         };
             
         this._panel.label.onclick = () => {

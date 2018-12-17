@@ -1,6 +1,7 @@
 Backlog
 =======
--   Covert radians to degrees in NumericPanel.
+-   Covert radians to degrees in NumericPanel. Create animations with modulus
+    for angular ones.
 
 -   Next video.
 

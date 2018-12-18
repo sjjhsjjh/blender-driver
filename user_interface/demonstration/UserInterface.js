@@ -86,24 +86,39 @@ export default class UserInterface {
     add_numeric_input(name, defaultString, label, parent) {
         // The default value must be passed as a string to distinguish 4 from
         // 4.0 for example.
-        const panel = this.append_node('div', undefined, parent);
-        const labelNode = this.append_node('label', label, panel);
-        const input = this.append_node('input', undefined, panel);
+        const panel = (label === null ? null :
+                       this.append_node('div', undefined, parent));
+        const labelNode = (label === null ? null :
+                           this.append_node('label', label, panel));
+        const input = this.append_node(
+            'input', undefined, panel === null ? parent : panel);
         input.setAttribute('type', 'number');
-        input.setAttribute('name', name);
-        labelNode.setAttribute('for', name);
         const isFloat = (defaultString !== undefined &&
                          defaultString.includes("."));
         const parseValue = (isFloat ? parseFloat : parseInt);
         if (defaultString !== undefined) {
             input.setAttribute('value', parseValue(defaultString));
-            this.formValues[name] = parseValue(defaultString);
+            if (name !== null) {
+                this.formValues[name] = parseValue(defaultString);
+            }
             input.setAttribute('step', isFloat ? 0.1 : 1);
         }
-        input.onchange = () => {
-            this.formValues[name] = parseValue(input.value);
+        const get_value = () => parseValue(input.value);
+        if (name !== null) {
+            input.setAttribute('name', name);
+            if (labelNode !== null) {
+                labelNode.setAttribute('for', name);
+            }
+            input.onchange = () => {
+                this.formValues[name] = get_value(); //parseValue(input.value);
+            };
+        }
+        return {
+            "panel":panel,
+            "label":labelNode,
+            "input":input,
+            "get_value":get_value
         };
-        return {"panel":panel, "label":labelNode, "input":input};
     }
     
     add_tickbox(name, label, parent) {

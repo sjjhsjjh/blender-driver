@@ -17,6 +17,10 @@ import collections
 # Data model reference documentation is also useful:
 # https://docs.python.org/3/reference/datamodel.html#emulating-container-types
 #
+# Module for mathematical operations, used for angular properties.
+# https://docs.python.org/3/library/math.html
+from math import fmod, pi
+#
 # Blender library imports, in alphabetic order.
 #
 # Blender Game Engine maths utilities.
@@ -96,30 +100,31 @@ class Cursor(object):
         return self._offset
     @offset.setter
     def offset(self, offset):
-        self._offset = offset
+        self._offset = offset if offset is None or offset > 0.0 else 0.0
         self._update(False)
     @property
     def length(self):
         return self._length
     @length.setter
     def length(self, length):
-        self._length = length
+        self._length = length if length is None or length > 0.0 else 0.0
         self._update(False)
     @property
     def radius(self):
         return self._radius
     @radius.setter
     def radius(self, radius):
-        self._radius = radius
-        if radius is not None:
-            self._radiusVector = Vector((radius, 0, 0))
+        self._radius = radius if radius is None or radius > 0.0 else 0.0
+        if self._radius is not None:
+            self._radiusVector = Vector((self._radius, 0, 0))
         self._update(False)
     @property
     def rotation(self):
         return self._rotation
     @rotation.setter
     def rotation(self, rotation):
-        self._rotation = rotation
+        # fmod on the next line allows negative values.
+        self._rotation = fmod(rotation, pi * 2.0)
         self._update(False)
     #
     # Helper properties, read-only and based on the subject plus an offset from

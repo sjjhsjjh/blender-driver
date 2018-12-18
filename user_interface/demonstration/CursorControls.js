@@ -9,18 +9,11 @@ export default class CursorControls extends Controls {
         super(userInterface);
 
         this._prefix = ['root', 'cursors', 0];
+        this._facePath = [...this._prefix, 'face'];
         this._animationPath = ['animations', 'user_interface', 'cursor'];
         this._axisAnimation = ['animations', 'axis'];
         
-        this._axisOptions = [
-            [0.0, 0.0, 1.0],
-            [0.0, 1.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, -1.0],
-            [0.0, -1.0, 0.0],
-            [-1.0, 0.0, 0.0]
-        ];
-        this._axisSelected = 0;
+        this._face = 0;
 
         this._add_panel("X", ["origin", 0], 1.0);
         this._add_panel("Y", ["origin", 1], 1.0);
@@ -32,20 +25,29 @@ export default class CursorControls extends Controls {
     }
 
     show(parent) {
-        this.userInterface.add_button("Axis", this._next_axis.bind(this), parent);
-        super.show(parent);
+        const ui = this.userInterface;
+        ui.get(...this._facePath)
+        .then(face => {
+            const panel = ui.append_node('div', undefined, parent);
+            ui.add_button("<", this._change_face.bind(this), panel, -1);
+            const holder = ui.add_numeric_input(null, "" + face, null, panel);
+            holder.input.onchange = () => {
+                this._face = holder.get_value();
+                this._change_face(0);
+            };
+            ui.add_button(">", this._change_face.bind(this), panel, 1);
+    
+            super.show(parent);
+        });
     }
     
-    _next_axis() {
-        this._axisSelected = (this._axisSelected + 1) % this._axisOptions.length;
-        const axis = this._axisOptions[this._axisSelected];
-        for(let index=0; index < axis.length; index++) {
-            this.userInterface.fetch( "PUT", {
-                "valuePath": [...this._prefix, 'axis', index],
-                "speed": 0.5,
-                "targetValue": axis[index],
-            }, ...[...this._axisAnimation, index]);
-        }
+    _change_face(increment) {
+        this._face += increment;
+        this.userInterface.fetch( "PUT", {
+            "valuePath": this._facePath,
+            "speed": 3.0,
+            "targetValue": this._face,
+        }, ...[...this._axisAnimation, 0]);
     }
 
     _add_panel(text, dimension, unit) {

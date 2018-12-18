@@ -17,9 +17,10 @@ import collections
 # Data model reference documentation is also useful:
 # https://docs.python.org/3/reference/datamodel.html#emulating-container-types
 #
-# Module for mathematical operations, used for angular properties.
+# Module for mathematical operations, used for angular properties and face
+# vector interpolation.
 # https://docs.python.org/3/library/math.html
-from math import fmod, pi, isclose
+from math import fmod, pi, isclose, floor
 #
 # Blender library imports, in alphabetic order.
 #
@@ -40,11 +41,6 @@ class UpdateList(collections.UserList):
         self._update()
 
 class Cursor(object):
-    #
-    # Handy constants
-    zAxis = Vector((0,0,1))
-    
-    
     faceVectors = (
         (0, 0, 1),
         (0, 1, 0),
@@ -54,7 +50,6 @@ class Cursor(object):
         (-1, 0, 0)
     )
     faceCount = len(faceVectors)
-    
     
     #
     # Infrastructure properties and methods.
@@ -142,8 +137,6 @@ class Cursor(object):
     @radius.setter
     def radius(self, radius):
         self._radius = radius if radius is None or radius > 0.0 else 0.0
-        # if self._radius is not None:
-        #     self._radiusVector = Vector((self._radius, 0, 0))
         self._update(False)
     @property
     def rotation(self):
@@ -190,14 +183,11 @@ class Cursor(object):
             return None
         #
         # Set the offset properties.
-        axis = get_face_vector(self._face)
-
-
-        normalised = Vector(self.axis).normalized()
-        print(self.axis, normalised)
-        axisVector = subject.getAxisVect(normalised)
-
-
+        axisLocal = Vector(self.get_face_vector(self._face)).normalized()
+        axisVector = subject.getAxisVect(axisLocal)
+        if self._radius is not None:
+            radiusLocal = Vector(self.get_face_vector(self._face + 2)).normalized()
+            radiusVector = subject.getAxisVect(radiusLocal * self._radius)
         #
         # Parameter to getAxisVect is a list, from which it returns a Vector.
         self._baseOffset = subject.getAxisVect(self.origin)
@@ -222,7 +212,7 @@ class Cursor(object):
                 quaternion = Quaternion(
                     axisVector
                     , 0.0 if self._rotation is None else self._rotation)
-                rotationVector = self._radiusVector.copy()
+                rotationVector = radiusVector
                 rotationVector.rotate(quaternion)
                 self._pointOffset += rotationVector
         #
@@ -296,7 +286,6 @@ class Cursor(object):
         self._radius = None
         self._rotation = None
 
-        self._radiusVector = None
         self._originOffset = None
         self._startOffset = None
         self._endOffset = None

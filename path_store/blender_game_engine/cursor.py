@@ -19,7 +19,7 @@ import collections
 #
 # Module for mathematical operations, used for angular properties.
 # https://docs.python.org/3/library/math.html
-from math import fmod, pi
+from math import fmod, pi, isclose
 #
 # Blender library imports, in alphabetic order.
 #

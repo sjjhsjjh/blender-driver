@@ -85,6 +85,13 @@ class Cursor(object):
     # Properties that define the cursor.
     #
     @property
+    def origin(self):
+        return self._origin
+    @origin.setter
+    def origin(self, origin):
+        self._origin = origin
+        self._update(False)
+    @property
     def offset(self):
         return self._offset
     @offset.setter
@@ -98,7 +105,6 @@ class Cursor(object):
     def length(self, length):
         self._length = length
         self._update(False)
-    #
     @property
     def radius(self):
         return self._radius
@@ -108,7 +114,6 @@ class Cursor(object):
         if radius is not None:
             self._radiusVector = Vector((radius, 0, 0))
         self._update(False)
-    #
     @property
     def rotation(self):
         return self._rotation
@@ -121,14 +126,17 @@ class Cursor(object):
     # cache. The offset is updated by setting other properties.
     #
     @property
-    def origin(self):
+    def base(self):
         return self._get_helper(0)
     @property
-    def end(self):
+    def start(self):
         return self._get_helper(1)
     @property
-    def point(self):
+    def end(self):
         return self._get_helper(2)
+    @property
+    def point(self):
+        return self._get_helper(3)
     #
     def _get_helper(self, index):
         if self._helpers is None:
@@ -153,12 +161,18 @@ class Cursor(object):
         axisVector = subject.getAxisVect(self.zAxis)
         #
         # Parameter to getAxisVect is a list, from which it returns a Vector.
-        self._originOffset = subject.getAxisVect(self.offset)
-        # print(self._offset, self._originOffset)
-        if self._originOffset is None:
+        self._baseOffset = subject.getAxisVect(self.origin)
+        # print(self._origin, self._baseOffset)
+        if self._baseOffset is None:
+            self._startOffset = None
+        else:
+            self._startOffset = self._baseOffset.copy()
+            if self._offset is not None:
+                self._startOffset += self._offset * axisVector
+        if self._startOffset is None:
             self._endOffset = None
         else:
-            self._endOffset = self._originOffset.copy()
+            self._endOffset = self._startOffset.copy()
             if self._length is not None:
                 self._endOffset += self._length * axisVector
         if self._endOffset is None:
@@ -178,14 +192,15 @@ class Cursor(object):
         created = False
         if self._helpers is None and self.add_empty is not None:
             created = True
-            self._helpers = tuple(self._add_empty() for _ in range(3))
+            self._helpers = tuple(self._add_empty() for _ in range(4))
         if self._helpers is not None and (changedSubject or created):
             for helper in self._helpers:
                 helper.set_parent(subject.tether)
         #
         # Position the helper objects.
         if self._helpers is not None:
-            offsets = (self._originOffset, self._endOffset, self._pointOffset)
+            offsets = (self._baseOffset, self._startOffset, self._endOffset,
+                       self._pointOffset)
             for index, helper in enumerate(self._helpers):
                 worldPosition = subject.worldPosition.copy()
                 if offsets[index] is not None:
@@ -194,8 +209,8 @@ class Cursor(object):
 
         if self._visible:
             created = False
-            vectorPoints = (subject.worldPosition.copy(), self.origin,
-                            self.end, self.point, self.origin)
+            vectorPoints = (subject.worldPosition.copy(), self.base,
+                            self.end, self.point, self.start)
             if self._visualisers is None and self._add_visualiser is not None:
                 self._visualisers = tuple(self._add_visualiser()
                                           for _ in range(len(vectorPoints) - 1))
@@ -221,12 +236,14 @@ class Cursor(object):
         self._add_empty = None
         self._visible = False
 
-        self._offset = UpdateList(self._update, (0.0, 0.0, 0.0))
+        self._origin = UpdateList(self._update, (0.0, 0.0, 0.0))
+        self._offset = None
         self._length = None
         self._radius = None
         self._rotation = None
 
         self._radiusVector = None
         self._originOffset = None
+        self._startOffset = None
         self._endOffset = None
         self._pointOffset = None

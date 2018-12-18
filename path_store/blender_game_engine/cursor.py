@@ -96,6 +96,13 @@ class Cursor(object):
         self._origin = origin
         self._update(False)
     @property
+    def axis(self):
+        return self._axis
+    @axis.setter
+    def axis(self, axis):
+        self._axis = axis
+        self._update(False)
+    @property
     def offset(self):
         return self._offset
     @offset.setter
@@ -163,7 +170,9 @@ class Cursor(object):
             return None
         #
         # Set the offset properties.
-        axisVector = subject.getAxisVect(self.zAxis)
+        normalised = Vector(self.axis).normalized()
+        print(self.axis, normalised)
+        axisVector = subject.getAxisVect(normalised)
         #
         # Parameter to getAxisVect is a list, from which it returns a Vector.
         self._baseOffset = subject.getAxisVect(self.origin)
@@ -185,13 +194,12 @@ class Cursor(object):
         else:
             self._pointOffset = self._endOffset.copy()
             if self._radius is not None:
-                if self._rotation is None:
-                    self._pointOffset += subject.getAxisVect(self._radiusVector)
-                else:
-                    quaternion = Quaternion(self.zAxis, self._rotation)
-                    rotationVector = self._radiusVector.copy()
-                    rotationVector.rotate(quaternion)
-                    self._pointOffset += subject.getAxisVect(rotationVector)
+                quaternion = Quaternion(
+                    axisVector
+                    , 0.0 if self._rotation is None else self._rotation)
+                rotationVector = self._radiusVector.copy()
+                rotationVector.rotate(quaternion)
+                self._pointOffset += rotationVector
         #
         # Create the helper objects, if they don't exist and can be created now.
         created = False
@@ -242,6 +250,7 @@ class Cursor(object):
         self._visible = False
 
         self._origin = UpdateList(self._update, (0.0, 0.0, 0.0))
+        self._axis = UpdateList(self._update, (0.0, 0.0, 1.0))
         self._offset = None
         self._length = None
         self._radius = None

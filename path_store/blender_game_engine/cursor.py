@@ -41,16 +41,19 @@ class UpdateList(collections.UserList):
         self._update()
 
 class Cursor(object):
-    faceVectors = (
-        (0, 0, 1),
-        (0, 1, 0),
-        (1, 0, 0),
-        (0, 0, -1),
-        (0, -1, 0),
-        (-1, 0, 0)
-    )
-    faceCount = len(faceVectors)
-    
+    # faceVectors = (
+    #     (0, 0, 1),
+    #     (0, 1, 0),
+    #     (1, 0, 0),
+    #     (0, 0, -1),
+    #     (0, -1, 0),
+    #     (-1, 0, 0)
+    # )
+    # faceCount = len(faceVectors)
+    _axes = tuple(tuple(1.0 if inner == outer else 0.0 for inner in range(3))
+                  for outer in range(3))
+    _axisBase = Vector(_axes[2])
+    _radiusBase = Vector(_axes[0])    
     #
     # Infrastructure properties and methods.
     #
@@ -103,20 +106,20 @@ class Cursor(object):
     def origin(self, origin):
         self._origin = origin
         self._update(False)
-    @property
-    def face(self):
-        return self._face
-    @face.setter
-    def face(self, face):
-        self._face = face
-        self._update(False)
     # @property
-    # def axis(self):
-    #     return self._axis
-    # @axis.setter
-    # def axis(self, axis):
-    #     self._axis = axis
+    # def face(self):
+    #     return self._face
+    # @face.setter
+    # def face(self, face):
+    #     self._face = face
     #     self._update(False)
+    @property
+    def axis(self):
+        return self._axis
+    @axis.setter
+    def axis(self, axis):
+        self._axis = axis
+        self._update(False)
     @property
     def offset(self):
         return self._offset
@@ -183,11 +186,20 @@ class Cursor(object):
             return None
         #
         # Set the offset properties.
-        axisLocal = Vector(self.get_face_vector(self._face)).normalized()
-        axisVector = subject.getAxisVect(axisLocal)
+
+        axisVector = subject.getAxisVect(
+            self._apply_axis_rotation(self._axisBase.copy()))
         if self._radius is not None:
-            radiusLocal = Vector(self.get_face_vector(self._face + 2)).normalized()
-            radiusVector = subject.getAxisVect(radiusLocal * self._radius)
+            radiusVector = subject.getAxisVect(
+                self._apply_axis_rotation(self._radiusBase * self._radius))
+
+        # axisLocal = Vector(self.get_face_vector(self._face)).normalized()
+        # axisVector = subject.getAxisVect(axisLocal)
+        # if self._radius is not None:
+        #     radiusLocal = Vector(self.get_face_vector(self._face + 2)).normalized()
+        #     radiusVector = subject.getAxisVect(radiusLocal * self._radius)
+
+
         #
         # Parameter to getAxisVect is a list, from which it returns a Vector.
         self._baseOffset = subject.getAxisVect(self.origin)
@@ -253,19 +265,27 @@ class Cursor(object):
                     visualiser.make_vector(vectorPoints[index]
                                            , vectorPoints[index + 1])
 
-    def get_face_vector(self, face):
-        faceMod = fmod(face, self.faceCount)
-        if faceMod < 0.0:
-            faceMod += self.faceCount
-        index0 = int(floor(faceMod))
-        index1 = (index0 + 1) % self.faceCount
-        vector0 = self.faceVectors[index0]
-        vector1 = self.faceVectors[index1]
-        factor = faceMod - float(index0)
-        return tuple(
-            value0 + factor * (vector1[index] - value0)
-            for index, value0 in enumerate(vector0)
-        )
+    def _apply_axis_rotation(self, vector):
+        # ToDo optimise by building a transformation matrix from rotation list.
+        
+        for dimension, value in enumerate(self._axis):
+            if value is not None:
+                vector.rotate(Quaternion(self._axes[dimension], value))
+        return vector
+
+    # def get_face_vector(self, face):
+    #     faceMod = fmod(face, self.faceCount)
+    #     if faceMod < 0.0:
+    #         faceMod += self.faceCount
+    #     index0 = int(floor(faceMod))
+    #     index1 = (index0 + 1) % self.faceCount
+    #     vector0 = self.faceVectors[index0]
+    #     vector1 = self.faceVectors[index1]
+    #     factor = faceMod - float(index0)
+    #     return tuple(
+    #         value0 + factor * (vector1[index] - value0)
+    #         for index, value0 in enumerate(vector0)
+    #     )
 
     def __init__(self):
         self._subject = None
@@ -279,8 +299,8 @@ class Cursor(object):
         self._visible = False
 
         self._origin = UpdateList(self._update, (0.0, 0.0, 0.0))
-        # self._axis = UpdateList(self._update, (0.0, 0.0, 1.0))
-        self._face = 0.0
+        self._axis = UpdateList(self._update, (None, None, None))
+        # self._face = 0.0
         self._offset = None
         self._length = None
         self._radius = None

@@ -9,7 +9,7 @@ export default class CursorControls extends Controls {
         super(userInterface);
 
         this._prefix = ['root', 'cursors', 0];
-        this._facePath = [...this._prefix, 'face'];
+        this._facePath = [...this._prefix, 'axis'];
         this._animationPath = ['animations', 'user_interface', 'cursor'];
         this._axisAnimation = ['animations', 'axis'];
         
@@ -18,6 +18,11 @@ export default class CursorControls extends Controls {
         this._add_panel("X", ["origin", 0], 1.0);
         this._add_panel("Y", ["origin", 1], 1.0);
         this._add_panel("Z", ["origin", 2], 1.0);
+ 
+        this._add_panel("aX", ["axis", 0], 1.0);
+        this._add_panel("aY", ["axis", 1], 1.0);
+        this._add_panel("aZ", ["axis", 2], 1.0);
+ 
         this._add_panel("Offset", ["offset"], 1.0);
         this._add_panel("Length", ["length"], 1.0);
         this._add_panel("Radius", ["radius"], 1.0);

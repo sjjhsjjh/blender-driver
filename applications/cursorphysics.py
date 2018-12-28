@@ -136,7 +136,8 @@ class Application(restanimation.Application):
             self._restInterface.rest_patch({
                     'subjectPath': tuple(path),
                     'origin': (0, 0, 0), 'offset':1.0, 'length':4.0,
-                    'axis': (0.0, 0.0, 0.0), 'radius': 2.0, 'rotation': 0.0
+                    'radius': 2.0, 'rotation': 0.0,
+                    'selfPath': self._cursorPath
                 }, self._cursorPath)
             self._cursorPath.append('visible')
             self._restInterface.rest_put(True, self._cursorPath)

@@ -20,7 +20,7 @@ import collections
 # Module for mathematical operations, used for angular properties and face
 # vector interpolation.
 # https://docs.python.org/3/library/math.html
-from math import fmod, pi, isclose, floor
+from math import fmod, pi, isclose, floor, radians
 #
 # Blender library imports, in alphabetic order.
 #
@@ -29,7 +29,8 @@ from math import fmod, pi, isclose, floor
 # They're super-effective!
 from mathutils import Vector, Quaternion
 #
-# Local imports, would go here.
+# Local imports.
+from .gameobject import Rotation
 
 class UpdateList(collections.UserList):
     def __init__(self, update, *args, **kwargs):
@@ -41,22 +42,12 @@ class UpdateList(collections.UserList):
         self._update()
 
 class Cursor(object):
-    # faceVectors = (
-    #     (0, 0, 1),
-    #     (0, 1, 0),
-    #     (1, 0, 0),
-    #     (0, 0, -1),
-    #     (0, -1, 0),
-    #     (-1, 0, 0)
-    # )
-    # faceCount = len(faceVectors)
-    _axes = tuple(tuple(1.0 if inner == outer else 0.0 for inner in range(3))
-                  for outer in range(3))
-    _axisBase = Vector(_axes[2])
-    _radiusBase = Vector(_axes[0])    
+    #
+    # Constants.
+    _axisBase = Vector((0, 0, 1))
+    _radiusBase = Vector((1, 0, 0))
     #
     # Infrastructure properties and methods.
-    #
     @property
     def subjectPath(self):
         return self._subjectPath
@@ -66,11 +57,21 @@ class Cursor(object):
         self._update(True)
     #
     @property
+    def selfPath(self):
+        return self._selfPath
+    @selfPath.setter
+    def selfPath(self, selfPath):
+        self._selfPath = tuple(selfPath[:])
+        self._set_faces()
+        self._check_faces()
+    #
+    @property
     def restInterface(self):
         return self._restInterface
     @restInterface.setter
     def restInterface(self, restInterface):
         self._restInterface = restInterface
+        restInterface.check = self._check_faces
         self._update(True)
     #
     @property
@@ -97,6 +98,20 @@ class Cursor(object):
         self._visible = visible
         self._update(False)
     #
+    @property
+    def beingAnimated(self):
+        return self._beingAnimated
+    @beingAnimated.setter
+    def beingAnimated(self, beingAnimated):
+        wasAnimated = self._beingAnimated
+        if beingAnimated and not wasAnimated:
+            self._check_faces("Cursor animation start.")
+        elif wasAnimated and not beingAnimated:
+            if self._axis is not None:
+                del self._axis[:]
+            self._check_faces("Cursor animation stop.")
+        self._beingAnimated = beingAnimated
+    #
     # Properties that define the cursor.
     #
     @property
@@ -106,20 +121,34 @@ class Cursor(object):
     def origin(self, origin):
         self._origin = origin
         self._update(False)
-    # @property
-    # def face(self):
-    #     return self._face
-    # @face.setter
-    # def face(self, face):
-    #     self._face = face
-    #     self._update(False)
     @property
     def axis(self):
         return self._axis
     @axis.setter
     def axis(self, axis):
-        self._axis = axis
+        self._check_faces("before axis set", axis)
+        if axis is None:
+            # This allows a REST put of None to relinquish control of
+            # rotation.
+            del self._axis[:]
+        else:
+            self._axis[:] = tuple(axis)
+        self._check_faces("after axis set", axis)
+    @axis.deleter
+    def axis(self):
+        self._check_faces("before axis delete")
+        del self._axis[:]
+        self._check_faces("after axis delete")
+    
+    def _get_axis_orientation(self):
+        self._check_faces("_get_axis_orientation")
+        return self._axisOrientation.copy()
+    def _set_axis_orientation(self, orientation):
+        self._axisOrientation = orientation
+        self._check_faces("before update", orientation)
         self._update(False)
+        self._check_faces("after update", orientation)
+
     @property
     def offset(self):
         return self._offset
@@ -170,11 +199,107 @@ class Cursor(object):
         if self._helpers is None:
             return None
         return self._helpers[index].worldPosition.copy()
+    #
+    # Special getters.
+    #
+    @property
+    def moves(self):
+        self._check_faces('moves getter', 0)
+        return_ = tuple(self._get_face().moves[:])
+        self._check_faces('moves getter', 1)
+        return return_
+    
+    @property
+    def normal(self):
+        return self._get_face().normal
         
+    def _get_face(self):
+        # Work out which face best represents the current axis, by calculating
+        # the angle between each and the axis vector as it would be in local
+        # space.
+        
+        # If _faces isn't set, there isn't a subject yet so this method is
+        # meaningless.
+        if self._faces is None:
+            return None
+        
+        lowest = None
+        lowestIndex = None
+        axisLocal = self._apply_axis_rotation(self._axisBase.copy())
+        for index, face in enumerate(self._faces):
+            angle = face.normalVector.angle(axisLocal);
+            if lowest is None or angle < lowest:
+                lowest = angle
+                lowestIndex = index
+
+        return self._faces[lowestIndex]
+
+    # Empty class to hold face configuration.
+    class _Empty:
+        pass
+    def _set_faces(self):
+        faces = []
+        for dimension in (1, 2, 0):
+            for faceSign in (1, -1):
+                face = self._Empty()
+                face.dimension = dimension
+                face.sign = faceSign
+                face.normal = tuple(
+                    faceSign if inner == dimension else 0 for inner in range(3))
+                face.normalVector = Vector(face.normal)
+
+                # The four options are radians(90) and radians(-90) in each of
+                # the dimensions that have zero in the face vector.
+                #
+                # For efficiency, should update the required properties in the
+                # axis setter. They are:
+                # -   face as an index maybe.
+                # -   tuple of 4 elements, one for each option.
+                #
+                # Maybe it isn't more efficient, because the axis setter gets
+                # called all the time by the animation. The option getter only
+                # gets called when an axis rotation is selected in the UI.
+
+                moves = []
+                for axisIndex, axisValue in enumerate(face.normal):
+                    if axisValue != 0:
+                        continue
+                    for moveSign in (1, -1):
+                        moves.append({
+                            "subjectPath": tuple(self.selfPath[:]),
+                            "valuePath":
+                                tuple(self.selfPath[:]) + ('axis', axisIndex),
+                            "delta": radians(90.0 * moveSign)
+                        })
+                face.moves = tuple(moves)
+                faces.append(face)
+        self._faces = tuple(faces)
+    
+    def _check_faces(self, *args):
+        if self._faces is None:
+            return
+        exceptions = []
+        for checkFaceIndex, checkFace in enumerate(self._faces):
+            faceNormal = checkFace.normal
+            for move in checkFace.moves:
+                lastPath = move['valuePath'][-1]
+                if faceNormal[lastPath] != 0:
+                    exceptions.append(
+                        'Wrong move at {} in [{}] {} d:{} s:{} {}'.format(
+                            args, checkFaceIndex, faceNormal
+                            , checkFace.dimension, checkFace.sign, move))
+        if len(exceptions) > 0:
+            raise RuntimeError("\n".join(exceptions))
+    
+    @property
+    def facesOK(self):
+        self._check_faces('facesOK')
+        return True
+
     def _update(self, changedSubject=False):
         if changedSubject:
             self._subject = None
-
+        
         if (self._subject is None
             and self._subjectPath is not None
             and self._restInterface is not None
@@ -184,26 +309,37 @@ class Cursor(object):
         subject = self._subject
         if subject is None:
             return None
+        
+        if self._axisOrientation is None:
+            # Not sure of the correct maths for generating an identity matrix
+            # that is 3x3. The matrix has to be 3x3 in order to call its
+            # rotate() method. So, the code gets a suitable matrix by copying
+            # one from the subject, which will be a KXGameObject.
+            self._axisOrientation = subject.worldOrientation.copy()
+            self._axisOrientation.identity()
+            self._axis = Rotation(
+                self._get_axis_orientation, self._set_axis_orientation)
+
+        if (not self._loadedGenericStore
+            and self._faces is not None
+            and self._restInterface is not None
+        ):
+            self._restInterface.load_generic(
+                self._faces[0].moves, self.selfPath + ('moves',))
+            self._restInterface.load_generic(
+                self._faces[0].normal, self.selfPath + ('normal',))
+            self._loadedGenericStore = True
         #
         # Set the offset properties.
-
+        #
         axisVector = subject.getAxisVect(
             self._apply_axis_rotation(self._axisBase.copy()))
         if self._radius is not None:
             radiusVector = subject.getAxisVect(
                 self._apply_axis_rotation(self._radiusBase * self._radius))
-
-        # axisLocal = Vector(self.get_face_vector(self._face)).normalized()
-        # axisVector = subject.getAxisVect(axisLocal)
-        # if self._radius is not None:
-        #     radiusLocal = Vector(self.get_face_vector(self._face + 2)).normalized()
-        #     radiusVector = subject.getAxisVect(radiusLocal * self._radius)
-
-
         #
         # Parameter to getAxisVect is a list, from which it returns a Vector.
         self._baseOffset = subject.getAxisVect(self.origin)
-        # print(self._origin, self._baseOffset)
         if self._baseOffset is None:
             self._startOffset = None
         else:
@@ -266,11 +402,7 @@ class Cursor(object):
                                            , vectorPoints[index + 1])
 
     def _apply_axis_rotation(self, vector):
-        # ToDo optimise by building a transformation matrix from rotation list.
-        
-        for dimension, value in enumerate(self._axis):
-            if value is not None:
-                vector.rotate(Quaternion(self._axes[dimension], value))
+        vector.rotate(self._axisOrientation)
         return vector
 
     # def get_face_vector(self, face):
@@ -290,8 +422,12 @@ class Cursor(object):
     def __init__(self):
         self._subject = None
         self._visualisers = None
+        self._faces = None
         self._helpers = None
+        self._loadedGenericStore = False
 
+        self._selfPath = None
+        self._beingAnimated = False
         self._subjectPath = None
         self._restInterface = None
         self._add_visualiser = None
@@ -299,8 +435,10 @@ class Cursor(object):
         self._visible = False
 
         self._origin = UpdateList(self._update, (0.0, 0.0, 0.0))
-        self._axis = UpdateList(self._update, (None, None, None))
-        # self._face = 0.0
+        # ToDo: Make it apply fmod to its items.
+        self._axisOrientation = None
+        self._axis = None
+        
         self._offset = None
         self._length = None
         self._radius = None

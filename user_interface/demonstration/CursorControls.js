@@ -9,19 +9,16 @@ export default class CursorControls extends Controls {
         super(userInterface);
 
         this._prefix = ['root', 'cursors', 0];
-        this._facePath = [...this._prefix, 'axis'];
         this._animationPath = ['animations', 'user_interface', 'cursor'];
-        this._axisAnimation = ['animations', 'axis'];
+        this._axisAnimation = ['animations', 'axis', 0];
         
-        this._face = 0;
-
-        this._add_panel("X", ["origin", 0], 1.0);
-        this._add_panel("Y", ["origin", 1], 1.0);
-        this._add_panel("Z", ["origin", 2], 1.0);
- 
         this._add_panel("aX", ["axis", 0], 1.0);
         this._add_panel("aY", ["axis", 1], 1.0);
         this._add_panel("aZ", ["axis", 2], 1.0);
+ 
+        this._add_panel("X", ["origin", 0], 1.0);
+        this._add_panel("Y", ["origin", 1], 1.0);
+        this._add_panel("Z", ["origin", 2], 1.0);
  
         this._add_panel("Offset", ["offset"], 1.0);
         this._add_panel("Length", ["length"], 1.0);
@@ -31,28 +28,43 @@ export default class CursorControls extends Controls {
 
     show(parent) {
         const ui = this.userInterface;
-        ui.get(...this._facePath)
-        .then(face => {
-            const panel = ui.append_node('div', undefined, parent);
-            ui.add_button("<", this._change_face.bind(this), panel, -1);
-            const holder = ui.add_numeric_input(null, "" + face, null, panel);
-            holder.input.onchange = () => {
-                this._face = holder.get_value();
-                this._change_face(0);
-            };
-            ui.add_button(">", this._change_face.bind(this), panel, 1);
-    
-            super.show(parent);
-        });
+        const panel = ui.append_node('div', undefined, parent);
+        ui.add_button("0", this._do_move.bind(this), panel, 0);
+        ui.add_button("1", this._do_move.bind(this), panel, 1);
+        ui.add_button("?", this._get_face.bind(this), panel);
+        //const holder = ui.add_numeric_input(null, "", null, panel);
+        //holder.input.onchange = () => {
+        //    this._do_move(holder.get_value() % 4);
+        //};
+        ui.add_button("2", this._do_move.bind(this), panel, 2);
+        ui.add_button("3", this._do_move.bind(this), panel, 3);
+        
+        super.show(parent);
     }
     
-    _change_face(increment) {
-        this._face += increment;
-        this.userInterface.fetch( "PUT", {
-            "valuePath": this._facePath,
-            "speed": 3.0,
-            "targetValue": this._face,
-        }, ...[...this._axisAnimation, 0]);
+    _get_face() {
+        return this.userInterface.get(...this._prefix, 'facesOK')
+        .then(ok => {
+            this.userInterface.monitor_add("Faces OK 0 " + ok);
+            return this.userInterface.get(...this._prefix, 'moves');
+        })
+        .then(moves => {
+            this.userInterface.monitor_add('test get 0', moves, 'test get 1');
+            return this.userInterface.get(...this._prefix, 'normal');
+        })
+        .then(normal =>
+              this.userInterface.monitor_add(`Normal [${normal.join(",")}]`));
+    }
+    
+    _do_move(moveIndex) {
+        return this._get_face()
+        .then(() => this.userInterface.get(...this._prefix, 'moves'))
+        .then(moves => {
+            const move = moves[moveIndex];
+            this.userInterface.monitor_add(move, "\n");
+            move.speed = 3.0;
+            this.userInterface.fetch("PUT", move, ...this._axisAnimation);
+        });
     }
 
     _add_panel(text, dimension, unit) {
@@ -61,6 +73,7 @@ export default class CursorControls extends Controls {
             this, text, path.join('_'), {
                 "path":path,
                 "unit":unit,
+                "subjectPath": this._prefix,
                 "animationPath":this._animationPath
             }));
     }

@@ -1,7 +1,44 @@
+Scratchpad
+==========
+Cursor axis could have two parts to its rotation:
+
+-   position, a transformation matrix.
+-   motion, a quaternion or similar.
+
+Only motion would be changed by animation. At the end of an animation, the
+motion would be collapsed into the position. During an animation, it would be
+applied after the position.
+
+Motion could be a list of Quaternions. There could then be multiple in progress
+concurrently.
+
+It seems like this could simplify the animation of rotation, at least of Cursor
+objects. There would be no need for a delta because the motion is implicitly a
+delta.
+
 Backlog
 =======
+-   Unit test that fails in the current Cursor rotation:
+
+    Move 0 (+X), Move 2 (+Z). Normal is 1,0,0. axis is 1.6, 0, 1.6.  
+    Move 0 or Move 1 shows the defect.
+
+    Move 2 (+Y). Normal is 1,0,0. axis is 0, 1.6, 0.  
+    Move 0 or Move 1 are OK.
+
+    In the defect case, the Y rotation will be inserted in between the X and the
+    Z, which is why it goes wrong.
+
+-   Maybe label moves North, South, East, West.
+
+-   Review how the generic store is set up. Maybe it should all be done by walk,
+    like the load_generic method does. Maybe the _generic_value subroutine
+    should be got rid of.
+
 -   Covert radians to degrees in NumericPanel. Create animations with modulus
     for angular ones.
+
+-   Maybe automatically load read-only properties into the generic store.
 
 -   Next video.
 
@@ -16,9 +53,6 @@ Backlog
 
 -   Option for keyboard shortcuts in the browser, instead of clickless camera
     controls.
-
--   Load the get_generic store by retrieving some things or in some other way at
-    game_initialise.
 
 -   Maybe add a sweeper or something that ends any objects that have somehow
     escaped from the gameObjects array, unless they have children.

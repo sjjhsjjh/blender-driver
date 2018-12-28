@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # (c) 2018 Jim Hawkins. MIT licensed, see https://opensource.org/licenses/MIT
 # Part of Blender Driver, see https://github.com/sjjhsjjh/blender-driver
-"""Path Store REST module.
+"""\
+Path Store REST module.
 
 Cannot be run as a program, sorry."""
 # Exit if run other than as a module.
@@ -10,6 +11,12 @@ if __name__ == '__main__':
     raise SystemExit(1)
 
 # Standard library imports, in alphabetic order.
+#
+# Module that facilitates container subclasses.
+# https://docs.python.org/3/library/collections.html#collections.UserList
+import collections
+# Data model reference documentation is also useful:
+# https://docs.python.org/3/reference/datamodel.html#emulating-container-types
 #
 # Module for enum type.
 # https://docs.python.org/3.5/library/enum.html
@@ -46,46 +53,107 @@ def _generic_value(value):
     # calling json.dumps(value). It seems expensive to process the
     # serialisation, and then discard the result. Instead, the code just
     # checks the type of the value.
-    if type(value) in (dict, list, tuple, str, int, float):
+    if isinstance(
+        value, (dict, str, int, float, tuple, list, collections.UserList
+                , collections.UserDict)
+    ):
         return value
     if value is True or value is False or value is None:
         return value
+    
+    # Blender Game Engine has a Vector type that is iterable. Test for that here
+    # by attempting to copy the value.
+    try:
+        return value[:]
+    except TypeError:
+        pass
+    except KeyError:
+        # This is raised if value is an instance of Blender KX_GameObject, a
+        # subclass, or perhaps another dictionary-like object.
+        pass
+    
     # Otherwise, assume it is a class instance and return an empty
     # dictionary.
     return {}
     
 class RestInterface(object):
-    """Class for a RESTful interface onto a principal object, implemented by
-    Path Store.
+    """\
+    Class for a RESTful interface onto a principal object, implemented by Path
+    Store.
     """
     @property
     def principal(self):
         return self._principal
     
     def get_generic(self, path=None):
-        def populate(pointUnused, pathUnused, resultsUnused, second):
-            # This should maybe be _generic_value(second).
-            return True, second
+        def populate(point, pathUnused, resultsUnused, second):
+            # The code makes use of _generic_value(second) but it's unclear that
+            # this is necessary.
+            
+            try:
+                pointType = pathstore.iterify(point)[0]
+            except TypeError:
+                pointType = None
 
+            try:
+                secondType = pathstore.iterify(second)[0]
+            except TypeError:
+                secondType = None
+            
+            if secondType is None:
+                second = _generic_value(second)
+                try:
+                    secondType = pathstore.iterify(second)[0]
+                except TypeError:
+                    secondType = None
+
+            if pointType is secondType:
+                return pointType is None, second
+            
+            # Following code would seek to populate a tuple into the generic
+            # store, if the principal had a tuple. This could be followed by
+            # quite busy processing in the walk through the child items. It
+            # seems OK for the generic store to hold lists instead of tuples.
+            # Lists are JSON-able, just like tuples.
+            # return True, (
+            #     (tuple(point) if isinstance(second, tuple) else [])
+            #     if secondType is pathstore.PointType.LIST else {})
+
+            return True, [] if secondType is pathstore.PointType.LIST else {}
+        
+        self.check('get_generic 0', path)
         # Following will populate the generic structure from the principal
         # structure, but only for paths that exist in the generic structure.
         if self.principal is not None:
-            self._generic = pathstore.walk(
-                self._generic, populate, path, second=self.principal)
+            self._generic = pathstore.walk(self._generic, populate, path
+                                           , second=self.principal
+                                           , editIterable=True)
 
-        return pathstore.get(self._generic, path)
+        self.check('get_generic 1', path)
+        return_ = pathstore.get(self._generic, path)
+        self.check('get_generic 2', path)
+        return return_
+    
+    def load_generic(self, value, path=None):
+        path = tuple(pathstore.pathify(path))
+
+        def populate(pointUnused, walkPath, resultsUnused):
+            self._generic = pathstore.replace(
+                self._generic, None, path + tuple(walkPath))
+
+        pathstore.walk(value, populate)
 
     def point_maker(self, path, index, point):
-        """Default point_maker, which can be overridden so that a subclass can
-        have custom points in the path store.
+        """\
+        Default point_maker, which can be overridden so that a subclass can have
+        custom points in the path store.
         """
         return pathstore.default_point_maker(path, index, point)
     
     def rest_patch(self, value, path=None):
         self._principal = pathstore.merge(
             self._principal, value, path, point_maker=self.point_maker)
-        self._generic = pathstore.merge(
-            self._generic, _generic_value(value), path)
+        self.load_generic(value, path)
 
     def rest_put(self, value, path=None):
         self._principal = pathstore.replace(
@@ -97,7 +165,8 @@ class RestInterface(object):
         self._generic = pathstore.merge(self._generic, None, path)
         # Near here, should maybe remove it from the _generic if an error was
         # raised by the principal get.
-        return pathstore.get(self.principal, path)
+        return_ = pathstore.get(self.principal, path)
+        return return_
     
     def rest_walk(self, editor, path=None, results=None):
         return pathstore.walk(self.principal, editor, path, results)
@@ -109,6 +178,10 @@ class RestInterface(object):
     def __init__(self):
         self._principal = None
         self._generic = None
+        
+        def _pass(*args):
+            return
+        self.check = _pass
 
 class PathAnimation(Animation):
 
@@ -134,12 +207,21 @@ class PathAnimation(Animation):
         self._subjectPath = subjectPath
         
     @property
+    def delta(self):
+        return self._delta
+    @delta.setter
+    def delta(self, delta):
+        self._delta = delta
+    
+    @property
     def subject(self):
         return self._subject
 
     # Override the setter for startTime to get the startValue.
     def _startTimeSetter(self, startTime):
         self.startValue = pathstore.get(self.store, self.valuePath)
+        if self.delta is not None and self.targetValue is None:
+            self.targetValue = self.startValue + self.delta
         if self.subjectPath is not None:
             self._subject = pathstore.get(self.store, self.subjectPath)
             #
@@ -159,6 +241,7 @@ class PathAnimation(Animation):
         self._store = None
         self._valuePath = None
         self._subjectPath = None
+        self._delta = None
         self._subject = None
     
     # It could be handy to cache the parent of the animated point, in order to
@@ -167,7 +250,8 @@ class PathAnimation(Animation):
     # animation. That would stymie caching.
 
 class AnimatedRestInterface(RestInterface):
-    """RestInterface with the following items at the top level.
+    """\
+    RestInterface with the following items at the top level.
     
     |
     +-- 'animations'

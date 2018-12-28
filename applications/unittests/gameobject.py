@@ -23,6 +23,7 @@ from applications.unittest import TestCaseWithApplication
 #
 # Modules under test: 
 from path_store import pathstore
+from path_store import rest
 from path_store.blender_game_engine import gameobject, gameobjectcollection
 
 from diagnostic.analysis import fall_analysis
@@ -56,14 +57,31 @@ class TestGameObject(TestCaseWithApplication):
             #
             # Grab the position before gravity has had a chance to move the
             # object.
-            worldPositionNative = gameObject.worldPosition[:]
+            worldPositionNative = gameObject.worldPosition.copy()
             worldPositionGot = pathstore.get(gameObject, name)[:]
-            self.assertEqual(worldPositionGot, worldPositionNative)
+            self.assertEqual(worldPositionGot, worldPositionNative[:])
             #
             # Test the intercept property works as expected.
             self.assertEqual(
-                worldPositionNative
+                worldPositionNative[:]
                 , self.application.templates[objectName]['location'])
+            #
+            # The worldPosition value will be a BGE Vector instance.
+            # The iterify() subroutine relies on:
+            #
+            # -   AttributeError being raised by objects that aren't
+            #     dictionaries when their items method is called.
+            # -   Vector being enumerable.
+            #
+            # Test those here.
+            with self.assertRaises(AttributeError) as context:
+                items = worldPositionNative.items()
+            self.assertEqual(tuple(enumerate(worldPositionNative))
+                             , tuple(enumerate(worldPositionNative[:])))
+            #
+            # Test the generic value of a Vector is the same as its items.
+            self.assertEqual(worldPositionNative[:]
+                             , rest._generic_value(worldPositionNative))
 
     def test_path_store(self):
         with self.application.mainLock:

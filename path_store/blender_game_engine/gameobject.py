@@ -159,6 +159,11 @@ def get_game_object_subclass(bge):
         @rotation.deleter
         def rotation(self):
             del self._rotation[:]
+
+        def _get_orientation(self):
+            return self.worldOrientation
+        def _set_orientation(self, worldOrientation):
+            self.worldOrientation = worldOrientation
         
         # Override.
         def endObject(self):
@@ -196,7 +201,7 @@ def get_game_object_subclass(bge):
                 self.alignAxisToVect(vector)
 
         def __init__(self, oldOwner):
-            self._rotation = Rotation(self)
+            self._rotation = Rotation(self._get_orientation, self._set_orientation)
             self._tether = None
             self._beingAnimated = False
 
@@ -229,6 +234,9 @@ class Rotation(object):
     # -   When an instance of this class is constructed, the set list will be
     #     empty. Instances are generally constructed by constructing a
     #     GameObject, see above. Every instance is linked to one game object.
+
+
+
     # -   Setting any item when the list is empty first causes the game object
     #     list elements to be copied to the set list. After that, the item is
     #     set in the set list, and the rotation represented by the set list is
@@ -248,7 +256,7 @@ class Rotation(object):
     
     def _set_list_game_object(self):
         """Set the list property from the rotation of the game object."""
-        orientation = self._gameObject.worldOrientation
+        orientation = self._get_orientation()
         if self._orientationCache == orientation:
             return
         #
@@ -322,7 +330,7 @@ class Rotation(object):
         #
         # Start with an identity matrix of the same size as the world
         # orientation.
-        worldOrientation = self._gameObject.worldOrientation.copy()
+        worldOrientation = self._get_orientation().copy()
         worldOrientation.identity()
         #
         # Apply the rotation in each dimension, in order.
@@ -333,10 +341,11 @@ class Rotation(object):
                 any = True
 
         if any:
-            self._gameObject.worldOrientation = worldOrientation
+            self._set_orientation(worldOrientation)
     
-    def __init__(self, gameObject):
-        self._gameObject = gameObject
+    def __init__(self, get_orientation, set_orientation):
+        self._get_orientation = get_orientation
+        self._set_orientation = set_orientation
         self._orientationCache = None
                 
         self._set_list_game_object()

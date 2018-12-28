@@ -12,6 +12,12 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
+# Module that facilitates container subclasses.
+# https://docs.python.org/3/library/collections.html#collections.UserList
+import collections
+# Data model reference documentation is also useful:
+# https://docs.python.org/3/reference/datamodel.html#emulating-container-types
+#
 # Module for JavaScript Object Notation (JSON) strings.
 # https://docs.python.org/3.5/library/json.html
 import json
@@ -87,6 +93,10 @@ class TestRestPut(unittest.TestCase):
         principal.testAttr = 'bacon'
         self.assertEqual(rest._generic_value(principal), {})
         
+        class CustomList(collections.UserList):
+            pass
+        self.assertEqual(rest._generic_value(CustomList()), [])
+
     def test_principal(self):
         restInterface = rest.RestInterface()
         class Principal:
@@ -172,3 +182,105 @@ class TestRestPut(unittest.TestCase):
         self.assertEqual(
             json.dumps(restInterface.get_generic(), sort_keys=True)
             , json.dumps(expectedGeneric, sort_keys=True))
+
+    def test_get_generic(self):
+        # These have to be the same as the values in the constructor, below.
+        dictionaryValues = (
+            {'dictIndex': 0, 'alpha':"bravo"},
+            {'dictIndex': 1, 'alpha':"delta"})
+
+        class Principal:
+            @property
+            def index(self):
+                return self._index
+            @index.setter
+            def index(self, index):
+                self._index = index
+                
+            @property
+            def currentDictionary(self):
+                if self.index is None:
+                    return None
+                return self._dictionaries[self.index]
+            
+            def __init__(self):
+                # These have to be the same as the values in the tuple, above.
+                self._dictionaries = (
+                    {'dictIndex': 0, 'alpha':"bravo"},
+                    {'dictIndex': 1, 'alpha':"delta"})
+                self._index = None
+
+        # Initialise.
+        restInterface = rest.RestInterface()
+        restInterface.rest_put(Principal())
+        restInterface.rest_put(0, 'index')
+        #
+        # Get an item from the dictionary, which also populates the generic
+        # object.
+        alpha0 = restInterface.rest_get(('currentDictionary', 'alpha'))
+        self.assertEqual(alpha0, dictionaryValues[0]['alpha'])
+        #
+        # Get the principal dictionary, and the generic version.
+        dict0 = restInterface.rest_get('currentDictionary')
+        dictGeneric = restInterface.get_generic('currentDictionary')
+        self.assertIsNot(dict0, dictGeneric)
+        #
+        # The generic one only contains items that have been accessed through
+        # the rest interface.
+        self.assertEqual(dictGeneric, {'alpha':alpha0})
+
+        # Re-initialise.
+        restInterface = rest.RestInterface()
+        restInterface.rest_put(Principal())
+        restInterface.rest_put(0, 'index')
+        #
+        # Get the dictionary itself, which mustn't later result in a shared
+        # reference to the dictionary being put into the generic object.
+        dict0 = restInterface.rest_get('currentDictionary')
+        #
+        # Next line is a naughty extraction of an attribute that isn't public.
+        generic = restInterface._generic
+        #
+        # The generic object should contain None, as a placeholder.
+        self.assertIsNone(generic["currentDictionary"])
+        #
+        # Test the reference hasn't become shared by the actions of the generic
+        # object populate code.
+        dictGeneric = restInterface.get_generic('currentDictionary')
+        self.assertIsNot(dict0, dictGeneric)
+        self.assertEqual(dictGeneric, {})
+        
+        restInterface.rest_put(1, 'index')
+        dict1 = restInterface.rest_get('currentDictionary')
+        self.assertEqual(dict1, dictionaryValues[1])
+        #
+        # Dummy gets to load the generic object.
+        restInterface.rest_get(('currentDictionary', 'dictIndex'))
+        restInterface.rest_get(('currentDictionary', 'alpha'))
+        dictGeneric = restInterface.get_generic('currentDictionary')
+        self.assertIsNot(dictGeneric, dict0)
+        self.assertIsNot(dictGeneric, dict1)
+        self.assertEqual(dictGeneric, dict1)
+        #
+        # Revert the index and test that the generic get now returns the values
+        # for index:0. 
+        restInterface.rest_put(0, 'index')
+        dictGeneric = restInterface.get_generic('currentDictionary')
+        self.assertIsNot(dictGeneric, dict0)
+        self.assertIsNot(dictGeneric, dict1)
+        self.assertEqual(dictGeneric, dict0)
+
+    def test_load(self):
+        restInterface = rest.RestInterface()
+        restInterface.load_generic({'b':'c', 'd':('e', 'f')}, ('a',))
+        self.assertEqual(
+            restInterface._generic, {'a': {'b': None, 'd': [None, None]}})
+        
+        restInterface.rest_patch({'h':(10, 11, 12)}, 'g')
+        # The previous line patches in a tuple, but the generic store will have
+        # a list, until get_generic is called.
+        self.assertEqual(
+            restInterface._generic, {
+                'a': {'b': None, 'd': [None, None]},
+                'g': {'h':[None, None, None]}
+            })

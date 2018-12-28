@@ -42,6 +42,7 @@ export default class Controls {
                 "valuePath": move.path,
                 "speed": move.unit * 16.0,
                 "targetValue": value,
+                "subjectPath": move.subjectPath ? move.subjectPath : null
             }, ...move.animationPath);
     }
 

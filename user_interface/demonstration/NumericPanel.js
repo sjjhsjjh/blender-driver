@@ -28,6 +28,11 @@ export default class NumericPanel {
             this._control.get(this._move)
             .then(got => {
                 this._panel.input.value = Number.parseFloat(got).toFixed(1);
+            })
+            .catch(error => {
+                console.log('ToDo display properly "' + error + '".');
+                //this._panel.input.setAttribute('title', "error:" + error);
+                //this._panel.input.value = "error:" + error;
             });
         }
     }

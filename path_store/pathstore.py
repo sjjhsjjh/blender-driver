@@ -18,6 +18,8 @@ if __name__ == '__main__':
 # Module that facilitates container subclasses.
 # https://docs.python.org/3/library/collections.html#collections.UserList
 import collections
+# Data model reference documentation is also useful:
+# https://docs.python.org/3/reference/datamodel.html#emulating-container-types
 #
 # Module for enum type.
 # https://docs.python.org/3.5/library/enum.html
@@ -42,11 +44,11 @@ class PointType(Enum):
 
 def pathify(path):
     """\
-    Generator that returns a list suitable for path store navigation:
+    Generator that returns values suitable for path store navigation:
     
-    -   A zero-element list, if path is None.
-    -   A one-element list, if path is a string or isn't iterable.
-    -   A list of each item, otherwise.
+    -   No values, if path is None.
+    -   One value, if path is a string or isn't iterable.
+    -   Each value, otherwise.
     """
     if path is not None:
         if isinstance(path, str):
@@ -184,9 +186,9 @@ def delete(parent, path):
 def _get(parent, path, delete):
     # It seemed like a nice idea to keep path as a generator for as long as
     # possible. However, to support embedded slices, can be necessary to repeat
-    # part of the descent. This means that it can has to stop being a generator
-    # at some point in the middle of the loop that is enumerating it, which is
-    # bad. So now `path` has to be a list already.
+    # part of the descent. This means that it has to stop being a generator at
+    # some point in the middle of the loop that is enumerating it, which is bad.
+    # So now `path` has to be a list already.
 
     if delete:
         stop = len(path) - 1
@@ -497,8 +499,13 @@ def _insert(parent, path, replacing, value, point_maker, index):
                 , str_quote(legMaker) if len(legs) > 1 else ""
                 , ".")))
 
-        legValue = _insert(
-            point, path, replacing, value, point_maker, index + 1)
+        try:
+            legValue = _insert(
+                point, path, replacing, value, point_maker, index + 1)
+        except:
+            log(ERROR, 'Exception in _insert({}, {}, {}, {}, ,{})'
+                , point, path, replacing, value, index + 1)
+            raise
     
         didSet, parent = _set(parent, leg, legValue, pointType)
 

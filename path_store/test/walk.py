@@ -302,3 +302,16 @@ class TestWalk(unittest.TestCase):
         principal = {"a":aValue}
         pathstore.walk(generic, editor_set, ["a"], second=principal)
         self.assertIs(generic['a'], aValue)
+    
+    def test_tuple(self):
+        def editor_tuple(point, path, results):
+            if isinstance(point, list):
+                return True, tuple(point)
+            else:
+                return False
+        
+        principal0 = {'l':[45,89]}
+        
+        principal1 = pathstore.walk(principal0, editor_tuple, editIterable=True)
+        self.assertIs(principal0, principal1)
+        self.assertEqual(principal1, {'l':(45,89)})

@@ -12,6 +12,12 @@ if __name__ == '__main__':
 
 # Standard library imports, in alphabetic order.
 #
+# Module that facilitates container subclasses.
+# https://docs.python.org/3/library/collections.html#collections.UserList
+import collections
+# Data model reference documentation is also useful:
+# https://docs.python.org/3/reference/datamodel.html#emulating-container-types
+#
 # Unit test module.
 # https://docs.python.org/3.5/library/unittest.html
 import unittest
@@ -95,6 +101,7 @@ class TestIterify(unittest.TestCase):
             iterified = pathstore.iterify(principal)
         self.assertEqual(str(testContext.exception)
                          , str(harnessContext.exception))
+
     def test_str(self):
         with self.assertRaises(TypeError) as context:
             iterified = pathstore.iterify("An string.")
@@ -103,10 +110,19 @@ class TestIterify(unittest.TestCase):
     def test_ok(self):
         list_ = ['bif', 2, 2, None]
         type, iterator = pathstore.iterify(list_)
+        self.assertIs(type, pathstore.PointType.LIST)
         self.assertEqual(tuple(enumerate(list_)), tuple(iterator))
-        self.assertEqual(type, pathstore.PointType.LIST)
 
         dict_ = {'pag':1, 'pog':1, 'pygi':None, 'pli':list_}
         type, iterator = pathstore.iterify(dict_)
+        self.assertIs(type, pathstore.PointType.DICTIONARY)
         self.assertEqual(tuple(dict_.items()), tuple(iterator))
-        self.assertEqual(type, pathstore.PointType.DICTIONARY)
+ 
+    def test_custom_list(self):
+        class CustomList(collections.UserList):
+            pass
+        
+        customList = CustomList(('drip', 'drap'))
+        type, iterator = pathstore.iterify(customList)
+        self.assertIs(type, pathstore.PointType.LIST)
+        self.assertEqual(tuple(iterator), tuple(enumerate(('drip', 'drap'))))

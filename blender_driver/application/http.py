@@ -67,14 +67,13 @@ import urllib.parse
 #
 # Application base class module.
 from . import rest
-
+#
+# Path store wrapper for Blender Game Object collections.
 from path_store.blender_game_engine.gameobjectcollection import (
     GameObjectDict, GameObjectList)
-
 #
 # Path store utility.
 from path_store.pathstore import pathify_split, walk as pathstore_walk
-
 
 class Application(rest.Application):
     
@@ -224,6 +223,10 @@ class Application(rest.Application):
                 try:
                     generic = self._restInterface.get_generic(path)
                     sendError = None
+                except IndexError:
+                    # This error would occur if a list or tuple was shorter than
+                    # the requested index.
+                    sendError = 404
                 except KeyError:
                     sendError = 404
                 
@@ -235,6 +238,8 @@ class Application(rest.Application):
                         self._restInterface.rest_get(path)
                         generic = self._restInterface.get_generic(path)
                         sendError = None
+                    except IndexError:
+                        pass
                     except KeyError:
                         pass
 

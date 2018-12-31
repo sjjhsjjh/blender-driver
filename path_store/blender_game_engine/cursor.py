@@ -30,7 +30,9 @@ from math import fmod, pi, isclose, floor, radians
 from mathutils import Vector, Quaternion
 #
 # Local imports.
-from .gameobject import Rotation
+#
+# Simplified rotation wrapper.
+from .rotation import Rotation
 
 class UpdateList(collections.UserList):
     def __init__(self, update, *args, **kwargs):

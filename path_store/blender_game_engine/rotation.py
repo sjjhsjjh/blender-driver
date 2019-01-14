@@ -20,7 +20,7 @@ from math import atan2, pow, sqrt, isclose
 # Blender Game Engine maths utilities.
 # http://www.blender.org/api/blender_python_api_current/mathutils.html
 # They're super-effective!
-from mathutils import Matrix, Quaternion
+from mathutils import Quaternion
 #
 # Local imports, would go here.
 #
@@ -29,13 +29,12 @@ def _decompose(matrix):
     #
     # Formula for decomposition of a 3x3 rotation matrix into x, y, and z
     # rotations comes from this page: http://nghiaho.com/?page_id=846
-    return (
+    return [
         atan2(matrix[2][1], matrix[2][2]),
         atan2(matrix[2][0] * -1.0
               , sqrt(pow(matrix[2][1], 2) + pow(matrix[2][2], 2))),
         atan2(matrix[1][0], matrix[0][0])
-    )
-
+    ]
 
 class Rotation(object):
     """Class to represent the x,y,z rotation of a Blender game object."""
@@ -82,38 +81,31 @@ class Rotation(object):
     #     del gameObject.rotation[:]
     #
     
-
-    # Copy the orientation in _set_list...
-    # Only append Quaternion rotations to the in-progress list.
+    # Cache and update the last decomposed values when set_item.
     
     class _RotationPiece:
         pass
     
-    
-    
     axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
     
-    def _base_orientation(self):
-        """Set the list property from the rotation of the game object."""
-        self._baseOrientation = self._get_orientation().copy()
-
+    def _set_base(self):
+        """Set the list property from the rotation of the host."""
+        self._base = self._get_orientation().copy()
         self._pieces = []
-        # for dimension, amount in enumerate(
-        #     self._decompose(self._baseOrientation)
-        # ):
-        #     if isclose(amount, 0.0):
-        #         continue
-        #     piece = self._RotationPiece()
-        #     piece.dimension = dimension
-        #     piece.readOnly = True
-        #     piece.radians = amount
-        #     self._pieces.append(piece)
-        self._baseDecomposed = _decompose(self._baseOrientation)
-        print('rotation._base_orientation() {} {}'.format(
-            self._baseOrientation, self._baseDecomposed))
+        
+        if self._base == self._baseCache:
+            self._decomposed = self._decomposedCache[:]
+            # print('rotation._set_base() Cached {} {}'.format(
+            #     self._base, self._decomposed))
+        else:
+            self._decomposed = _decompose(self._base)
+            # print('rotation._set_base() not cached {} {}'.format(
+            #     self._base, self._baseCache))
+            self._baseCache = self._base.copy()
+            self._decomposedCache = self._decomposed[:]
         
         # Always three but formally, the number of dimensions.
-        return len(self._baseDecomposed)
+        return len(self._decomposed)
         
         # if self._orientationCache == orientation:
         #     return
@@ -130,8 +122,6 @@ class Rotation(object):
         #           , sqrt(pow(orientation[2][1], 2)
         #                  + pow(orientation[2][2], 2))),
         #     atan2(orientation[1][0], orientation[0][0]))
-    
-    
     
     @property
     def x(self):
@@ -158,127 +148,79 @@ class Rotation(object):
         return self._listLength
 
     def __getitem__(self, specifier):
-        if not self._usingList:
-            self._base_orientation()
-        
-        effective = _decompose(self._effective_orientation())
-        
+        if not self._setting:
+            self._set_base()
         
         if isinstance(specifier, slice):
             return_ = []
             for dimension in range(*specifier.indices(self._listLength)):
-                return_.append(effective[dimension])
+                return_.append(self._decomposed[dimension])
             return return_
         else:
-            return effective[specifier]
+            return self._decomposed[specifier]
 
-        
-        # if self._usingList:
-        #     return self._list.__getitem__(specifier)
-        # else:
-        #     self._set_list_game_object()
-        #     return self._listGameObject.__getitem__(specifier)
-    
-    # def _get_dimension(self, dimension):
-    #     amount = 0.0
-    #     lastPiece = None
-    #     for piece in self._pieces:
-    #         if piece.dimension == dimension:
-    #             lastPiece = piece
-    #             amount += piece.radians
-    #     return amount, lastPiece
-    
     def __setitem__(self, specifier, value):
-        print('rotation.__setitem__(,{},{})'.format(specifier, value))
-        if not self._usingList:
-            self._base_orientation()
-            # self._list[:] = self._listGameObject[:]
-            self._usingList = True
-
-        effective = _decompose(self._effective_orientation())
+        # print('rotation.__setitem__(,{},{})'.format(specifier, value))
+        if not self._setting:
+            self._set_base()
+            self._setting = True
 
         if isinstance(specifier, slice):
-            for index, dimension in enumerate(range(*specifier.indices(self._listLength))):
-                self._increment(
-                    dimension, value[index] - effective[dimension])
+            for index, dimension in enumerate(
+                range(*specifier.indices(self._listLength))
+            ):
+                self._set1(dimension, value[index])
         else:
-            self._increment(specifier, value - effective[specifier])
-            # self._set_dimension(specifier, value)
-        # self._list.__setitem__(specifier, value)
+            self._set1(specifier, value)
 
-        self._apply()
-
-    def _increment(self, dimension, value):
-        for piece in self._pieces:
-            if piece.dimension == dimension:
-                piece.radians += value
-                return
-
-        # current, piece = self._get_dimension(dimension)
-        # if piece is None or piece.readOnly:
-        piece = self._RotationPiece()
-        piece.dimension = dimension
-        # piece.readOnly = False
-        piece.radians = value
-        self._pieces.append(piece)
-    
-    def __delitem__(self, specifier):
-        print('rotation.__delitem({}) {}'.format(specifier, self))
-        if self._usingList:
-            # self._list.__delitem__(specifier)
-            self._usingList = False
-        
-    def __repr__(self):
-        if not self._usingList:
-            self._base_orientation()
-        
-        def _all():
-            yield self._baseOrientation.__repr__()
-            for piece in self._pieces:
-                yield piece.__dict__.__repr__()
-
-        # [self._get_dimension(dimension)[0]
-        #  for dimension in range(self._listLength)]
-        return tuple(_all()).__repr__()
-    
-    def _apply(self):
-        # Apply the rotation to the BGE object.
-        #
-        # Start with an identity matrix of the same size as the world
-        # orientation.
-        # orientation = self._get_orientation().copy()
-        # orientation.identity()
-        #
-        # Apply the rotation in each dimension, in order.
-        any = True #False
-        # for dimension, value in enumerate(self._list):
-        #     if value is not None:
-        #         worldOrientation.rotate(Quaternion(self.axes[dimension], value))
-        #         any = True
-
-        # if any:
-        #     self._set_orientation(orientation)
-        effective = self._effective_orientation()
-        decomposed = _decompose(effective)
-        self._set_orientation(effective)
-        print('rotation._apply() {} {} {}'.format(self, effective, decomposed))
-    
-    def _effective_orientation(self):
-        orientation = self._baseOrientation.copy()
-        
+        orientation = self._base.copy()
         for piece in self._pieces:
             orientation.rotate(Quaternion(
                 self.axes[piece.dimension], piece.radians))
-        return orientation
+
+        self._decomposed = _decompose(orientation)
+        self._set_orientation(orientation)
+
+    def _set1(self, dimension, value):
+        needPiece = True
+        increment = value - self._decomposed[dimension]
+        for piece in self._pieces:
+            if piece.dimension == dimension:
+                piece.radians += increment
+                needPiece = False
+                break
         
+        if needPiece:
+            piece = self._RotationPiece()
+            piece.dimension = dimension
+            piece.radians = increment
+            self._pieces.append(piece)
+
+        # self._decomposed[dimension] = value
+    
+    def __delitem__(self, specifier):
+        # print('rotation.__delitem({}) {}'.format(specifier, self))
+        self._setting = False
+        self._pieces = []
+        
+    def __repr__(self):
+        if not self._setting:
+            self._set_base()
+        
+        def _all():
+            yield self._base.__repr__()
+            for piece in self._pieces:
+                yield piece.__dict__.__repr__()
+
+        return tuple(_all()).__repr__()
     
     def __init__(self, get_orientation, set_orientation):
         self._get_orientation = get_orientation
         self._set_orientation = set_orientation
-        self._orientationCache = None
+
+        self._baseCache = None
+        self._decomposedCache = None
         
-        self._listLength = self._base_orientation()
-        #len(self._listGameObject)
-        # self._list = []
-        self._usingList = False
+        self._listLength = self._set_base()
+        self._setting = False
 

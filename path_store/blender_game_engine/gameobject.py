@@ -195,7 +195,8 @@ def get_game_object_subclass(bge):
                 self.alignAxisToVect(vector)
 
         def __init__(self, oldOwner):
-            self._rotation = Rotation(self._get_orientation, self._set_orientation)
+            self._rotation = Rotation(
+                self._get_orientation, self._set_orientation)
             self._tether = None
             self._beingAnimated = False
 

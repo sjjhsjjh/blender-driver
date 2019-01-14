@@ -154,7 +154,7 @@ class TestGameObject(TestCaseWithApplication):
             #
             # Initial rotation in all axes should be zero.
             self.assertEqual(0, pathstore.get(gameObject, ('rotation', 0)))
-            self.assertEqual(gameObject.rotation[:], (0, 0, 0))
+            self.assertEqual(gameObject.rotation[:], [0, 0, 0])
             
             xDegrees = degrees(gameObject.rotation.x)
             degreesMax = 720.0

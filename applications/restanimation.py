@@ -79,8 +79,7 @@ class Application(demonstration.Application
         super().game_initialise()
         
         self._objectName = "cube"
-        self.mainLock.acquire()
-        try:
+        with self.mainLock:
             objectName = self._objectName
             #
             # Insert game objects.
@@ -101,8 +100,6 @@ class Application(demonstration.Application
                 #
                 # Revert working path.
                 del path[-3:]
-        finally:
-            self.mainLock.release()
 
     def game_keyboard(self, keyEvents):
         keyString, ctrl, alt = self.key_events_to_string(keyEvents)
@@ -155,9 +152,19 @@ class Application(demonstration.Application
             self.animate_size(objectNumber, 1)
         elif keyString == "S":
             self.animate_size(objectNumber, -1)
+        elif keyString == "?":
+            path = list(self.gameObjectPath) + [0, 'rotation']
+            print(path)
+            print(self._restInterface.rest_get(path))
         else:
             return False
         return True
+
+    # Override.
+    def print_completions_log(self, anyCompletions, logStore):
+        super().print_completions_log(anyCompletions, logStore)
+        if anyCompletions:
+            print('print_completions_log', anyCompletions, logStore)
         
     def animate_size(self, objectNumber, direction):
         #

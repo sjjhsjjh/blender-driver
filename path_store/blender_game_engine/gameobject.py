@@ -13,11 +13,6 @@ if __name__ == '__main__':
 #
 # Blender library imports, in alphabetic order.
 #
-# Blender Game Engine KX_Camera
-# https://docs.blender.org/api/blender_python_api_current/bge.types.KX_Camera.html
-# Can't be imported here because this module gets imported in the bpy context
-# too, in which bge isn't available.
-#
 # Blender Game Engine KX_GameObject
 # https://www.blender.org/api/blender_python_api_current/bge.types.KX_GameObject.html
 # Can't be imported here because this module gets imported in the bpy context

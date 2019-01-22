@@ -40,6 +40,13 @@ class Animation(object):
         self._implicitStart = implicitStart
     
     @property
+    def stopped(self):
+        return self._stopped
+    @stopped.setter
+    def stopped(self, stopped):
+        self._stopped = stopped
+    
+    @property
     def startValue(self):
         return self._startValue
     @startValue.setter
@@ -195,5 +202,6 @@ class Animation(object):
         self._implicitStart = True
         self._nowTime = None
         self._targetValue = None
+        self._stopped = False
 
         self._completeTime = None

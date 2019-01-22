@@ -102,7 +102,7 @@ class Application(thread.Application):
     def print_completions_log(self, anyCompletions, logStore):
         '''\
         Called every tick and passed the AnimatedRestInterface.set_now_times
-        return value. Override the application requires these results for any
+        return value. Override if the application requires these results for any
         reason. See the unittest application for an example.
         '''
         pass

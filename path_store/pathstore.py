@@ -185,10 +185,10 @@ def delete(parent, path):
 
 def _get(parent, path, delete):
     # It seemed like a nice idea to keep path as a generator for as long as
-    # possible. However, to support embedded slices, can be necessary to repeat
-    # part of the descent. This means that it has to stop being a generator at
-    # some point in the middle of the loop that is enumerating it, which is bad.
-    # So now `path` has to be a list already.
+    # possible. However, to support embedded slices, it can be necessary to
+    # repeat part of the descent. This means that it has to stop being a
+    # generator at some point in the middle of the loop that is enumerating it,
+    # which is bad. So now `path` has to be a list already.
 
     if delete:
         stop = len(path) - 1
@@ -205,7 +205,6 @@ def _get(parent, path, delete):
             # Copy the end of the path, including the slice. The element that
             # holds the slice gets overwritten repeatedly.
             tail = path[index:]
-            # print(path, index, leg, tail)
             points = []
             deleteSlice = (delete and index >= stop)
             for sliceIndex in range(*leg.indices(len(parent))):

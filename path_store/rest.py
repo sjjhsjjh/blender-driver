@@ -404,7 +404,7 @@ class AnimatedRestInterface(RestInterface):
         self._walkResults.completions = []
         #
         # `completionsLog` will be a copy of the animation path store structure
-        # with either None, "Complete", or "Incomplete" at each node.
+        # with either None, "Stopped", "Complete", or "Incomplete" at each node.
         self._walkResults.completionsLog = None
         #
         self._walkResults.anyCompletions = False

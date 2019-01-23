@@ -12,9 +12,9 @@ export default class CursorControls extends Controls {
         this._animationPath = ['animations', 'user_interface', 'cursor'];
         this._axisAnimation = ['animations', 'axis', 0];
         
-        this._add_panel("aX", ["axis", 0], 1.0);
-        this._add_panel("aY", ["axis", 1], 1.0);
-        this._add_panel("aZ", ["axis", 2], 1.0);
+        this._add_panel("aX", ["axis", "x"], 1.0);
+        this._add_panel("aY", ["axis", "y"], 1.0);
+        this._add_panel("aZ", ["axis", "z"], 1.0);
  
         this._add_panel("X", ["origin", 0], 1.0);
         this._add_panel("Y", ["origin", 1], 1.0);
@@ -58,12 +58,17 @@ export default class CursorControls extends Controls {
     
     _do_move(moveIndex) {
         return this._get_face()
-        .then(() => this.userInterface.get(...this._prefix, 'moves'))
-        .then(moves => {
-            const move = moves[moveIndex];
+        .then(() => this.userInterface.get(...this._prefix, 'moves', moveIndex))
+        .then(move => {
+            //const move = moves[moveIndex];
             this.userInterface.monitor_add(move, "\n");
-            move.speed = 3.0;
-            this.userInterface.fetch("PUT", move, ...this._axisAnimation);
+            return this.userInterface.fetch(
+                "PUT", move.preparation.value, ...move.preparation.path)
+            .then(() => {
+                move.animation.speed = 3.0;
+                this.userInterface.fetch(
+                    "PUT", move.animation, ...this._axisAnimation);
+            });
         });
     }
 

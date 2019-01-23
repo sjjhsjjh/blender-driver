@@ -410,12 +410,22 @@ class Application(blender_driver.application.rest.Application):
         'cube': {
             'subtype':'Cube', 'physicsType':'RIGID_BODY',
             'location': (-4.0, -4.0, 4), 'scale':(0.25, 0.25, 0.25)},
+        'visualiser': {
+            'subtype':'Cube', 'physicsType':'NO_COLLISION',
+            'location': (0, 0, 0), 'scale': (0.1, 0.1, 0.1)},
+        'empty': {
+            'subtype':'Empty', 'physicsType':'NO_COLLISION',
+            'location': (0, 0, 0)},
         'banner': {
             'text':"banner", 'location': (0, 0, 4)},
         'status': {
             'text':"status", 'location': (0, 0, 0.3),
             'scale':(0.5, 0.5, 0.5)}
     }
+
+    @property
+    def testObjectName(self):
+        return 'cube'
     
     banner = None
     

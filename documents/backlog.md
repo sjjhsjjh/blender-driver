@@ -1,16 +1,5 @@
 Backlog
 =======
--   Unit test that fails in the current Cursor rotation:
-
-    Move 0 (+X), Move 2 (+Z). Normal is 1,0,0. axis is 1.6, 0, 1.6.  
-    Move 0 or Move 1 shows the defect.
-
-    Move 2 (+Y). Normal is 1,0,0. axis is 0, 1.6, 0.  
-    Move 0 or Move 1 are OK.
-
-    In the defect case, the Y rotation will be inserted in between the X and the
-    Z, which is why it goes wrong.
-
 -   Maybe label moves North, South, East, West.
 
 -   Review how the generic store is set up. Maybe it should all be done by walk,

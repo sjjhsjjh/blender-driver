@@ -32,7 +32,7 @@ from mathutils import Vector, Quaternion
 # Local imports.
 #
 # Simplified rotation wrapper.
-from .rotation import RotationXYZ as Rotation
+from .rotation import Rotation
 
 class UpdateList(collections.UserList):
     def __init__(self, update, *args, **kwargs):
@@ -48,6 +48,7 @@ class Cursor(object):
     # Constants.
     _axisBase = Vector((0, 0, 1))
     _radiusBase = Vector((1, 0, 0))
+    _eulerOrders = ('YZX', 'ZXY', 'XYZ')
     #
     # Infrastructure properties and methods.
     @property
@@ -118,13 +119,16 @@ class Cursor(object):
     #
     @property
     def origin(self):
+        '''Vector from the centre of the subject to the Cursor base.'''
         return self._origin
     @origin.setter
     def origin(self, origin):
         self._origin = origin
         self._update(False)
+        
     @property
     def axis(self):
+        '''Direction of the Cursor axis.'''
         return self._axis
     @axis.setter
     def axis(self, axis):
@@ -142,6 +146,7 @@ class Cursor(object):
         del self._axis[:]
         self._check_faces("after axis delete")
     
+    # Accessors for the Rotation instance in self.axis
     def _get_axis_orientation(self):
         self._check_faces("_get_axis_orientation")
         return self._axisOrientation.copy()
@@ -153,6 +158,7 @@ class Cursor(object):
 
     @property
     def offset(self):
+        '''Distance from the Cursor base to the start.'''
         return self._offset
     @offset.setter
     def offset(self, offset):
@@ -160,6 +166,7 @@ class Cursor(object):
         self._update(False)
     @property
     def length(self):
+        '''Distance from the Cursor start to the end.'''
         return self._length
     @length.setter
     def length(self, length):
@@ -167,6 +174,7 @@ class Cursor(object):
         self._update(False)
     @property
     def radius(self):
+        '''Distance from the Cursor end to the point.'''
         return self._radius
     @radius.setter
     def radius(self, radius):
@@ -174,12 +182,20 @@ class Cursor(object):
         self._update(False)
     @property
     def rotation(self):
+        '''Angle of the Cursor radius.'''
         return self._rotation
     @rotation.setter
     def rotation(self, rotation):
         # fmod on the next line allows negative values.
         self._rotation = fmod(rotation, pi * 2.0)
         self._update(False)
+    @property
+    def visualiserCalibre(self):
+        return self._visualiserCalibre
+    @visualiserCalibre.setter
+    def visualiserCalibre(self, calibre):
+        self._visualiserCalibre = calibre
+        self._update(False)    
     #
     # Helper properties, read-only and based on the subject plus an offset from
     # cache. The offset is updated by setting other properties.
@@ -268,10 +284,19 @@ class Cursor(object):
                         continue
                     for moveSign in (1, -1):
                         moves.append({
-                            "subjectPath": tuple(self.selfPath[:]),
-                            "valuePath":
-                                tuple(self.selfPath[:]) + ('axis', axisIndex),
-                            "delta": radians(90.0 * moveSign)
+                            "preparation": {
+                                "path":
+                                    tuple(self.selfPath[:])
+                                    + ('axis', 'order'),
+                                "value": self._eulerOrders[axisIndex]
+                            },
+                            "animation": {
+                                "subjectPath": tuple(self.selfPath[:]),
+                                "valuePath":
+                                    tuple(self.selfPath[:])
+                                    + ('axis', axisIndex),
+                                "delta": radians(90.0 * moveSign)
+                            }
                         })
                 face.moves = tuple(moves)
                 faces.append(face)
@@ -284,7 +309,7 @@ class Cursor(object):
         for checkFaceIndex, checkFace in enumerate(self._faces):
             faceNormal = checkFace.normal
             for move in checkFace.moves:
-                lastPath = move['valuePath'][-1]
+                lastPath = move['animation']['valuePath'][-1]
                 if faceNormal[lastPath] != 0:
                     exceptions.append(
                         'Wrong move at {} in [{}] {} d:{} s:{} {}'.format(
@@ -373,6 +398,8 @@ class Cursor(object):
             self._helpers = tuple(self._add_empty() for _ in range(4))
         if self._helpers is not None and (changedSubject or created):
             for helper in self._helpers:
+                if subject.tether is None:
+                    subject.tether = self.add_empty()
                 helper.set_parent(subject.tether)
         #
         # Position the helper objects.
@@ -396,12 +423,15 @@ class Cursor(object):
 
             if self._visualisers is not None and (changedSubject or created):
                 for visualiser in self._visualisers:
+                    if subject.tether is None:
+                        subject.tether = self.add_empty()
                     visualiser.set_parent(subject.tether)
 
             if self._visualisers is not None:
                 for index, visualiser in enumerate(self._visualisers):
                     visualiser.make_vector(vectorPoints[index]
-                                           , vectorPoints[index + 1])
+                                           , vectorPoints[index + 1]
+                                           , self.visualiserCalibre)
 
     def _apply_axis_rotation(self, vector):
         vector.rotate(self._axisOrientation)
@@ -445,6 +475,7 @@ class Cursor(object):
         self._length = None
         self._radius = None
         self._rotation = None
+        self._visualiserCalibre = None
 
         self._originOffset = None
         self._startOffset = None

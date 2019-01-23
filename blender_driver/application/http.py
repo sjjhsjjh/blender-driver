@@ -287,7 +287,6 @@ class Application(rest.Application):
             else:
                 return url
 
-
         return None
 
 # HTTP Server subclass. This class holds a reference to the Application object

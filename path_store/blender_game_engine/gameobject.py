@@ -179,7 +179,9 @@ def get_game_object_subclass(bge):
         # This single setter is a convenience. Native setParent(None) seems to
         # be a no-op, instead of removing the parent.
         
-        def make_vector(self, startVector, endVector, calibre=0.1):
+        def make_vector(self, startVector, endVector, calibre=None):
+            if calibre is None:
+                calibre = 0.1
             vector = endVector - startVector
             if vector.magnitude == 0.0:
                 self.worldScale = (calibre, calibre, calibre)

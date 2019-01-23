@@ -37,9 +37,13 @@ class TestGameObject(TestCaseWithApplication):
             objectName = None
         if objectName is None:
             for key in self.application.templates.keys():
-                if 'text' not in self.application.templates[key]:
-                    objectName = key
-                    break
+                if 'text' in self.application.templates[key]:
+                    continue
+                if objectName is not None:
+                    raise RuntimeError(
+                        "Couldn't determine object name."
+                        ' At least two candidates in templates.')
+                objectName = key
         return GameObject, objectName
     
     def test_fundamentals(self):
@@ -436,7 +440,12 @@ class TestGameObject(TestCaseWithApplication):
             #
             # Initial scale in all axes should be the same as the template.
             objectName = self.get_class_and_name()[1]
-            expectedScale = self.application.templates[objectName]['scale'][:]
+            try:
+                expectedScale = self.application.templates[objectName
+                                                           ]['scale'][:]
+            except:
+                print(objectName, self.application.templates[objectName])
+                raise
             self.assertAlmostEqual(
                 expectedScale[0], pathstore.get(gameObject, ('worldScale', 0)))
             self.assertAlmostEqual(gameObject.worldScale[:], expectedScale)

@@ -154,7 +154,7 @@ class TestGameObject(TestCaseWithApplication):
             #
             # Initial rotation in all axes should be zero.
             self.assertEqual(0, pathstore.get(gameObject, ('rotation', 0)))
-            self.assertEqual(gameObject.rotation[:], [0, 0, 0])
+            self.assertSequenceEqual(gameObject.rotation[:], [0, 0, 0])
             
             xDegrees = degrees(gameObject.rotation.x)
             degreesMax = 720.0
@@ -193,7 +193,9 @@ class TestGameObject(TestCaseWithApplication):
 
         with self.tick, self.application.mainLock:
             # Test that rotation can be reset.
-            raise NotImplementedError()
+            self.assertNotEqual(gameObject.rotation.x, 0)
+            gameObject.rotation = (0, 0, 0)
+            self.assertSequenceEqual(gameObject.rotation, (0, 0, 0))
             
         with self.tick, self.application.mainLock:
             #

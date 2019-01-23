@@ -270,10 +270,9 @@ class Rotation(object):
     
     def _get_euler(self, dimension=None):
         if self._euler is None:
-            if dimension is None:
-                dimension = 2 if self._savedOrder is None else self._savedOrder
-            self._euler = (
-                self._get_orientation().to_euler(self._orders[dimension]))
+            self._euler = self._get_orientation().to_euler(
+                self._orders[2 if dimension is None else dimension]
+                if self._savedOrder is None else self._savedOrder)
         else:
             if (dimension is not None
                 and not self._euler.order.endswith(
@@ -286,12 +285,20 @@ class Rotation(object):
         return self._euler
 
     def __getitem__(self, specifier):
-        return self._get_euler().__getitem__(specifier)
+        # If any values have been set, return the value that was set. Otherwise,
+        # return from the decomposed Euler.
+        return (
+            self._get_euler().__getitem__(specifier)
+            if self._setCache is None
+            else self._setCache.__getitem__(specifier))
 
     def __setitem__(self, specifier, value):
+        if self._setCache is None:
+            self._setCache = list(self._get_euler())
+            
         if isinstance(specifier, slice):
             for index, dimension in enumerate(
-                range(*specifier.indices(3))
+                range(*specifier.indices(self._listLength))
             ):
                 self._set1(dimension, value[index])
         else:
@@ -300,12 +307,6 @@ class Rotation(object):
         # print('__setitem__', self._euler)
         self._set_orientation(self._euler.to_matrix())
     
-    def __delitem__(self, specifier):
-        # Discard the Euler when anything is deleted. This will force getting a
-        # new Euler on the next access.
-        self._savedOrder = self._get_euler().order[:]
-        self._euler = None
-        
     def _set1(self, dimension, value):
         # The increment code works if the value was set like this:
         #
@@ -317,10 +318,21 @@ class Rotation(object):
         # euler = self._get_euler(dimension)
         # self._euler[dimension] += increment
         self._get_euler()[dimension] = value
+        self._setCache[dimension] = value
 
+    def __delitem__(self, specifier):
+        # Discard the Euler when anything is deleted. This will force getting a
+        # new Euler on the next access. The new Euler should have the same order
+        # as the last Euler, so save that before deleting the Euler.
+        self._savedOrder = self._get_euler().order[:]
+        self._euler = None
+        self._setCache = None
+        
     def __init__(self, get_orientation, set_orientation):
         self._get_orientation = get_orientation
         self._set_orientation = set_orientation
         
         self._euler = None
         self._savedOrder = None
+        self._setCache = None
+        self._listLength = len(self._get_euler())

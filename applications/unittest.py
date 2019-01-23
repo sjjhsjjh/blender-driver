@@ -452,6 +452,7 @@ class Application(blender_driver.application.rest.Application):
             status = self._restInterface.rest_get(path)
         except KeyError:
             status = self.game_add_text('status')
+            status.rotation.order = 'ZXY'
             status.rotation.y -= radians(90)
             status.worldPosition.x = self.get_test_offset(testIdentifier)
             self._restInterface.rest_put(status, path)

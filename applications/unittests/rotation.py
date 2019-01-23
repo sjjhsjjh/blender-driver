@@ -37,6 +37,7 @@ from applications.unittest import TestCaseWithApplication
 # Modules under test: 
 from path_store.blender_game_engine import camera
 from path_store.blender_game_engine.rotation import Rotation
+from path_store import pathstore
 
 from diagnostic.analysis import fall_analysis
 
@@ -173,7 +174,7 @@ class TestRotation(TestCaseWithApplication):
         # eulers[-1].make_compatible(eulers[2])
 
 
-        # Handy euler dumping code.
+        # Handy Euler dumping code.
         # for index, euler in enumerate(eulers):
         #     print(index, euler, tuple(
         #         '{:.1f}'.format(degrees(item)) for item in euler[:]))
@@ -187,15 +188,32 @@ class TestRotation(TestCaseWithApplication):
         # before the first step of each so that the dimension being changed is
         # last. 
         host = OrientationHost()
-
+        
+        # Test that setting silly values still recovers the value.
+        host.rotation.x = radians(720)
+        self.assertEqual(host.rotation.x, radians(720))
+        host.rotation.y = radians(-1720)
+        self.assertEqual(host.rotation.y, radians(-1720))
+        #
+        # But after deleting, sensible values are returned instead.
+        host.rotation = (radians(360 + 45), 0, 0)
+        del host.rotation
+        self.assertAlmostEqual(host.rotation.x, radians(45))
+        
+        # Reset the rotation.
+        host.rotation = (0, 0, 0)
         euler = _degreesEuler((0, 0, 0), 'YZX')
         host.rotation.order = 'YZX'
         euler.x = radians(45)
         host.rotation.x = radians(45)
+        # Delete the rotation to stymie rotation.setCache, which will return the
+        # value set, not the decomposed value from the Euler.
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
         euler.x = radians(90)
         host.rotation.x = radians(90)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
 
@@ -204,10 +222,12 @@ class TestRotation(TestCaseWithApplication):
         host.rotation.order = 'XYZ'
         euler.z = radians(45)
         host.rotation.z = radians(45)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
         euler.z = radians(90)
         host.rotation.z = radians(90)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
 
@@ -216,10 +236,12 @@ class TestRotation(TestCaseWithApplication):
         host.rotation.order = 'ZXY'
         euler.y = radians(45)
         host.rotation.y = radians(45)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
         euler.y = radians(90)
         host.rotation.y = radians(90)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
 
@@ -232,10 +254,12 @@ class TestRotation(TestCaseWithApplication):
         host.rotation.order = 'YZX'
         euler.x += radians(45)
         host.rotation.x += radians(45)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
         euler.x += radians(45)
         host.rotation.x += radians(45)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
 
@@ -244,10 +268,12 @@ class TestRotation(TestCaseWithApplication):
         host.rotation.order = 'XYZ'
         euler.z -= radians(45)
         host.rotation.z -= radians(45)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
         euler.z -= radians(45)
         host.rotation.z -= radians(45)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
 
@@ -256,12 +282,40 @@ class TestRotation(TestCaseWithApplication):
         host.rotation.order = 'ZXY'
         euler.y += radians(45)
         host.rotation.y += radians(45)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
         euler.y += radians(45)
         host.rotation.y += radians(45)
+        del host.rotation
         self.assertSequenceEqual(euler[:], host.rotation[:])
         self.assertEqual(euler, host.rotation.euler)
+
+    def test_rotation_rest(self):
+        host = OrientationHost()
+        host.rotation.order = 'ZXY'
+        host.rotation.y += radians(45)
+
+        # Next line results in Rotation.__delitem__ being called, which discards
+        # the Euler.
+        del host.rotation
+        #
+        # Access to the rotation.euler property in the next line causes the
+        # Euler to be generated again by decomposition of the host orientation. 
+        self.assertEqual(host.orientation.to_euler('ZXY'), host.rotation.euler)
+
+        # Save the decomposed rotation, then discard the Euler again.
+        rotation = host.rotation.euler[:]
+        del host.rotation
+        #
+        # Test that the same value comes back from Path Store get.
+        self.assertSequenceEqual(pathstore.get(host, ('rotation',)), rotation)
+
+        # Test that Path Store descent works after deletion.
+        del host.rotation
+        self.assertEqual(
+            (pathstore.PointType.LIST, rotation[2], None)
+            , pathstore.descend(host.rotation, 2))
 
     def test_vector_rotation(self):
         zAxis0 = Vector((0, 0, 1))
@@ -280,3 +334,4 @@ class TestRotation(TestCaseWithApplication):
         zAxis3 = zAxis0.copy()
         zAxis3.rotate(host.orientation)
         self.assertSequenceEqual(zAxis0[:], zAxis3[:])
+        

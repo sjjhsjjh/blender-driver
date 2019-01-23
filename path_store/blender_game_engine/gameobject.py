@@ -192,7 +192,6 @@ def get_game_object_subclass(bge):
         def __init__(self, oldOwner):
             self._rotation = Rotation(
                 self._get_orientation, self._set_orientation)
-            # self._rotation.fromIdentity = True
             
             self._tether = None
             self._beingAnimated = False

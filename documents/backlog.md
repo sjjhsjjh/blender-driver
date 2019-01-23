@@ -1,48 +1,5 @@
-Scratchpad
-==========
-Cursor axis could have two parts to its rotation:
-
--   position, a transformation matrix.
--   motion, a quaternion or similar.
-
-Only motion would be changed by animation. At the end of an animation, the
-motion would be collapsed into the position. During an animation, it would be
-applied after the position.
-
-Motion could be a list of Quaternions. There could then be multiple in progress
-concurrently.
-
-It seems like this could simplify the animation of rotation, at least of Cursor
-objects. There would be no need for a delta because the motion is implicitly a
-delta.
-
-How about putting an alignment vector, of the Z axis, and having the object
-animate to it? Would that support rotation about the Z axis though? Would that
-support the required Camera rotation, i.e. not flight simulator?
-
 Backlog
 =======
--   Fix the defect:
-
-    HTTP demonstration, build a pile with 0 separation, drop so that the blocks
-    are in different orientations, build a fence or another pile. Blocks in the
-    new construction should be upright but seem to have whatever orientation
-    they had at the time.
-    
-    Add a unit test for resetting rotation to 0,0,0 without an animation?
-    
-    ? If all rotation elements are being set at once, make the base an identity
-    matrix?
-
--   Maybe remove subjectPath and beingAnimated from the camera?
-    
--   Fix the two swing start in the HTTP demonstration, by stopping the current
-    animation if the current target is too different to the new target.
-    
-    As part of that, have two thresholds: ignore threshold, below which the
-    camera rotation isn't applied; animate threshold, above which an animation
-    is created instead of applying the change directly.
-
 -   Unit test that fails in the current Cursor rotation:
 
     Move 0 (+X), Move 2 (+Z). Normal is 1,0,0. axis is 1.6, 0, 1.6.  

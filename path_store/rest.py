@@ -234,6 +234,12 @@ class PathAnimation(Animation):
     def _nowTimeSetter(self, nowTime):
         Animation.nowTime.fset(self, nowTime)
         pathstore.replace(self.store, self.get_value(), self.valuePath)
+        # The get_value() could have had the side effect of setting the
+        # `complete` flag. It could now be true that all animations on the
+        # subject are complete. However, it seems inefficient to check that
+        # here. Instead, it gets checked in the set_now_times walker. To check
+        # it here, the path of the animations area of the store would have to be
+        # available here, so that a walk could be run.
     nowTime = property(Animation.nowTime.fget, _nowTimeSetter)
 
     def __init__(self, *args, **kwargs):
@@ -241,13 +247,15 @@ class PathAnimation(Animation):
         self._store = None
         self._valuePath = None
         self._subjectPath = None
+        self._subject = None
         self._delta = None
         self._subject = None
     
     # It could be handy to cache the parent of the animated point, in order to
     # minimise the number of path descents. However, it might be the case that
     # an object in the path has been replaced in between iterations of the
-    # animation. That would stymie caching.
+    # animation. That would stymie caching. Hmm. The `subject` property as
+    # implemented now wouldn't handle replacement.
 
 class AnimatedRestInterface(RestInterface):
     """\
@@ -358,15 +366,21 @@ class AnimatedRestInterface(RestInterface):
             def check(point, path, results):
                 if point is None:
                     return
-                if point.subject is results.subject and not point.complete:
+                if (point.subject is results.subject
+                    and not point.complete
+                    and not point.stopped
+                ):
                     results.still = True
                     raise StopIteration
+            
             self.rest_walk(check, self._animationPath, self._walkResults)
             #
             # If there are no other animations: restore physics to the subject
             # and reset its rotation overrides.
             if not self._walkResults.still:
                 subject.beingAnimated = False
+            else:
+                print('_process_completed_animations still', path, subject)
 
     def set_now_times(self, nowTime):
         '''\
@@ -397,18 +411,20 @@ class AnimatedRestInterface(RestInterface):
         #
         # Checking subroutine that will be passed to walk().
         def set_now(point, path, results):
-            if point is not None and not point.complete:
+            if not (point is None or point.complete or point.stopped):
                 # Setting nowTime in a PathAnimation has the side effect of
                 # applying the animation, which could have the further side
                 # effect of completing the animation.
                 point.nowTime = nowTime
-                if point.complete:
-                    results.anyCompletions = True
-                    results.completions.append((path[:], point))
+            if point is not None and (point.complete or point.stopped):
+                results.anyCompletions = True
+                results.completions.append((path[:], point))
             logValue = None if point is None else (
-                "Complete" if point.complete else "Incomplete")
+                "Stopped" if point.stopped else (
+                    "Complete" if point.complete else "Incomplete"))
             results.completionsLog = pathstore.merge(
                 results.completionsLog, logValue, path)
+
         self.rest_walk(set_now, self._animationPath, self._walkResults)
         #
         # In theory, the processing in the following could be done in the

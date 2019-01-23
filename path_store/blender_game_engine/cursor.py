@@ -32,7 +32,7 @@ from mathutils import Vector, Quaternion
 # Local imports.
 #
 # Simplified rotation wrapper.
-from .rotation import Rotation
+from .rotation import RotationXYZ as Rotation
 
 class UpdateList(collections.UserList):
     def __init__(self, update, *args, **kwargs):

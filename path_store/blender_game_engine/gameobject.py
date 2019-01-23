@@ -27,7 +27,7 @@ if __name__ == '__main__':
 from path_store.hosted import InterceptProperty
 #
 # Simplified rotation wrapper.
-from .rotation import Rotation
+from .rotation import RotationXYZ as Rotation
 
 def get_game_object_subclass(bge):
     """\
@@ -192,6 +192,8 @@ def get_game_object_subclass(bge):
         def __init__(self, oldOwner):
             self._rotation = Rotation(
                 self._get_orientation, self._set_orientation)
+            # self._rotation.fromIdentity = True
+            
             self._tether = None
             self._beingAnimated = False
 

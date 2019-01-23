@@ -24,7 +24,8 @@ export default class CameraControls extends Controls {
             this, text, path.join('_'), {
                 "path":path,
                 "unit":unit,
-                "animationPath":this._animationPath
+                "animationPath":this._animationPath,
+                "subjectPath":this._prefix
             }));
     }
     
@@ -48,19 +49,22 @@ export default class CameraControls extends Controls {
             "PUT", {
                 "speed": speed,
                 "valuePath": ["root", "camera", 'worldPosition', 0],
-                "targetValue": 20.0
+                "targetValue": 20.0,
+                "subjectPath":this._prefix
             }, 'animations', 'reset_camera', 0))
         .then(() => ui.fetch(
             "PUT", {
                 "speed": speed,
                 "valuePath": ["root", "camera", 'worldPosition', 1],
-                "targetValue": 1.0
+                "targetValue": 1.0,
+                "subjectPath":this._prefix
             }, 'animations', 'reset_camera', 1))
         .then(() => ui.fetch(
             "PUT", {
                 "speed": speed,
                 "valuePath": ["root", "camera", 'worldPosition', 2],
-                "targetValue": 7.0
+                "targetValue": 7.0,
+                "subjectPath":this._prefix
             }, 'animations', 'reset_camera', 2))
         ;
     }

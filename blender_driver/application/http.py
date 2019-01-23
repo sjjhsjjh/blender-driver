@@ -244,6 +244,10 @@ class Application(rest.Application):
                         pass
 
                 if sendError is None:
+                    gameObject = self._restInterface.rest_get((
+                        'root', 'gameObjects', 0))
+                    print('_inner_rest_api', gameObject.rotation)
+                    
                     response = bytes(json.dumps(generic), 'utf-8')
                     httpHandler.send_response(200)
                     httpHandler.send_header(

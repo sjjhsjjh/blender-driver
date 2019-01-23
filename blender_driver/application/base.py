@@ -326,8 +326,11 @@ class Application(object):
         self._gameGateway = gateway
 
     def game_add_object(self, objectName):
+        bpyObject = self.bpy.data.objects[objectName]
         object_ = self.gameScene.addObject(objectName, self.gameGateway)
-        object_.worldPosition = self.bpy.data.objects[objectName].location
+        object_.worldPosition = bpyObject.location
+        object_.worldOrientation = bpyObject.rotation_euler
+        print('game_add_object', bpyObject.rotation_euler, object_.worldOrientation)
         return object_
 
     def game_add_text(self, objectName, text=None):

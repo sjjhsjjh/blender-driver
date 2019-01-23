@@ -19,7 +19,8 @@ export default class Controls {
         if (this.userInterface.formValues.monitorMouse) {
             this.userInterface.monitor_add(description);
         }
-        return this.userInterface.fetch("DELETE", ...move.animationPath);
+        //return this.userInterface.fetch("DELETE", ...move.animationPath);
+        return this.userInterface.fetch("PUT", true, ...move.animationPath, 'stopped');
     }
 
     move(description, move, factor) {
@@ -30,6 +31,7 @@ export default class Controls {
         return this.userInterface.fetch( "PUT", {
                 "valuePath": move.path,
                 "speed": move.unit * factor,
+                "subjectPath": move.subjectPath ? move.subjectPath : null
             }, ...move.animationPath);
     }
 

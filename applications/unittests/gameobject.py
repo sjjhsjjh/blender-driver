@@ -192,6 +192,10 @@ class TestGameObject(TestCaseWithApplication):
                 lastTick = self.application.tickPerf
 
         with self.tick, self.application.mainLock:
+            # Test that rotation can be reset.
+            raise NotImplementedError()
+            
+        with self.tick, self.application.mainLock:
             #
             # Deleting all elements, or the property, actually doesn't delete
             # it. You just get the rotation of the underlaying game object

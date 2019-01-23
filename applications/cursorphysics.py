@@ -89,8 +89,6 @@ class Application(restanimation.Application):
     # Start position for the camera.
     _cameraStartOffset = (0.0, 2.0, 0.0)
     _cameraStartPosition = [None] * len(_cameraStartOffset)
-    # Default starting values for the camera, which don't get used actually.
-    _cameraStartOrientation = (radians(90.0), 0.0, radians(45.0))
     #
     # Camera speed.
     _cameraLinear = 9.0
@@ -172,8 +170,7 @@ class Application(restanimation.Application):
                     'animationPath': ('animations', 'cameraTracking'),
                     'selfPath': path[:],
                     'trackSpeed': self._cameraAngular,
-                    'worldPosition': self._cameraStartPosition,
-                    'rotation': self._cameraStartOrientation
+                    'worldPosition': self._cameraStartPosition
                 }, path)
             path.append('subjectPath')
             self._restInterface.rest_put(self._cursorPath, path)
@@ -188,14 +185,11 @@ class Application(restanimation.Application):
     # Override.
     def game_tick_run(self):
         super().game_tick_run()
-        self.mainLock.acquire()
-        try:
+        with self.mainLock:
             #
             # Bodge the camera.
             camera = self._restInterface.rest_get(('root', 'camera'))
             camera.tick(self.tickPerf)
-        finally:
-            self.mainLock.release()
 
     # Override.
     # No override for game_keyboard but there is for this.
@@ -234,6 +228,10 @@ class Application(restanimation.Application):
             self.move_camera(2, -1)
         elif keyString == "\t":
             self.move_cursor()
+        elif keyString == "?":
+            path = self.gameObjectPath[:-1] + ('camera', 'rotation')
+            print(path)
+            print(self._restInterface.rest_get(path))
         else:
             return inSuper
         
@@ -242,10 +240,17 @@ class Application(restanimation.Application):
     def stop_camera(self, dimensions=range(5)):
         for dimension in dimensions:
             animationPath = self._animation_path(dimension)
-            self._restInterface.rest_put(None, animationPath)
+            try:
+                animation = self._restInterface.rest_get(animationPath)
+            except KeyError:
+                animation = None
+            except IndexError:
+                animation = None
+            if animation is not None:
+                animation.stopped = True
     
-    def _animation_path(self, dimension):
-        return ['animations', 'camera', dimension]
+    def _animation_path(self, *args):
+        return ['animations', 'camera', *args]
     
     def move_camera(self, dimension, direction):
         #
@@ -253,29 +258,28 @@ class Application(restanimation.Application):
         restInterface = self._restInterface
         #
         # Path to the camera's position in the specified dimension.
-        valuePath = self.gameObjectPath[:-1]
+        cameraPath = self.gameObjectPath[:-1] + ('camera',)
         #
         # Set the value path and stop any incompatible movement.
         # X, Y, and Z (dimensions 0, 1, and 2) are incompatible with 3.
         # X and Y are incompatible with 4.
         if dimension < 3:
-            valuePath += ('camera', 'worldPosition', dimension)
+            valuePath = cameraPath + ('worldPosition', dimension)
             if dimension == 2:
                 self.stop_camera((3,))
             else:
                 self.stop_camera(range(3,5))
         elif dimension == 3:
-            valuePath += ('camera', 'orbitDistance')
+            valuePath = cameraPath + ('orbitDistance',)
             self.stop_camera(range(3))
         elif dimension == 4:
-            valuePath += ('camera', 'orbitAngle')
+            valuePath = cameraPath + ('orbitAngle',)
             self.stop_camera(range(2))
         else:
             raise ValueError()
         #
         # Assemble the animation in a dictionary, starting with this.
-        # There is no subjectPath because the camera doesn't get physics.
-        animation = {'valuePath': valuePath}
+        animation = {'valuePath': valuePath, 'subjectPath': cameraPath}
         #
         # Set a target value, if needed.
         if direction == 0:

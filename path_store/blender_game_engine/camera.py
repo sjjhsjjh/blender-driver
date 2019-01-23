@@ -17,15 +17,36 @@ if __name__ == '__main__':
 from logging import DEBUG, INFO, WARNING, ERROR, log
 #
 # Module for mathematical operations needed to decompose a rotation matrix.
-# https://docs.python.org/3.5/library/math.html
-from math import atan2, degrees, radians, isclose, fabs
+# https://docs.python.org/3/library/math.html
+from math import atan2, degrees, radians, isclose, fabs, fmod, pi
 #
 # Blender library imports, in alphabetic order.
+#
+# Blender Game Engine KX_Camera
+# https://docs.blender.org/api/blender_python_api_current/bge.types.KX_Camera.html
+# Can't be imported here because this module gets imported in the bpy context
+# too, in which bge isn't available.
 #
 # Blender Game Engine maths utilities.
 # http://www.blender.org/api/blender_python_api_current/mathutils.html
 # They're super-effective!
 from mathutils import Vector, Matrix, Quaternion
+
+_TwoPI = pi * 2.0
+
+def angular_move(current, target, speed=1.0):
+    def positive_angle(angle):
+        angle = fmod(angle, _TwoPI)
+        return _TwoPI + angle if angle < 0.0 else angle
+
+    # print('angular_move({}, {}, {})'.format(
+    #     degrees(current), degrees(target), speed))
+    change = positive_angle(positive_angle(target) - positive_angle(current))
+    if change > pi:
+        speed *= -1.0
+        change = change - _TwoPI
+    
+    return speed, current + change, fabs(change)
 
 def get_camera_subclass(bge, GameObject):
     KX_Camera = bge.types.KX_Camera
@@ -75,8 +96,28 @@ def get_camera_subclass(bge, GameObject):
         @trackSpeed.setter
         def trackSpeed(self, trackSpeed):
             self._trackSpeed = trackSpeed
-            self._small = trackSpeed * 0.1
+            # self._small = fabs(trackSpeed * 0.1)
+            self._pointAtThreshold = fabs(trackSpeed * 0.1)
             self._pointAtSubject()
+
+        # Override the setter ToDo say why.
+        def _beingAnimatedSetter(self, beingAnimated):
+            if self._beingAnimated and not beingAnimated:
+                # vector, angle = self._to_subject()
+                # print('camera animation end.'
+                #       , vector, degrees(angle), self.rotation)
+                # del self.rotation[:]
+                # vector, angle = self._to_subject()
+                # print('camera rotation deleted.'
+                #       , vector, degrees(angle), self.rotation)
+                pass
+            self._beingAnimated = beingAnimated
+
+        beingAnimated = property(
+            GameObject.beingAnimated.fget, _beingAnimatedSetter)
+
+
+
         
         def _get_subject(self):
             if (self._subject is None
@@ -92,13 +133,19 @@ def get_camera_subclass(bge, GameObject):
             Calculate the rotation needed to make the camera point at its
             subject, and then apply it.
             """
-            subject = self._get_subject()
-            if subject is None:
+            worldv, angle = self._to_subject()
+            if worldv is None:
                 return False
-            #
-            # Get an offset vector in world coordinates from the camera to the
-            # target. The offset vector is normalised.
-            (dist, worldv, localv) = self.getVectTo(subject.point)
+
+            # if angle < self._pointAtThreshold:
+            #     # self._trackRotation = None
+            #     # del self.rotation
+            #     return True
+            if angle >= self._pointAtThreshold:
+                print('point at', degrees(angle), degrees(self._pointAtThreshold)
+                      , '<' if angle < self._pointAtThreshold else '')
+            
+            
             #
             # This looks pretty expensive, even for a debug, so it's commented
             # out.
@@ -170,122 +217,251 @@ def get_camera_subclass(bge, GameObject):
                     , oz, oy, degrees(atan2(oz, oy)), degrees(rotx))
             #
             # Apply it, either directly or by pending an animation.
+            
+            
+            
             self._apply_rotation(rotx, 0.0, rotz)
             log(DEBUG, 'New rotation {:.2f} {:.2f} {:.2f} {:.2f}'
                 , rotx, degrees(rotx), rotz, degrees(rotz))
+            
+            return True
+        
+        def _to_subject(self):
+            subject = self._get_subject()
+            if subject is None:
+                return None, None
+            #
+            # Get an offset vector in world coordinates from the camera to the
+            # target. The offset vector is normalised.
+            worldv = self.getVectTo(subject.point)[1]
+            
+            angle = fabs(self.getAxisVect(Vector((0, 0, -1))).angle(worldv))
+            return worldv, angle
         
         def _apply_rotation(self, rotX, rotY, rotZ):
+            unapplied = 0
+            
+            # If rotation cannot be animated yet, apply directly.
             if (self.animationPath is None
                 or self.restInterface is None
                 or self.selfPath is None
             ):
                 self.rotation = (rotX, rotY, rotZ)
-                self._trackRotation = None
-            else:
-                self._trackRotation = (rotX, rotY, rotZ)
+                return unapplied
+
+            # Retrieve the incumbent tracking animation, if any.
+            try:
+                animations = self.restInterface.rest_get(self.animationPath)
+                deleteRotation = True
+                for animation in animations:
+                    if animation is not None:
+                        deleteRotation = False
+                        break
+                if deleteRotation:
+                    del self.rotation[:]
+            except KeyError:
+                animations = (None, None, None)
+
+            # Create a mutable path that can be used to put an animation object
+            # into each dimension.
+            animationPath = [None]
+            animationPath[0:0] = self.animationPath
+
+            # Convenience variable for the current rotation, if needed.
+            rotation = None
+
+            for dimension, newTarget in enumerate((rotX, rotY, rotZ)):
+                if animations[dimension] is not None:
+                    # Near here, the code should maybe stop the current tracking
+                    # animation in this dimension. The next tick would then pick
+                    # up the need to point and create a new animation.
+                    unapplied += 1
+                    continue
+
+                # Get the current rotation.
+                #
+                # It could be argued that it isn't worth getting the current
+                # rotation if the change in this dimension isn't going to be
+                # animated. Getting the rotation could incur some maths in the
+                # Rotation instance. However setting the value could incur maths
+                # too. Getting the value makes it possible to check the delta
+                # and then avoid setting if unnecessary.
+
+                if rotation is None:
+                    rotation = self.rotation[:]
+                currentTarget = rotation[dimension]
+
+
+                # if animations[dimension] is None:
+                #     if rotation is None:
+                #         rotation = self.rotation[:]
+                #     currentTarget = rotation[dimension]
+                # else:
+                #     currentTarget = animations[dimension].targetValue
+
+                animationPath[-1] = dimension
+                
+                # Calculate the required move.
+                speed, effectiveTarget, change = angular_move(
+                    currentTarget, newTarget, self._trackSpeed)
+                
+                animation = None
+                if change >= self._pointAtThreshold:
+                    # if animations[dimension] is None:
+                    animation = {
+                        'subjectPath': self.selfPath[:],
+                        'valuePath': tuple(self.selfPath
+                                           ) + ('rotation', dimension),
+                        'targetValue': effectiveTarget, 'speed': speed,
+                        'modulo': radians(360)
+                    }
+                    # Rely on implicitStart, which is True by default.
+
+                    # else:
+                        # animation = {'targetValue': effectiveTarget
+                        #              , 'speed': speed, 'startTime':None}
+                else:
+                    if change > radians(0.01):
+                        self.rotation[dimension] = effectiveTarget
+
+
+                        # The required speed to track a moving object could
+                        # change, from positive to negative or vice versa.
+                        # This seems to make the incumbent animation difficult
+                        # to manage. The correct thing to do might be to stop
+                        # the incumbent, or change its startValue, but for now,
+                        # just defer.
+
+                        # if speed == animations[dimension].speed:
+                        #     animation = {'targetValue': effectiveTarget}
+                        #              # , 'speed': speed}
+                        # else:
+                        #     speedChange ="Speed change: {} to {}.".format(
+                        #         degrees(animations[dimension].speed)
+                        #         , degrees(speed))
+                if change > radians(0.01):
+                    print('_apply_rotation [{}] {} from {:.2f} to {:.2f} e:{:.2f}'
+                          ' s:{:.2f} c:{:.2f}{}{}{}{}'.format(
+                            dimension, self.beingAnimated
+                            , degrees(currentTarget), degrees(newTarget)
+                            , degrees(effectiveTarget), degrees(speed)
+                            , degrees(change)
+                            # , ' ' if speedChange is None else "\n", speedChange
+                            , ' ' if animations[dimension] is None else "\n"
+                            , (None if animations[dimension] is None else
+                               animations[dimension].__dict__)
+                            , ' ' if animation is None else "\n", animation))
+
+                # if self.beingAnimated:
+                #     self.rotation[dimension] = effectiveTarget
+                #     continue
+
+                #
+                # Insert or update the animation. The point maker will set the
+                # store attribute.
+                if animation is not None:               
+                    self.restInterface.rest_patch(animation, animationPath)
+                
+                
+
+                # #
+                # # Set the start time, which has the following side
+                # # effects:
+                # # -   Retrieves the start value.
+                # # -   Clears the complete state.
+                # animationPath.append('startTime')
+                # self.restInterface.rest_put(tickPerf, animationPath)
+
+            return unapplied
         
         def tick(self, tickPerf):
-            # Rotate the camera, either directly or by animation.
+            # Rotate the camera, either directly or by animation. This must be
+            # called by the Application, in game_tick_run.
             #
             # If there isn't a pending rotation from a setter, the camera still
             # might need to rotate, if its subject is moving.
-            if self._trackRotation is None:
-                self._pointAtSubject()
-            #
-            # If it isn't possible to animate, do nothing.
-            if (self.animationPath is None
-                or self.restInterface is None
-                or self.selfPath is None
-            ):
-                return
 
-            if self._trackRotation is None:
-                # ToDo: Tidy up completed track animations by setting to None.
-                # Also reset animated rotations, like this:
-                # self.rotation[:] = (None, None, None)
-                return
 
-            if self._trackRotationLast is None:
-                # Initialise the last rotation sent to be a copy of the current
-                # rotation.
-                self._trackRotationLast = self.rotation[:]
+            # if not self.beingAnimated: #self._trackRotation is None:
+            self._pointAtSubject()
+            # pass
 
-            animationPath = list(self.animationPath)
-            for index, target in enumerate(self._trackRotation):
-                #
-                # Convenience variables for this dimension.
-                rotation = self.rotation[index]
-                last = self._trackRotationLast[index]
-                animationPath.append(index)
-                #
-                # A change will be considered small, and done directly without
-                # an animation, if it would be done within a fraction of a
-                # second.
-                log(DEBUG
-                    , 'track rotation [{}] {:.2f} {:.2f} {:.2f} {:.2f}'
-                    , index, degrees(target), degrees(rotation), degrees(last)
-                    , degrees(self._small))
-                #
-                # If the new target is the same as the last target, do nothing.
-                # If the new target is close to the current rotation, apply
-                # directly, unless it's very close, in which case do nothing.
-                # Otherwise, load an animation.
-                if (last is not None
-                    and isclose(target, last, abs_tol=radians(0.1))
-                ):
-                    log(DEBUG, '[{}] same.', index)
-                else:
-                    speed, change = self._get_speed(rotation, target)
-                    if speed is None:
-                        log(DEBUG, '[{}] small.', index)
-                        self.restInterface.rest_put(None, animationPath)
-                        #
-                        # If the required rotation isn't very small, apply it.
-                        if fabs(change) > radians(0.1):
-                            self.rotation[index] = target
-                    else:
-                        log(DEBUG, '[{}] large {:.2f} {:.2f} {:.2f}'
-                            , index, degrees(change), degrees(speed)
-                            , degrees(self.trackSpeed))
-                        #
-                        # Assemble the animation in a dictionary.
-                        animation = {
-                            'valuePath': tuple(self.selfPath) + ('rotation', index),
-                            'targetValue': target, 'speed': speed,
-                            'modulo': radians(360)
-                        }
-                        #
-                        # Insert the animation. The point maker will set the
-                        # store attribute.
-                        self.restInterface.rest_put(animation, animationPath)
-                        #
-                        # Set the start time, which has the following side
-                        # effects:
-                        # -   Retrieves the start value.
-                        # -   Clears the complete state.
-                        animationPath.append('startTime')
-                        self.restInterface.rest_put(tickPerf, animationPath)
-                        del animationPath[-1]
-                        self._trackRotationLast[index] = target
-                del animationPath[-1]
-            
-            self._trackRotation = None
+
+
+            # #
+            # # If it isn't possible to animate, do nothing.
+            # if (self.animationPath is None
+            #     or self.restInterface is None
+            #     or self.selfPath is None
+            # ):
+            #     return
+            # 
+            # if self._trackRotation is None:
+            #     # ToDo: Tidy up completed track animations by setting to None.
+            #     # Also reset animated rotations, like this:
+            #     # self.rotation[:] = (None, None, None)
+            #     # del self.rotation
+            #     return
+            # 
+            # animationPath = list(self.animationPath)
+            # for index, target in enumerate(self._trackRotation):
+            #     #
+            #     # Convenience variables for this dimension.
+            #     rotation = self.rotation[index]
+            #     animationPath.append(index)
+            #     #
+            #     # A change will be considered small, and done directly without
+            #     # an animation, if it would be done within a fraction of a
+            #     # second.
+            #     log(DEBUG
+            #         , 'track rotation [{}] {:.2f} {:.2f} {:.2f}'
+            #         , index, degrees(target), degrees(rotation)
+            #         , degrees(self._small))
+            #     #
+            #     # If the new target is close to the current rotation, apply
+            #     # directly, unless it's very close, in which case do nothing.
+            #     # Otherwise, load an animation.
+            #     speed, change = self._get_speed(rotation, target)
+            #     if speed is None:
+            #         print('[{}] small, leaving {}.', index, animationPath)
+            #         # self.restInterface.rest_put(None, animationPath)
+            #         # Maybe change to PATCH.
+            # 
+            # 
+            # 
+            #         #
+            #         # If the required rotation isn't very small, apply it.
+            #         if fabs(change) > radians(0.1):
+            #             self.rotation[index] = target
+            #     else:
+            #         log(DEBUG, '[{}] large {:.2f} {:.2f} {:.2f}'
+            #             , index, degrees(change), degrees(speed)
+            #             , degrees(self.trackSpeed))
+            #         #
+            #         # Assemble the animation in a dictionary.
+            #         animation = {
+            #             'subjectPath': self.selfPath[:],
+            #             'valuePath': tuple(self.selfPath) + ('rotation', index),
+            #             'targetValue': target, 'speed': speed,
+            #             'modulo': radians(360)
+            #         }
+            #         #
+            #         # Insert the animation. The point maker will set the
+            #         # store attribute.
+            #         self.restInterface.rest_patch(animation, animationPath)
+            #         #
+            #         # Set the start time, which has the following side
+            #         # effects:
+            #         # -   Retrieves the start value.
+            #         # -   Clears the complete state.
+            #         animationPath.append('startTime')
+            #         self.restInterface.rest_put(tickPerf, animationPath)
+            #         # Maybe change to implicit start.
+            #         del animationPath[-1]
+            #     del animationPath[-1]
+            # 
+            # self._trackRotation = None
         
-        def _get_speed(self, current, target):
-            change = target - current
-            trackSpeed = self.trackSpeed
-            if change > radians(0.0):
-                if change > radians(180.0):
-                    change = radians(360) - change
-                    trackSpeed *= -1.0
-            else:
-                if change > radians(-180.0):
-                    trackSpeed *= -1.0
-                else:
-                    change += radians(360)
-
-            return (None if fabs(change) < self._small else trackSpeed, change)
-
         @property
         def orbitDistance(self):
             """\
@@ -331,7 +507,7 @@ def get_camera_subclass(bge, GameObject):
             subject = self._get_subject()
             if subject is None:
                 return None
-            (distance, worldVector, _) = self.getVectTo(subject.point)
+            distance, worldVector = self.getVectTo(subject.point)[0:2]
             # Originally had a line like the following, but it caused a Blender
             # crash.
             # flatVector = (worldVector * distance).resized(2)
@@ -359,6 +535,13 @@ def get_camera_subclass(bge, GameObject):
             vector.rotate(quaternion)
             self.worldPosition = point - vector
             self._pointAtSubject()
+        
+        def _get_orientation(self):
+            # print('_get_orientation Camera', self._worldOrientation)
+            return self._worldOrientation
+        def _set_orientation(self, worldOrientation):
+            self._worldOrientation = worldOrientation
+            self.worldOrientation = worldOrientation
 
         def __init__(self, *args):
             self._subjectPath = None
@@ -368,10 +551,21 @@ def get_camera_subclass(bge, GameObject):
             self._selfPath = None
             
             self._subject = None
-            self._trackRotation = None
-            self._trackRotationLast = None
-            self._small = None
+            # self._trackRotation = None
+            # self._small = None
+            
+            # self._pointAtThreshold = radians(0.1)
+            
+            # It seems like the orientation of the camera isn't initialised, or
+            # isn't initialised to the identity, by BGE. Make sure it is
+            # initialised here.
+            self.worldOrientation.identity()
+            self._worldOrientation = self.worldOrientation.copy()
 
             super().__init__(*args)
+            #
+            # BGE camera rotation seems to behave differently from plain game
+            # object rotation. Set the kludge flag that fixes that here.
+            self.rotation.fromIdentity = True
     
     return Camera

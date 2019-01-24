@@ -69,7 +69,7 @@ class Application(demonstration.Application
     _instructions = (
         "Ctrl-Q to terminate; space, numeric plus, minus, or 0 to move"
         " left object;"
-        "\n< or > to rotate it;"
+        "\n< or > to rotate it; s or S to change size."
         "\nplus Ctrl to move right object. Middle object doesn't move.")
 
     _objectCount = 3

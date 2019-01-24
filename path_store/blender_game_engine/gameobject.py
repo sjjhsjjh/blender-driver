@@ -83,12 +83,20 @@ def get_game_object_subclass(bge):
             
         @property
         def growthUnit(self):
+            '''\
+            Amount by which the scale should be incremented to increase the
+            object's apparent size by its initial size.
+            '''
             return self._growthUnit
         @growthUnit.setter
         def growthUnit(self, growthUnit):
             self._growthUnit = float(growthUnit)
         @property
         def adjustUnit(self):
+            '''\
+            Amount by which the centre of the object should move to accomodate a
+            change in size of the growthUnit.
+            '''
             return self._adjustUnit
         @adjustUnit.setter
         def adjustUnit(self, adjustUnit):

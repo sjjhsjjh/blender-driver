@@ -60,7 +60,6 @@ export default class CursorControls extends Controls {
         return this._get_face()
         .then(() => this.userInterface.get(...this._prefix, 'moves', moveIndex))
         .then(move => {
-            //const move = moves[moveIndex];
             this.userInterface.monitor_add(move, "\n");
             return this.userInterface.fetch(
                 "PUT", move.preparation.value, ...move.preparation.path)

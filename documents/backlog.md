@@ -1,5 +1,10 @@
 Backlog
 =======
+-   More work on grow or move so that it never goes funny in Cursor Physics.
+    Or not if the going funny is due to not handling changes in size due to
+    things other than the cursor. Actually, the size-aware movement could also
+    include tidying up animations to position the cursor exactly.
+
 -   Maybe label moves North, South, East, West.
 
 -   Review how the generic store is set up. Maybe it should all be done by walk,
@@ -10,6 +15,9 @@ Backlog
     for angular ones.
 
 -   Maybe automatically load read-only properties into the generic store.
+
+-   Mass and density for GameObject instances. Update mass when scale is
+    changed.
 
 -   Next video.
 

@@ -40,7 +40,21 @@ class Application(thread.Application):
 
     # Override.
     def game_add_object(self, objectName):
-        return self._GameObject(super().game_add_object(objectName))
+        object_ = self._GameObject(super().game_add_object(objectName))
+        bpyObject = self.bpy.data.objects[objectName]
+        #
+        # Next lines assumes that the object is cubic, i.e. all items in its
+        # dimensions array are the same number.
+        #
+        # The growthUnit value is the amount by which the scale should be
+        # incremented to increase the object's apparent size by its initial
+        # size.
+        object_.growthUnit = bpyObject.scale[0]
+        #
+        # The adjustUnit value is the amount by which the centre of the object
+        # should move to accomodate a change in size of the growthUnit.
+        object_.adjustUnit = bpyObject.dimensions[0] / 2.0
+        return object_
     
     # Override.
     def game_add_text(self, objectName, text=None):

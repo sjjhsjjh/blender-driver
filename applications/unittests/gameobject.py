@@ -450,7 +450,11 @@ class TestGameObject(TestCaseWithApplication):
                 expectedScale[0], pathstore.get(gameObject, ('worldScale', 0)))
             self.assertAlmostEqual(gameObject.worldScale[:], expectedScale)
             
-        scale = [expectedScale[0] * 2.0,
+            zAxis = (0, 0, 1)
+            axisVector = gameObject.getAxisVect(zAxis).copy()
+            self.assertSequenceEqual(zAxis, axisVector)
+            
+        scale = [expectedScale[0] * 12.0,
                  expectedScale[1] * 3.0,
                  expectedScale[2] * 4.0]
         while self.up_to_phase(0):
@@ -459,6 +463,10 @@ class TestGameObject(TestCaseWithApplication):
         with self.tick:
             with self.application.mainLock:
                 pathstore.replace(gameObject, scale, 'worldScale')
+                #
+                # Test that changing scale doesn't change the axis vector.
+                self.assertEqual(gameObject.getAxisVect((0, 0, 1))
+                                 , axisVector)
 
         while self.up_to_phase(1):
             with self.tick:

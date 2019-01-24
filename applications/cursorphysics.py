@@ -202,10 +202,14 @@ class Application(restanimation.Application):
         if keyString == "0":
             for dimension, _ in enumerate(self._cameraStartPosition):
                 self.move_camera(dimension, 0)
+        elif keyString in ("1", "2", "3", "4"):
+            self.cursor_move(int(keyString) - 1)
         elif keyString == "a":
             self.stop_camera()
             self._restInterface.rest_put(
                 ('root', 'cursors', 0), ('root', 'camera', 'subjectPath'))
+        elif keyString == "g":
+            self.grow()
         elif keyString == "o":
             self.move_camera(3, 1)
         elif keyString == "O":
@@ -237,6 +241,16 @@ class Application(restanimation.Application):
         
         return True
     
+    def cursor_move(self, moveNumber):
+        move = self._restInterface.rest_get(
+            tuple(self._cursorPath) + ('moves', moveNumber))
+        self._restInterface.rest_put(
+            move['preparation']['value'], move['preparation']['path'])
+        animation = dict(move['animation'])
+        animation['speed'] = 3.0
+        self._restInterface.rest_put(
+            animation, ('animations', 'cursor', 'move'))
+    
     def stop_camera(self, dimensions=range(5)):
         for dimension in dimensions:
             animationPath = self._animation_path(dimension)
@@ -251,6 +265,14 @@ class Application(restanimation.Application):
     
     def _animation_path(self, *args):
         return ['animations', 'camera', *args]
+    
+    def grow(self):
+        grow = self._restInterface.rest_get(tuple(self._cursorPath) + ('grow',))
+        for key, item in grow.items():
+            animation = dict(item)
+            animation['speed'] = 3.0
+            self._restInterface.rest_put(
+                animation, ('animations', 'grow', key))
     
     def move_camera(self, dimension, direction):
         #

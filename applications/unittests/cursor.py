@@ -41,49 +41,59 @@ from applications.unittest import TestCaseWithApplication
 from path_store.blender_game_engine.cursor import Cursor
 
 class TestCursor(TestCaseWithApplication):
+    def _add_object_cursor(self, pathSuffix=None):
+        gameObject = self.add_test_object()
+        gameObject.physics = False
+        self.show_status("Created object")
+        objectPath = (tuple(self.objectPath)
+                      if pathSuffix is None
+                      else tuple(self.objectRoot) + tuple(pathSuffix))
+        self.restInterface.rest_put(gameObject, objectPath)
+        
+        cursor = self.application.game_add_cursor()
+        self.show_status("Created cursor")
+        cursorPath = ['root', 'cursors', self.id()]
+        if pathSuffix is not None:
+            cursorPath.extend(pathSuffix)
+        self.restInterface.rest_put(cursor, cursorPath)
+        self.restInterface.rest_patch({
+                'subjectPath': objectPath,
+                'origin': (0, 0, 0), 'offset':0.25, 'length':1.0,
+                'radius': 0.5, 'rotation': 0.0,
+                'selfPath': cursorPath,
+                'visualiserCalibre': 0.03
+            }, cursorPath)
+        self.restInterface.rest_put(True, cursorPath + ['visible'])
+        self.show_status("Cursor visible")
+        return gameObject, cursor
+    
+    def _do_move(self, move, animationPath, speedFactor=1.0):
+        self.restInterface.rest_put(
+            move['preparation']['value'], move['preparation']['path'])
+        animation = dict(move['animation'])
+        animation['speed'] = fabs(animation['delta']) / speedFactor
+        self.restInterface.rest_put(animation, animationPath)
+
     def test_twist(self):
-        twistTime = 2
-        twistMargin = 1
-        if twistMargin >= twistTime:
+        transitionTime = 2
+        transitionMargin = 1
+        if transitionMargin >= transitionTime:
             raise AssertionError(
-                'The twistMargin must be less than the twistTime.')
-        self.add_phase_starts(twistTime)
-        self.add_phase_offsets(twistTime, twistTime, 3)
+                'The transitionMargin must be less than the transitionTime.')
+        transitionFactor = float(transitionTime) - float(transitionMargin)
+        self.add_phase_starts(transitionTime)
+        self.add_phase_offsets(transitionTime, transitionTime, 3)
         animation = None
         animationPath = None
         subjectLocation = None
         lastTick = None
         
-        def _do_move(move):
-            self.restInterface.rest_put(
-                move['preparation']['value'], move['preparation']['path'])
-            animation = dict(move['animation'])
-            animation['speed'] = (
-                fabs(animation['delta'])
-                / (float(twistTime) - float(twistMargin)))
-            self.restInterface.rest_put(animation, animationPath)
-
         with self.application.mainLock:
-            gameObject = self.add_test_object()
-            gameObject.physics = False
-            self.show_status("Created object")
-            self.restInterface.rest_put(gameObject, self.objectPath)
+            gameObject, cursor = self._add_object_cursor()
             subjectLocation = gameObject.worldPosition
-            
-            cursor = self.application.game_add_cursor()
-            self.show_status("Created cursor")
-            cursorPath = ['root', 'cursors', 0]
-            self.restInterface.rest_put(cursor, cursorPath)
-            self.restInterface.rest_patch({
-                    'subjectPath': tuple(self.objectPath),
-                    'origin': (0, 0, 0), 'offset':0.25, 'length':1.0,
-                    'radius': 0.5, 'rotation': 0.0,
-                    'selfPath': cursorPath,
-                    'visualiserCalibre': 0.03
-                }, cursorPath)
-            self.restInterface.rest_put(True, cursorPath + ['visible'])
-            self.show_status("Cursor visible")
-            
+            #
+            # There is up to one animation for this test. It has to have a
+            # number though, so that the point maker sees it as deep enough.
             animationPath = ['animations', self.id(), 0]
             
         with self.tick, self.application.mainLock:
@@ -102,7 +112,7 @@ class TestCursor(TestCaseWithApplication):
                              + cursor.offset + cursor.length)
                         
         with self.tick, self.application.mainLock:
-            _do_move(cursor.moves[0])
+            self._do_move(cursor.moves[0], animationPath, transitionFactor)
             self.show_status("Twisting 0")
         while self.up_to_phase(0):
             with self.tick, self.application.mainLock:
@@ -114,7 +124,7 @@ class TestCursor(TestCaseWithApplication):
 
         with self.tick, self.application.mainLock:
             self.assertFalse(cursor.beingAnimated)
-            _do_move(cursor.moves[2])
+            self._do_move(cursor.moves[2], animationPath, transitionFactor)
             self.show_status("Twisting 1")
         while self.up_to_phase(1):
             with self.tick, self.application.mainLock:
@@ -126,7 +136,7 @@ class TestCursor(TestCaseWithApplication):
 
         with self.tick, self.application.mainLock:
             self.assertFalse(cursor.beingAnimated)
-            _do_move(cursor.moves[0])
+            self._do_move(cursor.moves[0], animationPath, transitionFactor)
             self.show_status("Twisting 2")
         while self.up_to_phase(2):
             with self.tick, self.application.mainLock:
@@ -157,3 +167,111 @@ class TestCursor(TestCaseWithApplication):
                 # the TestAnimation.test_physics test.
                 self.assertLessEqual(cursor.point.z, zPosition)
                 zPosition = cursor.point.z
+
+    def test_grow(self):
+        transitionTime = 2
+        transitionMargin = 1
+        if transitionMargin >= transitionTime:
+            raise AssertionError(
+                'The transitionMargin must be less than the transitionTime.')
+        transitionFactor = float(transitionTime) - float(transitionMargin)
+        self.add_phase_starts(transitionTime)
+        self.add_phase_offsets(
+            transitionTime, transitionTime, transitionTime, 1, 1)
+        animation = None
+        animationPath = None
+        subjectLocation = None
+        lastTick = None
+        
+        def _do_grow(grow):
+            for key, item in grow.items():
+                animation = dict(item)
+                # animation['delta'] *= self.application.cubeScale
+                animation['speed'] = (
+                    fabs(animation['delta'])
+                    / (float(transitionTime) - float(transitionMargin)))
+                animationPath[-1] = key
+                self.restInterface.rest_put(animation, animationPath)
+
+        with self.application.mainLock:
+            gameObject, cursor = self._add_object_cursor(('main',))
+            subjectLocation = gameObject.worldPosition.copy()
+            gameObject0, cursor0 = self._add_object_cursor(('reference',))
+            gameObject0.worldPosition.y -= self.application.cubeScale * 2.0
+            #
+            # There are a number of animations for this test. The None is a
+            # placeholder to be overwritten.
+            animationPath = ['animations', self.id(), None]
+            
+        with self.tick, self.application.mainLock:
+            origin = cursor.origin[:]
+            _do_grow(cursor.grow)
+            self.show_status("Growing 1")
+        while self.up_to_phase(0):
+            with self.tick, self.application.mainLock:
+                self.assertGreaterEqual(cursor.origin[2], origin[2])
+                origin[2] = cursor.origin[2]
+                self.assertSequenceEqual(cursor.origin[0:1], origin[0:1])
+                # animations = self.restInterface.rest_get(animationPath[:-1])
+                # for key, item in animations.items():
+                #     if item is None:
+                #         animation = None
+                #     else:
+                #         animation = dict(item.__dict__)
+                #         del animation['_store']
+                #     print(key, animation)
+                if gameObject.physics:
+                    gameObject.physics = False
+                    gameObject.worldPosition.z = (
+                        subjectLocation.z + self.application.cubeScale)
+            
+        with self.tick, self.application.mainLock:
+            origin = cursor.origin[:]
+            _do_grow(cursor.grow)
+            self.show_status("Growing 2")
+        while self.up_to_phase(1):
+            with self.tick, self.application.mainLock:
+                self.assertGreaterEqual(cursor.origin[2], origin[2])
+                origin[2] = cursor.origin[2]
+                self.assertSequenceEqual(cursor.origin[0:1], origin[0:1])
+                if gameObject.physics:
+                    gameObject.physics = False
+                    gameObject.worldPosition.z = (
+                        subjectLocation.z + 2.0 * self.application.cubeScale)
+
+        with self.tick, self.application.mainLock:
+            animationPath[-1] = 'move'
+            self._do_move(cursor.moves[2], animationPath, transitionFactor)
+            self.show_status("Twisting 1")
+        while self.up_to_phase(2):
+            with self.tick, self.application.mainLock:
+                if gameObject.physics:
+                    gameObject.physics = False
+            
+        with self.tick, self.application.mainLock:
+            origin = cursor.origin[:]
+            _do_grow(cursor.grow)
+            self.show_status("Growing 3")
+        while self.up_to_phase(3):
+            with self.tick, self.application.mainLock:
+                self.assertGreaterEqual(cursor.origin[0], origin[0])
+                origin[0] = cursor.origin[0]
+                self.assertSequenceEqual(cursor.origin[1:], origin[1:])
+                if gameObject.physics:
+                    gameObject.physics = False
+                    gameObject.worldPosition.z = (
+                        subjectLocation.z + 2.0 * self.application.cubeScale)
+
+        while self.up_to_phase(4):
+            with self.tick, self.application.mainLock:
+                if gameObject.physics:
+                    gameObject.physics = False
+
+        with self.tick, self.application.mainLock:
+            gameObject.physics = True
+            gameObject0.physics = True
+            self.show_status("Dropping")
+
+        while self.up_to_phase(5):
+            with self.tick, self.application.mainLock:
+                pass

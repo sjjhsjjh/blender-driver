@@ -406,10 +406,13 @@ class ThreadTestRunner(unittest.TextTestRunner):
         return result
 
 class Application(blender_driver.application.rest.Application):
+    cubeScale = 0.25
+    
     templates = {
         'cube': {
             'subtype':'Cube', 'physicsType':'RIGID_BODY',
-            'location': (-4.0, -4.0, 4), 'scale':(0.25, 0.25, 0.25)},
+            'location': (-4.0, -4.0, 4),
+            'scale':(cubeScale, cubeScale, cubeScale)},
         'visualiser': {
             'subtype':'Cube', 'physicsType':'NO_COLLISION',
             'location': (0, 0, 0), 'scale': (0.1, 0.1, 0.1)},

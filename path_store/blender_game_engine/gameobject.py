@@ -48,6 +48,7 @@ def get_game_object_subclass(bge):
         future other array properties whose elements are immutable in the base
         class.
         """
+
         @InterceptProperty()
         def worldScale(self):
             return super().worldScale
@@ -79,6 +80,19 @@ def get_game_object_subclass(bge):
         @worldPosition.destination_setter
         def worldPosition(self, value):
             KX_GameObject.worldPosition.__set__(self, value)
+            
+        @property
+        def growthUnit(self):
+            return self._growthUnit
+        @growthUnit.setter
+        def growthUnit(self, growthUnit):
+            self._growthUnit = float(growthUnit)
+        @property
+        def adjustUnit(self):
+            return self._adjustUnit
+        @adjustUnit.setter
+        def adjustUnit(self, adjustUnit):
+            self._adjustUnit = float(adjustUnit)
 
         @property
         def tether(self):
@@ -197,6 +211,8 @@ def get_game_object_subclass(bge):
             
             self._tether = None
             self._beingAnimated = False
+            self._growthUnit = 1.0
+            self._adjustUnit = 2.0
 
     return GameObject
         

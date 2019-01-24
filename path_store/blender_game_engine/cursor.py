@@ -56,7 +56,8 @@ class Cursor(object):
         return self._subjectPath
     @subjectPath.setter
     def subjectPath(self, subjectPath):
-        self._subjectPath = subjectPath
+        self._subjectPath = tuple(subjectPath[:])
+        self._set_faces()
         self._update(True)
     #
     @property
@@ -228,6 +229,13 @@ class Cursor(object):
         return return_
     
     @property
+    def grow(self):
+        # ToDo: Deep copy? Yikes. The only Python user of this method is the
+        # unit tests. They could JSON serialise and deserialise to ensure they
+        # aren't working with a reference, I guess. Oh, except get_generic.
+        return self._get_face().grow
+    
+    @property
     def normal(self):
         return self._get_face().normal
         
@@ -257,6 +265,9 @@ class Cursor(object):
         pass
     def _set_faces(self):
         faces = []
+        subject = self._get_subject()
+        if self.selfPath is None or subject is None:
+            return
         for dimension in (1, 2, 0):
             for faceSign in (1, -1):
                 face = self._Empty()
@@ -299,6 +310,45 @@ class Cursor(object):
                             }
                         })
                 face.moves = tuple(moves)
+                
+                # To grow by a unit:
+                # -   Subject scale increases by a unit.
+                # -   Subject moves by half a unit.
+                # -   Cursor origin moves by a unit, but only by half a unit
+                #     relative to the subject centre.
+                # ToDo later: Cursor has to query the subject for every
+                # attachment whose location has to change, i.e. everything to
+                # the "right" of the cursor's origin.
+                face.grow = {
+                    "subjectGrow": {
+                        "subjectPath": self.subjectPath[:],
+                        "valuePath":
+                            tuple(self.subjectPath) + ('worldScale', dimension),
+                            "delta": subject.growthUnit
+                    },
+                    "subjectAdjust": {
+                        "subjectPath": self.subjectPath[:],
+                        "valuePath": tuple(self.subjectPath
+                                           ) + ('worldPosition', dimension),
+                        "delta": subject.adjustUnit * float(faceSign)
+                    },
+                    #
+                    # The Cursor origin is measured from the subject centre,
+                    # which is itself moving due to the previous animation. In
+                    # absolute terms, the Cursor origin moves 2 * adjustUnit,
+                    # but itself need only be moved by 1 * adjustUnit.
+                    "cursorAdjust": {
+                        "subjectPath": tuple(self.selfPath[:]),
+                        "valuePath":
+                            tuple(self.selfPath[:]) + ('origin', dimension),
+                        "delta": subject.adjustUnit * float(faceSign)
+                    }
+                }
+
+                # ToDo: Shrink, which should somehow only be there if the
+                # subject isn't size one already. Or should do something else
+                # like halve in size.
+
                 faces.append(face)
         self._faces = tuple(faces)
     
@@ -324,18 +374,9 @@ class Cursor(object):
         return True
 
     def _update(self, changedSubject=False):
-        if changedSubject:
-            self._subject = None
-        
-        if (self._subject is None
-            and self._subjectPath is not None
-            and self._restInterface is not None
-        ):
-            self._subject = self._restInterface.rest_get(self.subjectPath)
-
-        subject = self._subject
+        subject = self._get_subject(changedSubject)
         if subject is None:
-            return None
+            return
         
         if self._axisOrientation is None:
             # Not sure of the correct maths for generating an identity matrix
@@ -432,6 +473,18 @@ class Cursor(object):
                     visualiser.make_vector(vectorPoints[index]
                                            , vectorPoints[index + 1]
                                            , self.visualiserCalibre)
+    
+    def _get_subject(self, force=False):
+        if force:
+            self._subject = None
+        
+        if (self._subject is None
+            and self._subjectPath is not None
+            and self._restInterface is not None
+        ):
+            self._subject = self._restInterface.rest_get(self.subjectPath)
+        
+        return self._subject
 
     def _apply_axis_rotation(self, vector):
         vector.rotate(self._axisOrientation)

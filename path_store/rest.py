@@ -375,12 +375,15 @@ class AnimatedRestInterface(RestInterface):
             
             self.rest_walk(check, self._animationPath, self._walkResults)
             #
-            # If there are no other animations: restore physics to the subject
-            # and reset its rotation overrides.
-            if not self._walkResults.still:
-                subject.beingAnimated = False
+            # If there are no other animations, clear the beingAnimated state,
+            # which will restore physics to the subject and reset its rotation
+            # overrides.
+            if self._walkResults.still:
+                log(DEBUG,
+                    'AnimatedRestInterface._process_completed_animations'
+                    ' still:\n{} {}.', path, subject)
             else:
-                print('_process_completed_animations still', path, subject)
+                subject.beingAnimated = False
 
     def set_now_times(self, nowTime):
         '''\

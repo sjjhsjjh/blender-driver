@@ -165,7 +165,7 @@ class Application(demonstration.Application
     def print_completions_log(self, anyCompletions, logStore):
         super().print_completions_log(anyCompletions, logStore)
         if anyCompletions:
-            print('print_completions_log', anyCompletions, logStore)
+            log(DEBUG, 'restanimation.py print_completions_log:\n{}', logStore)
         
     def animate_size(self, objectNumber, direction):
         #

@@ -324,17 +324,17 @@ def get_camera_subclass(bge, GameObject):
                         # simple structures that just set a value based on
                         # elapsed time.
 
-                if change > self._applyThreshold:
-                    print('_apply_rotation [{}] {} from {:.2f} to {:.2f} e:{:.2f}'
-                          ' s:{:.2f} c:{:.2f} {}.'.format(
-                            dimension, self.beingAnimated
-                            , degrees(currentTarget), degrees(newTarget)
-                            , degrees(effectiveTarget), degrees(speed)
-                            , degrees(change), message))
-                            # , ' ' if animations[dimension] is None else "\n"
-                            # , (None if animations[dimension] is None else
-                            #    animations[dimension].__dict__)
-                            # , ' ' if animation is None else "\n", animation))
+                # if change > self._applyThreshold:
+                #     print('_apply_rotation [{}] {} from {:.2f} to {:.2f} e:{:.2f}'
+                #           ' s:{:.2f} c:{:.2f} {}.'.format(
+                #             dimension, self.beingAnimated
+                #             , degrees(currentTarget), degrees(newTarget)
+                #             , degrees(effectiveTarget), degrees(speed)
+                #             , degrees(change), message))
+                #             # , ' ' if animations[dimension] is None else "\n"
+                #             # , (None if animations[dimension] is None else
+                #             #    animations[dimension].__dict__)
+                #             # , ' ' if animation is None else "\n", animation))
 
                 # Insert the animation. The point maker will set the store
                 # attribute.

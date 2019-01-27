@@ -68,8 +68,9 @@ class TestCursor(TestCaseWithApplication):
         return gameObject, cursor
     
     def _do_move(self, move, animationPath, speedFactor=1.0):
-        self.restInterface.rest_put(
-            move['preparation']['value'], move['preparation']['path'])
+        for preparation in move['preparation']:
+            self.restInterface.rest_put(
+                preparation['value'], preparation['path'])
         animation = dict(move['animation'])
         animation['speed'] = fabs(animation['delta']) / speedFactor
         self.restInterface.rest_put(animation, animationPath)
@@ -112,7 +113,7 @@ class TestCursor(TestCaseWithApplication):
                              + cursor.offset + cursor.length)
                         
         with self.tick, self.application.mainLock:
-            self._do_move(cursor.moves[0], animationPath, transitionFactor)
+            self._do_move(cursor.moves[2], animationPath, transitionFactor)
             self.show_status("Twisting 0")
         while self.up_to_phase(0):
             with self.tick, self.application.mainLock:
@@ -124,7 +125,7 @@ class TestCursor(TestCaseWithApplication):
 
         with self.tick, self.application.mainLock:
             self.assertFalse(cursor.beingAnimated)
-            self._do_move(cursor.moves[2], animationPath, transitionFactor)
+            self._do_move(cursor.moves[1], animationPath, transitionFactor)
             self.show_status("Twisting 1")
         while self.up_to_phase(1):
             with self.tick, self.application.mainLock:
@@ -136,7 +137,7 @@ class TestCursor(TestCaseWithApplication):
 
         with self.tick, self.application.mainLock:
             self.assertFalse(cursor.beingAnimated)
-            self._do_move(cursor.moves[0], animationPath, transitionFactor)
+            self._do_move(cursor.moves[3], animationPath, transitionFactor)
             self.show_status("Twisting 2")
         while self.up_to_phase(2):
             with self.tick, self.application.mainLock:
@@ -149,6 +150,7 @@ class TestCursor(TestCaseWithApplication):
 
         with self.tick, self.application.mainLock:
             point = cursor.point
+            print(point, subjectLocation)
             self.assertEqual(point.x, subjectLocation.x)
             self.assertEqual(point.y, subjectLocation.y + cursor.radius)
             self.assertEqual(point.z, subjectLocation.z

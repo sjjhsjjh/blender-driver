@@ -233,9 +233,12 @@ class Application(restanimation.Application):
         elif keyString == "\t":
             self.move_cursor()
         elif keyString == "?":
-            path = self.gameObjectPath[:-1] + ('camera', 'rotation')
-            print(path)
-            print(self._restInterface.rest_get(path))
+            for path in (
+                self.gameObjectPath[:-1] + ('camera', 'rotation')
+                , tuple(self._cursorPath) + ('origin',)
+            ):
+                print(path)
+                print(self._restInterface.rest_get(path)[:])
         else:
             return inSuper
         
@@ -244,8 +247,9 @@ class Application(restanimation.Application):
     def cursor_move(self, moveNumber):
         move = self._restInterface.rest_get(
             tuple(self._cursorPath) + ('moves', moveNumber))
-        self._restInterface.rest_put(
-            move['preparation']['value'], move['preparation']['path'])
+        for preparation in move['preparation']:
+            self._restInterface.rest_put(
+                preparation['value'], preparation['path'])
         animation = dict(move['animation'])
         animation['speed'] = 3.0
         self._restInterface.rest_put(

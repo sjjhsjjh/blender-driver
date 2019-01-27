@@ -101,6 +101,12 @@ def get_game_object_subclass(bge):
         @adjustUnit.setter
         def adjustUnit(self, adjustUnit):
             self._adjustUnit = float(adjustUnit)
+        
+        @property
+        def size(self):
+            return tuple(
+                (scale / self.growthUnit) * self.adjustUnit * 2.0
+                for scale in self.worldScale)
 
         @property
         def tether(self):

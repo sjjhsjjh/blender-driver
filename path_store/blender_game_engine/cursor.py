@@ -16,11 +16,14 @@ if __name__ == '__main__':
 import collections
 # Data model reference documentation is also useful:
 # https://docs.python.org/3/reference/datamodel.html#emulating-container-types
+
+import json
+
 #
 # Module for mathematical operations, used for angular properties and face
 # vector interpolation.
 # https://docs.python.org/3/library/math.html
-from math import fmod, pi, isclose, floor, radians
+from math import fmod, pi, isclose, floor, radians, fabs
 #
 # Blender library imports, in alphabetic order.
 #
@@ -224,7 +227,19 @@ class Cursor(object):
     @property
     def moves(self):
         self._check_faces('moves getter', 0)
-        return_ = tuple(self._get_face().moves[:])
+        face = self._get_face()
+        return_ = list(face.axisMoves[:])
+        for index, move in enumerate(face.axisMoves):
+            animation = face.originMoves[index]['animation']
+            dimension = animation['valuePath'][-1]
+            currentOrigin = self.origin[dimension]
+            newOrigin = currentOrigin + animation['delta']
+            size = self._get_subject().size[dimension] * 0.5
+            if fabs(newOrigin) < size:
+                return_[index] = face.originMoves[index]
+            # print('Cursor moves', index, newOrigin, size
+            #       , json.dumps(move['animation'], indent=2)
+            #       , json.dumps(face.originMoves[index]['animation'], indent=2))
         self._check_faces('moves getter', 1)
         return return_
     
@@ -268,13 +283,22 @@ class Cursor(object):
         subject = self._get_subject()
         if self.selfPath is None or subject is None:
             return
-        for dimension in (1, 2, 0):
+        
+        # Tuples are dimension, sign, dimension, sign.
+        dimensions = (
+            ((1,  1, 2, 1), (1, -1, 2, -1), (2, -1, 1,  1), (2,  1, 1, -1)),
+            ((0, -1, 2, 1), (0,  1, 2, -1), (2, -1, 0, -1), (2,  1, 0,  1)),
+            ((1, -1, 0, 1), (1,  1, 0, -1), (0,  1, 1,  1), (0, -1, 1, -1))
+        )
+            
+        for dimension in range(len(dimensions)):
             for faceSign in (1, -1):
                 face = self._Empty()
                 face.dimension = dimension
                 face.sign = faceSign
                 face.normal = tuple(
-                    faceSign if inner == dimension else 0 for inner in range(3))
+                    faceSign if inner == dimension else 0
+                    for inner in range(len(dimensions)))
                 face.normalVector = Vector(face.normal)
 
                 # The four options are radians(90) and radians(-90) in each of
@@ -289,27 +313,38 @@ class Cursor(object):
                 # called all the time by the animation. The option getter only
                 # gets called when an axis rotation is selected in the UI.
 
-                moves = []
-                for axisIndex, axisValue in enumerate(face.normal):
-                    if axisValue != 0:
-                        continue
-                    for moveSign in (1, -1):
-                        moves.append({
-                            "preparation": {
-                                "path":
-                                    tuple(self.selfPath[:])
-                                    + ('axis', 'order'),
-                                "value": self._eulerOrders[axisIndex]
-                            },
-                            "animation": {
-                                "subjectPath": tuple(self.selfPath[:]),
-                                "valuePath":
-                                    tuple(self.selfPath[:])
-                                    + ('axis', axisIndex),
-                                "delta": radians(90.0 * moveSign)
-                            }
-                        })
-                face.moves = tuple(moves)
+                axisMoves = []
+                originMoves = []
+                for spec in dimensions[dimension]:
+                    (originAxis, originSign, axisAxis, axisSign) = spec
+                    originMoves.append({
+                        "preparation": tuple(),
+                        "animation": {
+                            "subjectPath": tuple(self.selfPath[:]),
+                            "valuePath":
+                                tuple(self.selfPath[:]) + (
+                                    'origin', originAxis),
+                            "delta": (subject.adjustUnit
+                                      * 2.0 * float(originSign) * faceSign)
+                        }
+                    })
+                    axisMoves.append({
+                        "preparation": ({
+                            "path":
+                                tuple(self.selfPath[:])
+                                + ('axis', 'order'),
+                            "value": self._eulerOrders[axisAxis]
+                        },),
+                        "animation": {
+                            "subjectPath": tuple(self.selfPath[:]),
+                            "valuePath":
+                                tuple(self.selfPath[:])
+                                + ('axis', axisAxis),
+                            "delta": radians(90.0 * axisSign)
+                        }
+                    })
+                face.axisMoves = tuple(axisMoves)
+                face.originMoves = tuple(originMoves)
                 
                 # To grow by a unit:
                 # -   Subject scale increases by a unit.
@@ -358,7 +393,7 @@ class Cursor(object):
         exceptions = []
         for checkFaceIndex, checkFace in enumerate(self._faces):
             faceNormal = checkFace.normal
-            for move in checkFace.moves:
+            for move in checkFace.axisMoves:
                 lastPath = move['animation']['valuePath'][-1]
                 if faceNormal[lastPath] != 0:
                     exceptions.append(
@@ -393,7 +428,7 @@ class Cursor(object):
             and self._restInterface is not None
         ):
             self._restInterface.load_generic(
-                self._faces[0].moves, self.selfPath + ('moves',))
+                self._faces[0].axisMoves, self.selfPath + ('moves',))
             self._restInterface.load_generic(
                 self._faces[0].normal, self.selfPath + ('normal',))
             self._loadedGenericStore = True

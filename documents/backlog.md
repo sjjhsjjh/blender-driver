@@ -1,9 +1,32 @@
 Backlog
 =======
+-   Add a default speed to the move animations, based on taking 0.5s to complete
+    the transition.
+
+-   More unit tests of growing in different directions.
+
+-   Option like anchored in the Cursor to fix the subject, i.e. suspend physics.
+
 -   More work on grow or move so that it never goes funny in Cursor Physics.
     Or not if the going funny is due to not handling changes in size due to
     things other than the cursor. Actually, the size-aware movement could also
     include tidying up animations to position the cursor exactly.
+    
+    A tidy-up move would have to set more than one dimension of the axis
+    rotation, to align it to a normal of the subject. Cursor could have a tick
+    method for that, like Camera does.
+
+-   When Cursor subject changes, maybe recalculate the Cursor origin because the
+    new subject could be a different size. Possibly algorithm should be:
+    
+    1.  Determine the offset direction in each dimension, either positive or
+        negative, from the edge of the old subject.
+    2.  Apply an temporary offset of the opposite sign with magnitude such that
+        the cursor is within the new subject.
+    
+    If the user doesn't move the cursor, somehow retain the values from the old
+    subject. Otherwise, moving to a smaller subject and then back could lose the
+    offset.
 
 -   Maybe label moves North, South, East, West.
 

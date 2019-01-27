@@ -153,9 +153,10 @@ class Application(demonstration.Application
         elif keyString == "S":
             self.animate_size(objectNumber, -1)
         elif keyString == "?":
-            path = list(self.gameObjectPath) + [0, 'rotation']
-            print(path)
-            print(self._restInterface.rest_get(path))
+            for tail in ('rotation', 'size'):
+                path = list(self.gameObjectPath) + [0, tail]
+                print(path)
+                print(self._restInterface.rest_get(path)[:])
         else:
             return False
         return True

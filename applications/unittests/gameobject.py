@@ -431,7 +431,7 @@ class TestGameObject(TestCaseWithApplication):
                 pass
 
     def test_scale(self):
-        self.add_phase_starts(6, 7, 8)
+        self.add_phase_starts(1, 2, 3)
         with self.application.mainLock:
             gameObject = self.add_test_object()
             self.show_status("Created")
@@ -446,27 +446,36 @@ class TestGameObject(TestCaseWithApplication):
             except:
                 print(objectName, self.application.templates[objectName])
                 raise
-            self.assertAlmostEqual(
-                expectedScale[0], pathstore.get(gameObject, ('worldScale', 0)))
-            self.assertAlmostEqual(gameObject.worldScale[:], expectedScale)
+            for index, value in enumerate(expectedScale):
+                self.assertAlmostEqual(
+                    value, pathstore.get(gameObject, ('worldScale', index)))
+                self.assertAlmostEqual(
+                    value, gameObject.worldScale[index]
+                    , msg="index:{}".format(index))
             
             zAxis = (0, 0, 1)
             axisVector = gameObject.getAxisVect(zAxis).copy()
             self.assertSequenceEqual(zAxis, axisVector)
-            
-        scale = [expectedScale[0] * 12.0,
-                 expectedScale[1] * 3.0,
-                 expectedScale[2] * 4.0]
+        
+        factors = (12, 3, 4)
+        scale = tuple(
+            item[0] * float(item[1]) for item in zip(expectedScale, factors))
         while self.up_to_phase(0):
             with self.tick:
                 pass
         with self.tick:
             with self.application.mainLock:
+                startSize = self.application.cubeScale * 2.0
+                for index, size in enumerate(gameObject.size):
+                    self.assertAlmostEqual(size, startSize, places=5
+                                           , msg="index:{}".format(index))
                 pathstore.replace(gameObject, scale, 'worldScale')
+                for index, size in enumerate(gameObject.size):
+                    self.assertAlmostEqual(size, startSize * factors[index]
+                        , places=5, msg="index:{}".format(index))
                 #
                 # Test that changing scale doesn't change the axis vector.
-                self.assertEqual(gameObject.getAxisVect((0, 0, 1))
-                                 , axisVector)
+                self.assertEqual(gameObject.getAxisVect((0, 0, 1)), axisVector)
 
         while self.up_to_phase(1):
             with self.tick:

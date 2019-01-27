@@ -61,8 +61,14 @@ export default class CursorControls extends Controls {
         .then(() => this.userInterface.get(...this._prefix, 'moves', moveIndex))
         .then(move => {
             this.userInterface.monitor_add(move, "\n");
-            return this.userInterface.fetch(
-                "PUT", move.preparation.value, ...move.preparation.path)
+            // move.preparation will be a possibly empty list of PUT commands.
+            // All preparation commands must be executed before the animation is
+            // started. The code manages this by mapping the preparation array
+            // to an array of Promise instances, and waiting for them all to be
+            // resolved, by calling Promise.all().
+            return Promise.all(move.preparation.map(
+                preparation => this.userInterface.fetch(
+                    "PUT", preparation.value, ...preparation.path)))
             .then(() => {
                 move.animation.speed = 3.0;
                 this.userInterface.fetch(
